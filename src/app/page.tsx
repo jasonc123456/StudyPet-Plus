@@ -23,7 +23,7 @@ export default function LandingPage() {
             StudyPet<span className="text-mint-500">+</span>
           </span>
         </div>
-        <Link href="/login" className="btn-secondary">
+        <Link href="/login/" className="btn-secondary">
           Log in
         </Link>
       </header>
@@ -62,7 +62,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="mt-20 text-center text-sm text-slate-400">
-        StudyPet+ · CSE 115A prototype · Built with Next.js, Prisma & PostgreSQL
+        StudyPet+ AI Study Planner
       </footer>
     </main>
   );
