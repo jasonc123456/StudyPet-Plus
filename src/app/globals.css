@@ -1,0 +1,30 @@
+/* These three directives are where Tailwind injects its generated CSS:
+   - base:       resets + sensible defaults
+   - components:  your reusable component classes (defined below)
+   - utilities:   the atomic classes like flex, mt-4, text-slate-600 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom component classes referenced across the app. Defining them in
+   @layer components lets Tailwind utilities still override them when needed,
+   and keeps the JSX readable (className="btn-primary" instead of 10 utils). */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600
+           px-4 py-2 font-semibold text-white shadow-sm transition
+           hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border
+           border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700
+           shadow-sm transition hover:bg-slate-50 focus:outline-none
+           focus:ring-2 focus:ring-brand-500;
+  }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm transition
+           hover:shadow-md;
+  }
+}
