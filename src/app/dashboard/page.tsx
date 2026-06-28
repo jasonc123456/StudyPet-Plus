@@ -7,7 +7,8 @@
 
 import { redirect } from "next/navigation";
 
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { SignOutButton } from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -22,14 +23,7 @@ export default async function DashboardPage() {
       <p className="text-sm text-slate-500">
         Signed in as {session.user.email}
       </p>
-      <form
-        action={async () => {
-          "use server";
-          await signOut({ redirectTo: "/login" });
-        }}
-      >
-        <button className="btn-primary">Sign out</button>
-      </form>
+      <SignOutButton />
     </main>
   );
 }
