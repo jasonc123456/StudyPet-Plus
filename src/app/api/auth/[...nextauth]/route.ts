@@ -1,9 +1,14 @@
-// Auth.js catch-all route handler.
+// NextAuth (v4) catch-all route handler.
 //
-// Auth.js needs HTTP endpoints under /api/auth/* (e.g. the magic-link
-// verification callback the emailed link points at). `handlers` from
-// src/auth.ts bundles the GET and POST handlers we re-export here.
+// Auth.js needs HTTP endpoints under /api/auth/* (sign-in, the magic-link
+// verification callback the emailed link points at, sign-out, session, ...).
+// In the App Router, NextAuth(authOptions) returns a handler we re-export as
+// both GET and POST.
 
-import { handlers } from "@/auth";
+import NextAuth from "next-auth";
 
-export const { GET, POST } = handlers;
+import { authOptions } from "@/auth";
+
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };
