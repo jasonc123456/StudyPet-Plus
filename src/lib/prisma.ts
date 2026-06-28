@@ -1,6 +1,6 @@
 // A single shared PrismaClient for the whole app.
 //
-// Why a singleton: Next.js hot-reloads modules on every edit in dev, and each
+// Why? Next.js hot-reloads modules on every edit in dev, and each
 // `new PrismaClient()` opens its own pool of DB connections. Re-creating it on
 // every reload quickly exhausts Postgres' connection limit ("too many clients").
 // We stash one instance on `globalThis` so reloads reuse it. In production the
