@@ -8,7 +8,6 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -18,12 +17,35 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="mx-auto mt-40 flex w-80 flex-col gap-4 text-center">
-      <h1 className="text-xl font-semibold">Welcome to StudyPet+ 🐾</h1>
-      <p className="text-sm text-slate-500">
-        Signed in as {session.user.email}
-      </p>
-      <SignOutButton />
-    </main>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Welcome back, {session.user.email}
+        </p>
+      </div>
+
+      {/* Placeholder stat cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Cards studied today
+          </p>
+          <p className="mt-2 text-3xl font-bold text-brand-600">0</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Study streak
+          </p>
+          <p className="mt-2 text-3xl font-bold text-mint-600">0 days</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Decks
+          </p>
+          <p className="mt-2 text-3xl font-bold text-slate-700">0</p>
+        </div>
+      </div>
+    </div>
   );
 }
