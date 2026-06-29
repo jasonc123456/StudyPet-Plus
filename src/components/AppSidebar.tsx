@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 // ---------------------------------------------------------------------------
 // Inline SVG icons — no extra dependency required
@@ -88,9 +88,9 @@ function SignOutIcon({ className }: { className?: string }) {
 // ---------------------------------------------------------------------------
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard", Icon: DashboardIcon },
-  { href: "/flashcards", label: "Flashcards", Icon: FlashcardsIcon },
-  { href: "/settings", label: "Settings", Icon: SettingsIcon },
+  { href: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
+  { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
+  { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
 // ---------------------------------------------------------------------------
@@ -113,19 +113,18 @@ export function AppSidebar() {
       {/* Primary navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Main navigation">
         {NAV_LINKS.map(({ href, label, Icon }) => {
-          const isActive =
-            pathname === href || pathname.startsWith(href + "/");
+          const isActive = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
               href={href}
               className={[
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
-                  ? "border-l-2 border-mint-500 bg-white/10 pl-[10px] text-white"
-                  : "text-blue-100 hover:bg-white/10 hover:text-white",
-              ].join(" ")}
-              aria-current={isActive ? "page" : undefined}
+                  ? 'border-l-2 border-mint-500 bg-white/10 pl-[10px] text-white'
+                  : 'text-blue-100 hover:bg-white/10 hover:text-white',
+              ].join(' ')}
+              aria-current={isActive ? 'page' : undefined}
             >
               <Icon className="h-5 w-5 shrink-0" />
               {label}
@@ -137,7 +136,7 @@ export function AppSidebar() {
       {/* Sign-out action */}
       <div className="border-t border-brand-600 p-3">
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOut({ callbackUrl: '/login' })}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-blue-100 transition-colors hover:bg-white/10 hover:text-white"
         >
           <SignOutIcon className="h-5 w-5 shrink-0" />
@@ -168,19 +167,18 @@ export function AppTopBar() {
       {/* Nav links (compact) */}
       <nav className="flex items-center gap-1" aria-label="Main navigation">
         {NAV_LINKS.map(({ href, label, Icon }) => {
-          const isActive =
-            pathname === href || pathname.startsWith(href + "/");
+          const isActive = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
               href={href}
               className={[
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
                 isActive
-                  ? "bg-white/20 text-white"
-                  : "text-blue-100 hover:bg-white/10 hover:text-white",
-              ].join(" ")}
-              aria-current={isActive ? "page" : undefined}
+                  ? 'bg-white/20 text-white'
+                  : 'text-blue-100 hover:bg-white/10 hover:text-white',
+              ].join(' ')}
+              aria-current={isActive ? 'page' : undefined}
             >
               <Icon className="h-4 w-4" />
               <span className="hidden xs:inline">{label}</span>
@@ -191,7 +189,7 @@ export function AppTopBar() {
 
       {/* Sign out (icon only on mobile) */}
       <button
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={() => signOut({ callbackUrl: '/login' })}
         title="Sign out"
         className="rounded-md p-1.5 text-blue-100 transition-colors hover:bg-white/10 hover:text-white"
       >

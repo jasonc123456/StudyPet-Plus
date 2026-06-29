@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
 // Passwordless magic-link sign-in. NextAuth v4's `signIn` is client-side: it
 // posts the email to the Email provider (id "email"), which sends the link and
 // redirects to the verify-request page. `callbackUrl` is where the user lands
 // after clicking the link in their inbox.
 
-import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { signIn } from 'next-auth/react';
+import { useState } from 'react';
 
 // Decorative pet-themed emoji that bob around behind the card.
 const FLOATERS = [
-  { e: "🐾", pos: "left-[12%] top-[18%]", delay: "0s" },
-  { e: "✨", pos: "right-[14%] top-[22%]", delay: "1.2s" },
-  { e: "🃏", pos: "left-[18%] bottom-[20%]", delay: "0.6s" },
-  { e: "🎯", pos: "right-[16%] bottom-[24%]", delay: "1.8s" },
-  { e: "📖", pos: "left-[44%] top-[10%]", delay: "2.4s" },
+  { e: '🐾', pos: 'left-[12%] top-[18%]', delay: '0s' },
+  { e: '✨', pos: 'right-[14%] top-[22%]', delay: '1.2s' },
+  { e: '🃏', pos: 'left-[18%] bottom-[20%]', delay: '0.6s' },
+  { e: '🎯', pos: 'right-[16%] bottom-[24%]', delay: '1.8s' },
+  { e: '📖', pos: 'left-[44%] top-[10%]', delay: '2.4s' },
 ];
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   return (
@@ -38,7 +38,7 @@ export default function LoginPage() {
         onSubmit={(e) => {
           e.preventDefault();
           setSubmitting(true);
-          signIn("email", { email, callbackUrl: "/dashboard" });
+          signIn('email', { email, callbackUrl: '/dashboard' });
         }}
         className="animate-pop-in relative z-10 flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/60 bg-white/80 p-8 text-center shadow-xl backdrop-blur"
       >
@@ -68,11 +68,15 @@ export default function LoginPage() {
           disabled={submitting}
           className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-mint-500 px-5 py-2.5 font-semibold text-white shadow-md transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:scale-100"
         >
-          <span className="transition-transform group-hover:-rotate-12">✨</span>
-          {submitting ? "Sending…" : "Send magic link"}
+          <span className="transition-transform group-hover:-rotate-12">
+            ✨
+          </span>
+          {submitting ? 'Sending…' : 'Send magic link'}
         </button>
 
-        <p className="text-xs text-slate-400">We&rsquo;ll never share your email.</p>
+        <p className="text-xs text-slate-400">
+          We&rsquo;ll never share your email.
+        </p>
 
         {/* Divider */}
         <div className="flex items-center gap-3 text-xs text-slate-400">

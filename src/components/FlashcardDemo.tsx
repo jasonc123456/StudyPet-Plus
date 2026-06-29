@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 // Sample cards — stands in for AI-generated flashcards until Sprint 3.
 const CARDS = [
   {
-    topic: "Biology",
-    front: "What is photosynthesis?",
-    back: "How plants convert light energy into chemical energy (glucose).",
+    topic: 'Biology',
+    front: 'What is photosynthesis?',
+    back: 'How plants convert light energy into chemical energy (glucose).',
   },
   {
-    topic: "Computer Science",
-    front: "Big-O of binary search?",
-    back: "O(log n) — it halves the search space on every step.",
+    topic: 'Computer Science',
+    front: 'Big-O of binary search?',
+    back: 'O(log n) — it halves the search space on every step.',
   },
   {
-    topic: "History",
-    front: "When did World War II end?",
-    back: "1945.",
+    topic: 'History',
+    front: 'When did World War II end?',
+    back: '1945.',
   },
 ];
 
@@ -39,7 +39,7 @@ export default function FlashcardDemo() {
           type="button"
           onClick={() => setFlipped((f) => !f)}
           className={`preserve-3d relative h-44 w-full transition-transform duration-500 ${
-            flipped ? "rotate-y-180" : ""
+            flipped ? 'rotate-y-180' : ''
           }`}
         >
           {/* Front face */}

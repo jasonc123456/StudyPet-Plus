@@ -2,15 +2,15 @@
 // here once the magic link has been emailed. Purely presentational, matching
 // the playful login page so the magic-link flow feels consistent.
 
-import Link from "next/link";
+import Link from 'next/link';
 
 // Decorative email-themed emoji that bob around behind the card.
 const FLOATERS = [
-  { e: "📬", pos: "left-[12%] top-[18%]", delay: "0s" },
-  { e: "✉️", pos: "right-[14%] top-[22%]", delay: "1.2s" },
-  { e: "🔗", pos: "left-[18%] bottom-[20%]", delay: "0.6s" },
-  { e: "✨", pos: "right-[16%] bottom-[24%]", delay: "1.8s" },
-  { e: "🐾", pos: "left-[44%] top-[10%]", delay: "2.4s" },
+  { e: '📬', pos: 'left-[12%] top-[18%]', delay: '0s' },
+  { e: '✉️', pos: 'right-[14%] top-[22%]', delay: '1.2s' },
+  { e: '🔗', pos: 'left-[18%] bottom-[20%]', delay: '0.6s' },
+  { e: '✨', pos: 'right-[16%] bottom-[24%]', delay: '1.8s' },
+  { e: '🐾', pos: 'left-[44%] top-[10%]', delay: '2.4s' },
 ];
 
 export default function VerifyRequestPage() {
