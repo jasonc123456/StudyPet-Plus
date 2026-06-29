@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 // The pet evolves through these stages as XP grows.
 const STAGES = [
-  { emoji: "🥚", name: "Mystery Egg" },
-  { emoji: "🐣", name: "Hatchling" },
-  { emoji: "🐤", name: "Chick" },
-  { emoji: "🦉", name: "Scholar Owl" },
-  { emoji: "🐉", name: "Study Dragon" },
+  { emoji: '🥚', name: 'Mystery Egg' },
+  { emoji: '🐣', name: 'Hatchling' },
+  { emoji: '🐤', name: 'Chick' },
+  { emoji: '🦉', name: 'Scholar Owl' },
+  { emoji: '🐉', name: 'Study Dragon' },
 ] as const;
 
 // XP required to REACH each stage (index-aligned with STAGES).
@@ -16,9 +16,9 @@ const THRESHOLDS = [0, 90, 200, 500, 1000];
 
 // Things a student can do, and the XP each grants.
 const ACTIONS = [
-  { label: "📖 Study", xp: 10 },
-  { label: "🃏 Review card", xp: 6 },
-  { label: "❓ Take quiz", xp: 15 },
+  { label: '📖 Study', xp: 10 },
+  { label: '🃏 Review card', xp: 6 },
+  { label: '❓ Take quiz', xp: 15 },
 ];
 
 type Gain = { id: number; amount: number };
@@ -83,7 +83,7 @@ export default function StudyPetHero() {
       >
         <span
           className={`block text-7xl transition-transform ${
-            pop ? "animate-pet-pop" : ""
+            pop ? 'animate-pet-pop' : ''
           }`}
         >
           {stage.emoji}
@@ -106,7 +106,7 @@ export default function StudyPetHero() {
       <div className="mt-4">
         <div className="flex justify-between text-xs text-slate-400">
           <span>{xp} XP</span>
-          <span>{nextAt ? `next: ${nextAt}` : "MAX LEVEL"}</span>
+          <span>{nextAt ? `next: ${nextAt}` : 'MAX LEVEL'}</span>
         </div>
         <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-slate-100">
           <div

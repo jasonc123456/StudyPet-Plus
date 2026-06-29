@@ -13,17 +13,17 @@
 //   EMAIL_SERVER_HOST/PORT/USER/PASSWORD - SMTP transport for the magic links
 //   EMAIL_FROM           - From: address on magic-link emails
 
-import { getServerSession, type NextAuthOptions } from "next-auth";
-import EmailProvider from "next-auth/providers/email";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { getServerSession, type NextAuthOptions } from 'next-auth';
+import EmailProvider from 'next-auth/providers/email';
+import { PrismaAdapter } from '@next-auth/prisma-adapter';
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from '@/lib/prisma';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   // The email provider stores verification tokens via the adapter, so use the
   // database session strategy (the default when an adapter is present).
-  session: { strategy: "database" },
+  session: { strategy: 'database' },
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
     EmailProvider({
@@ -41,9 +41,9 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   pages: {
-    signIn: "/login",
+    signIn: '/login',
     // Where users land after submitting their email ("we sent you a link").
-    verifyRequest: "/login/verify-request",
+    verifyRequest: '/login/verify-request',
   },
 };
 

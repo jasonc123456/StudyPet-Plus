@@ -1,4 +1,4 @@
-import { AppSidebar, AppTopBar } from "@/components/AppSidebar";
+import { AppSidebar, AppTopBar } from '@/components/AppSidebar';
 
 /**
  * App Shell Layout — wraps every route under /dashboard.

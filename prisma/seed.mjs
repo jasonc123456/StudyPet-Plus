@@ -9,15 +9,15 @@
 //
 // Run with:  npx prisma db seed     (wired via the "prisma.seed" key in package.json)
 
-import { PrismaClient } from "@prisma/client";
-import { randomBytes } from "node:crypto";
+import { PrismaClient } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 
 const prisma = new PrismaClient();
 
 // Demo users. Add/edit freely — emails must be unique.
 const demoUsers = [
-  { email: "demo@studypetplus.corecrafted.net", name: "Demo Student" },
-  { email: "student@studypetplus.corecrafted.net", name: "Sample Student" },
+  { email: 'demo@studypetplus.corecrafted.net', name: 'Demo Student' },
+  { email: 'student@studypetplus.corecrafted.net', name: 'Sample Student' },
 ];
 
 // How long the instant-login demo session stays valid.
@@ -39,21 +39,23 @@ async function main() {
 
   // 2) Mint an instant-login session for the FIRST demo user.
   const primary = users[0];
-  const sessionToken = randomBytes(32).toString("hex");
+  const sessionToken = randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await prisma.session.create({
     data: { sessionToken, userId: primary.id, expires },
   });
 
   // On HTTPS (NEXTAUTH_URL=https://…), NextAuth uses the __Secure- cookie name.
-  const isHttps = (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
+  const isHttps = (process.env.NEXTAUTH_URL ?? '').startsWith('https://');
   const cookieName = isHttps
-    ? "__Secure-next-auth.session-token"
-    : "next-auth.session-token";
+    ? '__Secure-next-auth.session-token'
+    : 'next-auth.session-token';
 
-  console.log("\n  Instant-login session for", primary.email);
-  console.log("  ----------------------------------------------------------");
-  console.log("  Set this cookie in your browser (DevTools ▸ Application ▸ Cookies)");
+  console.log('\n  Instant-login session for', primary.email);
+  console.log('  ----------------------------------------------------------');
+  console.log(
+    '  Set this cookie in your browser (DevTools ▸ Application ▸ Cookies)'
+  );
   console.log(`    name:   ${cookieName}`);
   console.log(`    value:  ${sessionToken}`);
   console.log(`    expires: ${expires.toISOString()}`);
@@ -61,7 +63,7 @@ async function main() {
 }
 
 main()
-  .then(() => console.log("\nSeed complete."))
+  .then(() => console.log('\nSeed complete.'))
   .catch((e) => {
     console.error(e);
     process.exitCode = 1;

@@ -7,16 +7,16 @@
 //
 // Reached via the "🚀 Try the demo" button on the landing page.
 
-import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
+import { NextResponse } from 'next/server';
+import { randomBytes } from 'node:crypto';
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from '@/lib/prisma';
 
 // Always run on the server per request — never cache (it sets a cookie).
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-const DEMO_EMAIL = "demo@studypetplus.corecrafted.net";
-const DEMO_NAME = "Demo Student";
+const DEMO_EMAIL = 'demo@studypetplus.corecrafted.net';
+const DEMO_NAME = 'Demo Student';
 const SESSION_DAYS = 30;
 
 export async function GET(request: Request) {
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   });
 
   // A NextAuth database session is just a random token + expiry tied to a user.
-  const sessionToken = randomBytes(32).toString("hex");
+  const sessionToken = randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await prisma.session.create({
     data: { sessionToken, userId: user.id, expires },
@@ -36,18 +36,18 @@ export async function GET(request: Request) {
 
   // On HTTPS, NextAuth reads the __Secure- prefixed cookie; match that exactly
   // so getServerSession() picks up the session we just created.
-  const useSecure = (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
+  const useSecure = (process.env.NEXTAUTH_URL ?? '').startsWith('https://');
   const cookieName = useSecure
-    ? "__Secure-next-auth.session-token"
-    : "next-auth.session-token";
+    ? '__Secure-next-auth.session-token'
+    : 'next-auth.session-token';
 
   // Redirect to the dashboard on the canonical site origin.
   const base = process.env.NEXTAUTH_URL ?? request.url;
-  const res = NextResponse.redirect(new URL("/dashboard", base));
+  const res = NextResponse.redirect(new URL('/dashboard', base));
   res.cookies.set(cookieName, sessionToken, {
     httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    sameSite: 'lax',
+    path: '/',
     secure: useSecure,
     expires,
   });

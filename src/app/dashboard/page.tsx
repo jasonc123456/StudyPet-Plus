@@ -5,15 +5,15 @@
 // no session we bounce to /login, so this route is effectively gated without
 // needing separate middleware.
 
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
-import { auth } from "@/auth";
+import { auth } from '@/auth';
 
 export default async function DashboardPage() {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect('/login');
   }
   return (
     <div className="flex flex-col gap-6">
