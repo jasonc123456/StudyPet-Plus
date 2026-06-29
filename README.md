@@ -1,4 +1,147 @@
 # StudyPet+
-StudyPet+ AI Study Planner
 
-[Live Site](https://studypetplus.corecrafted.net/)
+AI Study Planner — flashcards, quizzes, weak-topic tracking, and a virtual study pet.
+
+**[Live site](https://studypetplus.corecrafted.net/)**
+
+## Prerequisites
+
+- **Node.js 20** (matches CI)
+- **npm** (lockfile: `package-lock.json`)
+- **Docker** (optional) — for local Postgres via `docker-compose.yml`
+- An **SMTP account** if you want real magic-link emails locally (or use the one-click demo)
+
+## Quick start
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set at least:
+
+| Variable                | Purpose                                            |
+| ----------------------- | -------------------------------------------------- |
+| `DATABASE_URL`          | Postgres connection string                         |
+| `NEXTAUTH_SECRET`       | Session signing secret (`openssl rand -base64 32`) |
+| `NEXTAUTH_URL`          | App URL — `http://localhost:3000` for local dev    |
+| `EMAIL_SERVER_HOST`     | SMTP host for magic-link emails                    |
+| `EMAIL_SERVER_PORT`     | SMTP port (usually `587`)                          |
+| `EMAIL_SERVER_USER`     | SMTP username                                      |
+| `EMAIL_SERVER_PASSWORD` | SMTP password                                      |
+| `EMAIL_FROM`            | From address on outgoing emails                    |
+
+Never commit real secrets. `.env` is gitignored.
+
+### 3. Start Postgres (local)
+
+If you do not already have Postgres running, use Docker:
+
+```bash
+docker compose up -d
+```
+
+Default credentials match `.env.example`:
+
+- user: `studypet`
+- password: `studypet`
+- database: `studypet`
+- port: `5432`
+
+Wait until healthy: `docker compose ps`
+
+### 4. Database setup
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+```
+
+`migrate dev` applies migrations and keeps the schema in sync. For production deploys, use `npx prisma migrate deploy` instead.
+
+### 5. Run the dev server
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Auth & login
+
+StudyPet+ uses **passwordless magic-link** sign-in (NextAuth v4 + Prisma adapter).
+
+- **Sign in:** [http://localhost:3000/login](http://localhost:3000/login) — enter your email; click the link sent via SMTP.
+- **After sign-in:** you are redirected to `/dashboard`.
+- **Sign out:** use the Sign out control in the dashboard sidebar (calls NextAuth `signOut`).
+- **One-click demo:** the landing page and login page link to `/api/demo-login`, which creates a temporary demo session without email. Useful for local UI testing.
+- **Route protection:** `/dashboard` is gated by middleware (session cookie) and server-side `auth()` checks.
+
+### Demo accounts (manual)
+
+Demo user rows are **not seeded automatically** on a fresh clone. To create accounts:
+
+1. Use the normal magic-link flow at `/login`, or
+2. Run `npm run seed` only if your team has agreed on demo emails in `prisma/seed.mjs` and you have configured `.env`, or
+3. Insert users through your database admin process.
+
+Do not commit real credentials or production SMTP passwords.
+
+## Scripts
+
+| Command                     | Description                                                   |
+| --------------------------- | ------------------------------------------------------------- |
+| `npm run dev`               | Start Next.js dev server                                      |
+| `npm run build`             | Production build                                              |
+| `npm run start`             | Serve production build                                        |
+| `npm run lint`              | ESLint (Next.js + Prettier)                                   |
+| `npm run seed`              | Run Prisma seed (`prisma/seed.mjs`) — manual demo setup only  |
+| `./scripts/check-deploy.sh` | `npm ci`, Prisma generate, lint, and build (pre-deploy check) |
+
+## CI
+
+Pull requests and pushes to `main` run `.github/workflows/ci.yml`: install, `prisma generate`, lint, and build with safe placeholder env vars.
+
+## Troubleshooting
+
+### Database connection errors
+
+- Confirm Postgres is running: `docker compose ps` or `pg_isready -h localhost -p 5432`.
+- Check `DATABASE_URL` matches your host, port, user, password, and database name.
+- After changing the schema, run `npx prisma migrate dev` again.
+- If migrations fail on a throwaway local DB, you can reset with `npx prisma migrate reset` (destroys local data).
+
+### Magic-link email not arriving
+
+- Verify all `EMAIL_SERVER_*` vars and `EMAIL_FROM` in `.env`.
+- Many providers require app passwords or specific ports (587 + STARTTLS is typical).
+- Check spam/junk folders.
+- For UI work without SMTP, use **Try the demo** (`/api/demo-login`) instead.
+
+### Auth redirect loops or “not signed in” on dashboard
+
+- Ensure `NEXTAUTH_URL` matches the URL you open in the browser (including `http` vs `https`).
+- `NEXTAUTH_SECRET` must be set and stable across restarts.
+- Clear site cookies for `localhost` and sign in again.
+
+### Health check
+
+`GET /api/health` returns DB connectivity status — useful to confirm the app can reach Postgres.
+
+## Project layout
+
+```
+src/
+  app/           # Next.js App Router pages and API routes
+  auth.ts        # NextAuth config + server-side auth() helper
+  components/    # Shared UI (sidebar, sign-out, landing widgets)
+  lib/prisma.ts  # Shared Prisma client
+prisma/          # Schema and migrations
+```

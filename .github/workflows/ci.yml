@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+
+    env:
+      # Safe placeholders — not used against a real database during CI.
+      DATABASE_URL: postgresql://studypet:studypet@localhost:5432/studypet?schema=public
+      NEXTAUTH_SECRET: ci-build-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
+      EMAIL_SERVER_HOST: localhost
+      EMAIL_SERVER_PORT: '587'
+      EMAIL_SERVER_USER: ci
+      EMAIL_SERVER_PASSWORD: ci
+      EMAIL_FROM: ci@example.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
