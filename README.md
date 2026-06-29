@@ -8,7 +8,7 @@ AI Study Planner — flashcards, quizzes, weak-topic tracking, and a virtual stu
 
 - **Node.js 20** (matches CI)
 - **npm** (lockfile: `package-lock.json`)
-- **Docker** (optional) — for local Postgres via `docker-compose.yml`
+- **PostgreSQL 16** installed and running locally
 - An **SMTP account** if you want real magic-link emails locally (or use the one-click demo)
 
 ## Quick start
@@ -40,22 +40,29 @@ Edit `.env` and set at least:
 
 Never commit real secrets. `.env` is gitignored.
 
-### 3. Start Postgres (local)
+### 3. Install & start PostgreSQL (local)
 
-If you do not already have Postgres running, use Docker:
+Install **PostgreSQL 16** natively on your machine:
 
-```bash
-docker compose up -d
+- **macOS** (Homebrew): `brew install postgresql@16 && brew services start postgresql@16`
+- **Ubuntu/Debian**: `sudo apt install postgresql-16` (the service starts automatically; check with `sudo systemctl status postgresql`)
+- **Windows**: download the installer from [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) and keep the default port `5432`.
+
+Then create the database and user that match `.env.example` (run `psql` as a superuser — e.g. `sudo -u postgres psql` on Linux, or `psql -U postgres`):
+
+```sql
+CREATE USER studypet WITH PASSWORD 'studypet';
+CREATE DATABASE studypet OWNER studypet;
 ```
 
-Default credentials match `.env.example`:
+Default connection (already in `.env.example`):
 
 - user: `studypet`
 - password: `studypet`
 - database: `studypet`
 - port: `5432`
 
-Wait until healthy: `docker compose ps`
+Verify it's reachable: `pg_isready -h localhost -p 5432`
 
 ### 4. Database setup
 
@@ -113,7 +120,7 @@ Pull requests and pushes to `main` run `.github/workflows/ci.yml`: install, `pri
 
 ### Database connection errors
 
-- Confirm Postgres is running: `docker compose ps` or `pg_isready -h localhost -p 5432`.
+- Confirm Postgres is running: `pg_isready -h localhost -p 5432` (or check the service, e.g. `brew services list` / `sudo systemctl status postgresql`).
 - Check `DATABASE_URL` matches your host, port, user, password, and database name.
 - After changing the schema, run `npx prisma migrate dev` again.
 - If migrations fail on a throwaway local DB, you can reset with `npx prisma migrate reset` (destroys local data).
