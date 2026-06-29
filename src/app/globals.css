@@ -52,3 +52,26 @@
 .preserve-3d     { transform-style: preserve-3d; }
 .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .rotate-y-180    { transform: rotateY(180deg); }
+
+/* --- Login page playful helpers --- */
+
+/* Card gently pops into view on load. */
+@keyframes pop-in {
+  0%   { opacity: 0; transform: translateY(12px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-pop-in { animation: pop-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Decorative emoji bob up and down forever. */
+@keyframes drift {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-14px) rotate(8deg); }
+}
+.animate-drift { animation: drift 6s ease-in-out infinite; }
+
+/* Slowly pan the page's background gradient. */
+@keyframes gradient-pan {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+.animate-gradient { background-size: 200% 200%; animation: gradient-pan 12s ease infinite; }
