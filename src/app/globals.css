@@ -75,28 +75,3 @@
   50%      { background-position: 100% 50%; }
 }
 .animate-gradient { background-size: 200% 200%; animation: gradient-pan 12s ease infinite; }
-
-/* --- Verify-request: sky, clouds & waiting pet --- */
-
-/* Clouds drift slowly across the sky. */
-@keyframes cloud-drift {
-  from { transform: translateX(-25vw); }
-  to   { transform: translateX(125vw); }
-}
-.animate-cloud-slow { animation: cloud-drift 46s linear infinite; }
-.animate-cloud-med  { animation: cloud-drift 34s linear infinite; }
-.animate-cloud-fast { animation: cloud-drift 24s linear infinite; }
-
-/* Pet idle bob: gentle breathing + slight wave tilt. */
-@keyframes bob {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50%      { transform: translateY(-10px) rotate(2deg); }
-}
-.animate-bob { animation: bob 3s ease-in-out infinite; }
-
-/* Sparkles twinkle. */
-@keyframes twinkle {
-  0%, 100% { opacity: 0.25; transform: scale(0.8); }
-  50%      { opacity: 1; transform: scale(1.15); }
-}
-.animate-twinkle { animation: twinkle 2.2s ease-in-out infinite; }
