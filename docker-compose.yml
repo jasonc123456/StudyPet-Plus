@@ -1,0 +1,58 @@
+# StudyPet+ production deployment stack.
+#
+#   nginx (:80) ── reverse proxy ──> app (Next.js :3000) ──> postgres (:5432)
+#
+# Usage:
+#   cp .env.example .env      # fill in real secrets
+#   docker compose up -d --build
+#
+# Secrets are read from .env (gitignored — never commit it).
+# See the "Deployment (Docker Compose)" section of README.md.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-studypet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studypet}
+      POSTGRES_DB: ${POSTGRES_DB:-studypet}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studypet} -d ${POSTGRES_DB:-studypet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published to the host — only the app reaches it over the compose network.
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Force the DB host to the compose service name, overriding any localhost
+      # DATABASE_URL inherited from .env (which targets local dev).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-studypet}:${POSTGRES_PASSWORD:-studypet}@postgres:5432/${POSTGRES_DB:-studypet}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      # - "443:443"   # enable after adding TLS certs + an HTTPS server block
+    volumes:
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      # - ./deploy/nginx/certs:/etc/nginx/certs:ro
+
+volumes:
+  pgdata:

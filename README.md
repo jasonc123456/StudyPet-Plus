@@ -11,6 +11,8 @@ AI Study Planner — flashcards, quizzes, weak-topic tracking, and a virtual stu
 - **PostgreSQL 16** installed and running locally
 - An **SMTP account** if you want real magic-link emails locally (or use the one-click demo)
 
+> Local development uses a natively installed PostgreSQL (below). For a containerized **server deploy** instead, you only need **Docker** — see [Deployment (Docker Compose)](#deployment-docker-compose).
+
 ## Quick start
 
 ### 1. Install dependencies
@@ -115,6 +117,62 @@ Do not commit real credentials or production SMTP passwords.
 ## CI
 
 Pull requests and pushes to `main` run `.github/workflows/ci.yml`: install, `prisma generate`, lint, and build with safe placeholder env vars.
+
+## Deployment (Docker Compose)
+
+For a server deploy, a full containerized stack is provided — you do **not** need
+Node or PostgreSQL installed on the host, only **Docker** (with the Compose
+plugin). The stack runs three services:
+
+```
+nginx (:80)  ──reverse proxy──>  app (Next.js :3000)  ──>  postgres (:5432)
+```
+
+- **`postgres`** — PostgreSQL 16, data persisted in the `pgdata` named volume; not exposed to the host.
+- **`app`** — the Next.js app built from the [Dockerfile](Dockerfile); runs `prisma migrate deploy` on boot, then `next start`. Not exposed directly — only nginx reaches it.
+- **`nginx`** — reverse proxy on port 80, config in [deploy/nginx/conf.d/default.conf](deploy/nginx/conf.d/default.conf).
+
+### 1. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Set real values in `.env`:
+
+- `NEXTAUTH_SECRET` — `openssl rand -base64 32`
+- `NEXTAUTH_URL` — the **public** URL (e.g. `https://your-domain`); must match what users hit through nginx, or magic-link callbacks break.
+- `EMAIL_SERVER_*` / `EMAIL_FROM` — SMTP for magic links.
+- `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` — credentials for the bundled database (defaults: `studypet` / `studypet` / `studypet`).
+
+`DATABASE_URL` is built automatically by Compose from the `POSTGRES_*` values and
+points at the `postgres` service — you don't set it for the compose deploy.
+`.env` is gitignored; never commit real secrets.
+
+### 2. Build and start
+
+```bash
+docker compose up -d --build
+```
+
+Migrations are applied automatically when the `app` container starts. The app is
+then reachable through nginx at **http://localhost** (port 80).
+
+### 3. Manage the stack
+
+```bash
+docker compose ps                 # service status
+docker compose logs -f app        # follow app logs
+docker compose exec postgres psql -U studypet -d studypet   # DB shell
+docker compose down               # stop (add -v to also delete the DB volume)
+```
+
+### HTTPS
+
+Port 80 is plaintext. To serve TLS, drop certs in `deploy/nginx/certs/`, then
+uncomment the `443` block in the nginx config and the `certs` mount + `443`
+port in [docker-compose.yml](docker-compose.yml). A typical setup terminates
+TLS here (or behind an upstream proxy / Let's Encrypt companion).
 
 ## Troubleshooting
 
