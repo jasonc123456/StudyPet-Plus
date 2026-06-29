@@ -42,15 +42,17 @@ export default function LandingPage() {
             level up a virtual pet as you learn.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-            <Link href="/login?demo=1" className="btn-primary px-6 py-3 text-base">
+            {/* Plain anchor (not <Link>): hits the server route handler that
+                mints a demo session and redirects — no client routing/prefetch. */}
+            <a href="/api/demo-login" className="btn-primary px-6 py-3 text-base">
               🚀 Try the demo
-            </Link>
+            </a>
             <Link href="/login" className="btn-secondary px-6 py-3 text-base">
               Log in / Sign up
             </Link>
           </div>
           <p className="mt-3 text-sm text-slate-400">
-            Demo login: demo@studypet.local / demo1234
+            One-click demo — no signup, no email required.
           </p>
         </div>
 
