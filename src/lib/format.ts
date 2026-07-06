@@ -1,4 +1,8 @@
-import { ASSIGNMENT_STATUSES, ASSIGNMENT_TYPES } from '@/lib/constants';
+import {
+  ASSIGNMENT_STATUSES,
+  ASSIGNMENT_TYPES,
+  QUEST_DIFFICULTIES,
+} from '@/lib/constants';
 
 export function formatDueDate(dueAt: Date | string | null | undefined): string {
   if (!dueAt) return 'No due date';
@@ -19,6 +23,24 @@ export function statusLabel(value: string): string {
 
 export function typeLabel(value: string): string {
   return ASSIGNMENT_TYPES.find((t) => t.value === value)?.label ?? value;
+}
+
+export function difficultyLabel(value: string): string {
+  return (
+    QUEST_DIFFICULTIES.find((difficulty) => difficulty.value === value)
+      ?.label ?? value
+  );
+}
+
+export function formatEstimatedTime(
+  minutes: number | null | undefined
+): string {
+  if (!minutes || minutes <= 0) return 'No estimate';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (remainder === 0) return `${hours} hr${hours === 1 ? '' : 's'}`;
+  return `${hours} hr ${remainder} min`;
 }
 
 /** Format a Date for datetime-local input value (local timezone). */
