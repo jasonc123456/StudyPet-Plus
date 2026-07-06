@@ -45,6 +45,14 @@ export const authOptions: NextAuthOptions = {
     // Where users land after submitting their email ("we sent you a link").
     verifyRequest: '/login/verify-request',
   },
+  callbacks: {
+    // Database sessions include the User row on `user`; expose id to the client
+    // and server components so planner CRUD can scope queries by owner.
+    session: ({ session, user }) => ({
+      ...session,
+      user: { ...session.user, id: user.id },
+    }),
+  },
 };
 
 // Server-side session getter — the v4 equivalent of v5's `auth()`. Use in
