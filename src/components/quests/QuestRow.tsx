@@ -5,12 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/components/courses/ConfirmDialog';
+import { DueDate } from '@/components/DueDate';
 import { DEFAULT_QUEST_DIFFICULTY, QUEST_STATUSES } from '@/lib/constants';
-import {
-  difficultyLabel,
-  formatDueDate as formatQuestDueDate,
-  formatEstimatedTime,
-} from '@/lib/format';
+import { difficultyLabel, formatEstimatedTime } from '@/lib/format';
 
 export type QuestRowData = {
   id: string;
@@ -130,7 +127,7 @@ export function QuestRow({ quest }: QuestRowProps) {
           +{quest.xpReward} XP
         </td>
         <td className="px-4 py-3 text-sm text-slate-600">
-          {formatQuestDueDate(quest.dueAt)}
+          <DueDate dueAt={quest.dueAt} />
         </td>
         <td className="px-4 py-3">
           <select

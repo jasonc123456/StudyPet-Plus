@@ -8,7 +8,7 @@ import { StatusBadge } from '@/components/assignments/StatusBadge';
 import { TypeBadge } from '@/components/assignments/TypeBadge';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
 import { ConfirmDialog } from '@/components/courses/ConfirmDialog';
-import { formatDueDate } from '@/lib/format';
+import { DueDate } from '@/components/DueDate';
 
 export type AssignmentRowData = {
   id: string;
@@ -92,7 +92,7 @@ export function AssignmentRow({
           </td>
         )}
         <td className="px-4 py-3 text-sm text-slate-600">
-          {formatDueDate(assignment.dueAt)}
+          <DueDate dueAt={assignment.dueAt} />
         </td>
         <td className="px-4 py-3">
           <StatusBadge status={assignment.status} />

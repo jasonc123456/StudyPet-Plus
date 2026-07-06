@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
+import { DueDate } from '@/components/DueDate';
 import type { DashboardQuest } from '@/lib/dashboard';
-import { formatDueDate } from '@/lib/format';
 
 type StudyQuestsProps = {
   quests: DashboardQuest[];
@@ -53,7 +53,7 @@ export function StudyQuests({ quests }: StudyQuestsProps) {
                   {quest.title}
                 </p>
                 <p className="mt-0.5 truncate text-xs text-slate-500">
-                  Due {formatDueDate(quest.dueAt)}
+                  Due <DueDate dueAt={quest.dueAt} />
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
