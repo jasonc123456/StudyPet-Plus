@@ -4,17 +4,43 @@ import {
   QUEST_DIFFICULTIES,
 } from '@/lib/constants';
 
-export function formatDueDate(dueAt: Date | string | null | undefined): string {
-  if (!dueAt) return 'No due date';
+// Shared date-display options. Two formatters below apply these in different
+// timezones — see the <DueDate> component (src/components/DueDate.tsx) for how
+// they work together to show per-user local time without an SSR mismatch.
+const DUE_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+};
+
+function toValidDate(dueAt: Date | string | null | undefined): Date | null {
+  if (!dueAt) return null;
   const date = dueAt instanceof Date ? dueAt : new Date(dueAt);
-  if (Number.isNaN(date.getTime())) return 'No due date';
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// DETERMINISTIC (UTC) formatting. Locale + timezone are pinned so the server
+// (which runs in UTC) and the browser's FIRST render produce byte-identical
+// text — this is what avoids the React hydration mismatch during SSR. Used for
+// the server render and the initial client paint inside <DueDate>.
+export function formatDueDate(dueAt: Date | string | null | undefined): string {
+  const date = toValidDate(dueAt);
+  if (!date) return 'No due date';
+  return date.toLocaleString('en-US', { ...DUE_DATE_OPTIONS, timeZone: 'UTC' });
+}
+
+// BROWSER-LOCAL formatting. No locale/timezone is pinned, so the JS runtime uses
+// the VIEWER's own timezone and locale (auto-detected: Asia/Taipei, a US zone,
+// etc.). Only safe to call on the client AFTER mount — <DueDate> swaps to this
+// post-hydration so each user sees the due date in their own local time.
+export function formatDueDateLocal(
+  dueAt: Date | string | null | undefined
+): string {
+  const date = toValidDate(dueAt);
+  if (!date) return 'No due date';
+  return date.toLocaleString(undefined, DUE_DATE_OPTIONS);
 }
 
 export function statusLabel(value: string): string {

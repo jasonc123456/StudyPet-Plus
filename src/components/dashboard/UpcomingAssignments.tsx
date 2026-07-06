@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 import { StatusBadge } from '@/components/assignments/StatusBadge';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
+import { DueDate } from '@/components/DueDate';
 import type { DashboardAssignment } from '@/lib/dashboard';
-import { formatDueDate } from '@/lib/format';
 
 type UpcomingAssignmentsProps = {
   assignments: DashboardAssignment[];
@@ -55,7 +55,7 @@ export function UpcomingAssignments({ assignments }: UpcomingAssignmentsProps) {
                   {assignment.title}
                 </p>
                 <p className="mt-0.5 truncate text-xs text-slate-500">
-                  {assignment.course.name} · {formatDueDate(assignment.dueAt)}
+                  {assignment.course.name} · <DueDate dueAt={assignment.dueAt} />
                 </p>
               </div>
               <StatusBadge status={assignment.status} />
