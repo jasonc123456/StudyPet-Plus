@@ -25,6 +25,18 @@ export default async function DashboardPage() {
     take: 6,
   });
 
+  const now = new Date();
+  const weekFromNow = new Date(now);
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+
+  const upcomingCount = await prisma.assignment.count({
+    where: {
+      course: { userId: session.user.id },
+      status: { not: 'done' },
+      dueAt: { gte: now, lte: weekFromNow },
+    },
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -50,9 +62,17 @@ export default async function DashboardPage() {
         </div>
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Decks
+            Due this week
           </p>
-          <p className="mt-2 text-3xl font-bold text-slate-700">0</p>
+          <p className="mt-2 text-3xl font-bold text-brand-600">
+            {upcomingCount}
+          </p>
+          <Link
+            href="/dashboard/assignments"
+            className="mt-2 inline-block text-xs font-medium text-brand-600 hover:text-brand-700"
+          >
+            View assignments
+          </Link>
         </div>
       </div>
 

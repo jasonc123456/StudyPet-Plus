@@ -6,3 +6,18 @@ export async function getOwnedCourse(courseId: string, userId: string) {
     where: { id: courseId, userId },
   });
 }
+
+/** Returns the assignment if it belongs to the user's course, otherwise null. */
+export async function getOwnedAssignment(
+  courseId: string,
+  assignmentId: string,
+  userId: string
+) {
+  return prisma.assignment.findFirst({
+    where: {
+      id: assignmentId,
+      courseId,
+      course: { userId },
+    },
+  });
+}
