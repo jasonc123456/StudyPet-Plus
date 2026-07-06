@@ -1,0 +1,2 @@
+ALTER TABLE "Quest"
+ADD COLUMN "rewardClaimed" BOOLEAN NOT NULL DEFAULT false;

@@ -1,9 +1,24 @@
 'use client';
 
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 const DEFAULT_ACCENT = '#4f46e5';
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
+const DEFAULT_PROFILE_IMAGE = '/profile-pics/1.png';
+const PROFILE_IMAGE_OPTIONS = [
+  '/profile-pics/1.png',
+  '/profile-pics/2.png',
+  '/profile-pics/3.png',
+  '/profile-pics/4.png',
+  '/profile-pics/5.png',
+  '/profile-pics/6.png',
+  '/profile-pics/7.png',
+  '/profile-pics/8.png',
+  '/profile-pics/9.png',
+  '/profile-pics/10.png',
+] as const;
 
 type SettingsModalProps = {
   open: boolean;
@@ -11,6 +26,8 @@ type SettingsModalProps = {
   user: {
     name?: string | null;
     email?: string | null;
+    image?: string | null;
+    petName?: string | null;
   };
 };
 
@@ -53,15 +70,28 @@ function applyTheme(mode: 'light' | 'dark', accent: string) {
 }
 
 export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [mode, setMode] = useState<'light' | 'dark'>('light');
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const [draftAccent, setDraftAccent] = useState(DEFAULT_ACCENT);
-  const [error, setError] = useState<string | null>(null);
-
-  const nameParts = (user.name ?? 'Demo Student').split(' ');
-  const firstName = nameParts[0] ?? 'Demo';
-  const lastName = nameParts.slice(1).join(' ') || 'Student';
+  const [profileName, setProfileName] = useState(user.name ?? 'Demo Student');
+  const [profileEmail, setProfileEmail] = useState(
+    user.email ?? 'demo@studypetplus.corecrafted.net'
+  );
+  const [petName, setPetName] = useState(user.petName ?? 'StudyPet');
+  const [profileImage, setProfileImage] = useState(
+    user.image &&
+      PROFILE_IMAGE_OPTIONS.includes(
+        user.image as (typeof PROFILE_IMAGE_OPTIONS)[number]
+      )
+      ? user.image
+      : DEFAULT_PROFILE_IMAGE
+  );
+  const [themeError, setThemeError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -74,8 +104,21 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     setMode(savedMode);
     setAccent(savedAccent);
     setDraftAccent(savedAccent);
-    setError(null);
-  }, [open]);
+    setThemeError(null);
+    setProfileError(null);
+    setProfileSuccess(null);
+    setProfileName(user.name ?? 'Demo Student');
+    setProfileEmail(user.email ?? 'demo@studypetplus.corecrafted.net');
+    setPetName(user.petName ?? 'StudyPet');
+    setProfileImage(
+      user.image &&
+        PROFILE_IMAGE_OPTIONS.includes(
+          user.image as (typeof PROFILE_IMAGE_OPTIONS)[number]
+        )
+        ? user.image
+        : DEFAULT_PROFILE_IMAGE
+    );
+  }, [open, user.email, user.image, user.name, user.petName]);
 
   useEffect(() => {
     if (!open) return;
@@ -102,11 +145,11 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     const nextAccent = draftAccent.trim();
 
     if (!HEX_COLOR_REGEX.test(nextAccent)) {
-      setError('Enter a full hex color like #4f46e5');
+      setThemeError('Enter a full hex color like #4f46e5');
       return;
     }
 
-    setError(null);
+    setThemeError(null);
     setAccent(nextAccent);
     localStorage.setItem('studypet-theme-accent', nextAccent);
     applyTheme(mode, nextAccent);
@@ -116,14 +159,44 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     setMode('light');
     setAccent(DEFAULT_ACCENT);
     setDraftAccent(DEFAULT_ACCENT);
-    setError(null);
+    setThemeError(null);
     localStorage.setItem('studypet-theme-mode', 'light');
     localStorage.setItem('studypet-theme-accent', DEFAULT_ACCENT);
     applyTheme('light', DEFAULT_ACCENT);
   }
 
-  function profileInitials() {
-    return `${firstName[0] ?? 'D'}${lastName[0] ?? 'S'}`.toUpperCase();
+  async function handleProfileSave() {
+    setSavingProfile(true);
+    setProfileError(null);
+    setProfileSuccess(null);
+
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profileName.trim(),
+          email: profileEmail.trim(),
+          petName: petName.trim(),
+          image: profileImage,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setProfileError(data?.error ?? 'Failed to save profile');
+        return;
+      }
+
+      setProfileSuccess('Profile updated');
+      router.refresh();
+    } catch {
+      setProfileError('Network error — please try again');
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   return (
@@ -192,65 +265,88 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     Profile
                   </h3>
                   <p className="theme-muted mt-3 text-sm">
-                    View the current account details for this StudyPet+ session.
+                    Update your account details, StudyPet name, and avatar.
                   </p>
                   <div className="mt-8 flex flex-col gap-8 xl:flex-row xl:items-start">
                     <div className="flex flex-col items-center gap-4">
-                      <div
-                        className="flex h-28 w-28 items-center justify-center rounded-full text-3xl font-black text-white"
-                        style={{ backgroundColor: 'var(--accent)' }}
-                      >
-                        {profileInitials()}
+                      <div className="overflow-hidden rounded-full border border-[var(--card-border)] bg-white p-1 shadow-sm">
+                        <Image
+                          src={profileImage}
+                          alt="Selected profile avatar"
+                          width={112}
+                          height={112}
+                          className="h-28 w-28 rounded-full object-cover"
+                        />
                       </div>
-                      <p className="theme-muted text-sm">
-                        Profile editing can be expanded later.
-                      </p>
+                      <div className="w-full max-w-xs">
+                        <label className="mb-2 block text-sm font-semibold">
+                          Default avatar
+                        </label>
+                        <select
+                          value={profileImage}
+                          onChange={(e) => setProfileImage(e.target.value)}
+                          className="theme-input"
+                        >
+                          {PROFILE_IMAGE_OPTIONS.map((option, index) => (
+                            <option key={option} value={option}>
+                              Avatar {index + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div className="grid flex-1 gap-6 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-sm font-semibold">
-                          First Name
-                        </label>
-                        <input
-                          readOnly
-                          value={firstName}
-                          className="theme-input"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-2 block text-sm font-semibold">
-                          Last Name
-                        </label>
-                        <input
-                          readOnly
-                          value={lastName}
-                          className="theme-input"
-                        />
-                      </div>
                       <div className="md:col-span-2">
+                        <label className="mb-2 block text-sm font-semibold">
+                          Name
+                        </label>
+                        <input
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          className="theme-input"
+                        />
+                      </div>
+                      <div>
                         <label className="mb-2 block text-sm font-semibold">
                           Email Address
                         </label>
                         <input
-                          readOnly
-                          value={
-                            user.email ?? 'demo@studypetplus.corecrafted.net'
-                          }
+                          type="email"
+                          value={profileEmail}
+                          onChange={(e) => setProfileEmail(e.target.value)}
                           className="theme-input"
                         />
                       </div>
-                      <div className="md:col-span-2">
+                      <div>
                         <label className="mb-2 block text-sm font-semibold">
-                          StudyPet Username
+                          StudyPet Name
                         </label>
                         <input
-                          readOnly
-                          value={(user.email ?? 'demo')
-                            .split('@')[0]
-                            .replace(/[^a-zA-Z0-9_.-]/g, '')}
+                          value={petName}
+                          onChange={(e) => setPetName(e.target.value)}
                           className="theme-input"
                         />
+                      </div>
+                      {profileError && (
+                        <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2">
+                          {profileError}
+                        </p>
+                      )}
+                      {profileSuccess && (
+                        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700 md:col-span-2">
+                          {profileSuccess}
+                        </p>
+                      )}
+                      <div className="md:col-span-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleProfileSave}
+                          disabled={savingProfile}
+                          className="btn-primary"
+                        >
+                          {savingProfile ? 'Saving…' : 'Save profile'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -338,9 +434,9 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                       </div>
                     </div>
 
-                    {error && (
+                    {themeError && (
                       <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-                        {error}
+                        {themeError}
                       </p>
                     )}
 

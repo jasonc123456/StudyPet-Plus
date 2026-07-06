@@ -155,6 +155,7 @@ async function seedPlanner(user) {
       status: q.status,
       dueAt: daysFromNow(q.dueInDays),
       estimatedMinutes: q.estimatedMinutes,
+      rewardClaimed: q.status === 'done',
     })),
   });
 

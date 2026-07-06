@@ -160,6 +160,8 @@ const NAV_LINKS = [
 type AppChromeUser = {
   name?: string | null;
   email?: string | null;
+  image?: string | null;
+  petName?: string | null;
 };
 
 // ---------------------------------------------------------------------------
