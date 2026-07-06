@@ -7,6 +7,11 @@ import {
   DEFAULT_ASSIGNMENT_STATUS,
   DEFAULT_ASSIGNMENT_TYPE,
   DEFAULT_COURSE_COLOR,
+  DEFAULT_QUEST_DIFFICULTY,
+  DEFAULT_QUEST_STATUS,
+  QUEST_DIFFICULTY_VALUES,
+  QUEST_STATUS_VALUES,
+  QUEST_XP_BY_DIFFICULTY,
 } from '@/lib/constants';
 
 const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
@@ -68,6 +73,56 @@ export const updateAssignmentSchema = createAssignmentSchema
 
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
+
+const questStatusSchema = z.enum(QUEST_STATUS_VALUES as [string, ...string[]]);
+const questDifficultySchema = z.enum(
+  QUEST_DIFFICULTY_VALUES as [string, ...string[]]
+);
+const estimatedMinutesSchema = z
+  .union([z.coerce.number(), z.null(), z.undefined(), z.literal('')])
+  .optional()
+  .transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return Number(val);
+  })
+  .refine(
+    (val) =>
+      val === null || (Number.isInteger(val) && val >= 0 && val <= 24 * 60),
+    { message: 'Estimated time must be between 0 and 1440 minutes' }
+  );
+
+const questSchemaFields = {
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  description: z.string().trim().max(2000).optional().nullable(),
+  dueAt: dueAtSchema,
+  status: questStatusSchema.optional().default(DEFAULT_QUEST_STATUS),
+  difficulty: questDifficultySchema
+    .optional()
+    .default(DEFAULT_QUEST_DIFFICULTY),
+  estimatedMinutes: estimatedMinutesSchema,
+};
+
+const createQuestSchemaBase = z.object(questSchemaFields);
+const updateQuestSchemaBase = z.object(questSchemaFields).partial();
+
+export const createQuestSchema = createQuestSchemaBase.transform((data) => ({
+  ...data,
+  xpReward: QUEST_XP_BY_DIFFICULTY[data.difficulty],
+}));
+
+export const updateQuestSchema = updateQuestSchemaBase
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  })
+  .transform((data) => ({
+    ...data,
+    ...(data.difficulty !== undefined && {
+      xpReward: QUEST_XP_BY_DIFFICULTY[data.difficulty],
+    }),
+  }));
+
+export type CreateQuestInput = z.infer<typeof createQuestSchema>;
+export type UpdateQuestInput = z.infer<typeof updateQuestSchema>;
 
 /** First human-readable message from a Zod safeParse failure. */
 export function zodFirstError(

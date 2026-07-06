@@ -120,7 +120,9 @@ model Quest {
   description String?
   dueAt       DateTime?
   status      String    @default("todo") // todo | in_progress | done
+  difficulty  String    @default("medium") // easy | medium | hard
   xpReward    Int       @default(10)
+  estimatedMinutes Int?
   createdAt   DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

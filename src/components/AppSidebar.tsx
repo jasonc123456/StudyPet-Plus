@@ -66,6 +66,23 @@ function AssignmentsIcon({ className }: { className?: string }) {
   );
 }
 
+function QuestsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3l2.4 4.86 5.36.78-3.88 3.78.92 5.34L12 15.9 7.2 18.76l.92-5.34-3.88-3.78 5.36-.78L12 3z" />
+    </svg>
+  );
+}
+
 function FlashcardsIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -133,6 +150,7 @@ const NAV_LINKS = [
     label: 'Assignments',
     Icon: AssignmentsIcon,
   },
+  { href: '/dashboard/quests', label: 'Quests', Icon: QuestsIcon },
   { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
   { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];

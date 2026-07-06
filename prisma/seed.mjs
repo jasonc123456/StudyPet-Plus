@@ -86,13 +86,26 @@ const demoCourses = [
 ];
 
 const demoQuests = [
-  { title: 'Study 30 minutes today', xpReward: 10, status: 'todo', dueInDays: 0 },
-  { title: 'Review CS flashcards', xpReward: 15, status: 'todo', dueInDays: 2 },
+  {
+    title: 'Study 30 minutes today',
+    difficulty: 'easy',
+    status: 'todo',
+    dueInDays: 0,
+    estimatedMinutes: 30,
+  },
+  {
+    title: 'Review CS flashcards',
+    difficulty: 'medium',
+    status: 'todo',
+    dueInDays: 2,
+    estimatedMinutes: 45,
+  },
   {
     title: 'Finish the Calc worksheet',
-    xpReward: 20,
+    difficulty: 'hard',
     status: 'in_progress',
     dueInDays: 1,
+    estimatedMinutes: 90,
   },
 ];
 
@@ -137,9 +150,11 @@ async function seedPlanner(user) {
     data: demoQuests.map((q) => ({
       userId: user.id,
       title: q.title,
-      xpReward: q.xpReward,
+      difficulty: q.difficulty,
+      xpReward: q.difficulty === 'easy' ? 5 : q.difficulty === 'hard' ? 15 : 10,
       status: q.status,
       dueAt: daysFromNow(q.dueInDays),
+      estimatedMinutes: q.estimatedMinutes,
     })),
   });
 

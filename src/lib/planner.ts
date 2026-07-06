@@ -21,3 +21,13 @@ export async function getOwnedAssignment(
     },
   });
 }
+
+/** Returns the quest if it belongs to the user, otherwise null. */
+export async function getOwnedQuest(questId: string, userId: string) {
+  return prisma.quest.findFirst({
+    where: {
+      id: questId,
+      userId,
+    },
+  });
+}

@@ -34,3 +34,25 @@ export const ASSIGNMENT_TYPE_VALUES = ASSIGNMENT_TYPES.map((t) => t.value);
 
 export const DEFAULT_ASSIGNMENT_STATUS = 'todo';
 export const DEFAULT_ASSIGNMENT_TYPE = 'homework';
+
+export const QUEST_STATUSES = ASSIGNMENT_STATUSES;
+export const QUEST_STATUS_VALUES = ASSIGNMENT_STATUS_VALUES;
+export const DEFAULT_QUEST_STATUS = DEFAULT_ASSIGNMENT_STATUS;
+
+export const QUEST_DIFFICULTIES = [
+  { value: 'easy', label: 'Easy', xpReward: 5 },
+  { value: 'medium', label: 'Medium', xpReward: 10 },
+  { value: 'hard', label: 'Hard', xpReward: 15 },
+] as const;
+
+export const QUEST_DIFFICULTY_VALUES = QUEST_DIFFICULTIES.map(
+  (difficulty) => difficulty.value
+);
+
+export const DEFAULT_QUEST_DIFFICULTY = 'medium';
+
+export const QUEST_XP_BY_DIFFICULTY: Record<string, number> = {
+  easy: 5,
+  medium: 10,
+  hard: 15,
+};
