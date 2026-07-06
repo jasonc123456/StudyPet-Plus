@@ -9,8 +9,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
+import { PetSummary } from '@/components/dashboard/PetSummary';
+import { StudyQuests } from '@/components/dashboard/StudyQuests';
+import { UpcomingAssignments } from '@/components/dashboard/UpcomingAssignments';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
-import { prisma } from '@/lib/prisma';
+import { getDashboardData } from '@/lib/dashboard';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -19,23 +22,8 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const courses = await prisma.course.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: 'desc' },
-    take: 6,
-  });
-
-  const now = new Date();
-  const weekFromNow = new Date(now);
-  weekFromNow.setDate(weekFromNow.getDate() + 7);
-
-  const upcomingCount = await prisma.assignment.count({
-    where: {
-      course: { userId: session.user.id },
-      status: { not: 'done' },
-      dueAt: { gte: now, lte: weekFromNow },
-    },
-  });
+  const { courses, stats, upcomingAssignments, openQuests, pet } =
+    await getDashboardData(session.user.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,26 +34,35 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Placeholder stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Cards studied today
+            Open quests
           </p>
-          <p className="mt-2 text-3xl font-bold text-brand-600">0</p>
+          <p className="mt-2 text-3xl font-bold text-brand-600">
+            {stats.openQuests}
+          </p>
+          <Link
+            href="/dashboard/quests"
+            className="mt-2 inline-block text-xs font-medium text-brand-600 hover:text-brand-700"
+          >
+            View quests
+          </Link>
         </div>
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Study streak
           </p>
-          <p className="mt-2 text-3xl font-bold text-mint-600">0 days</p>
+          <p className="mt-2 text-3xl font-bold text-mint-600">
+            {stats.studyStreak} day{stats.studyStreak === 1 ? '' : 's'}
+          </p>
         </div>
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Due this week
           </p>
           <p className="mt-2 text-3xl font-bold text-brand-600">
-            {upcomingCount}
+            {stats.dueThisWeek}
           </p>
           <Link
             href="/dashboard/assignments"
@@ -76,7 +73,15 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Course summary */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <UpcomingAssignments assignments={upcomingAssignments} />
+        </div>
+        <PetSummary pet={pet} />
+      </div>
+
+      <StudyQuests quests={openQuests} />
+
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Your courses</h2>
