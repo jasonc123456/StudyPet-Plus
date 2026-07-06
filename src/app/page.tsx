@@ -101,15 +101,15 @@ export default async function LandingPage() {
       <div className="absolute inset-x-0 top-0 h-72 bg-[linear-gradient(120deg,rgba(79,70,229,0.06),rgba(16,185,129,0.02),transparent)]" />
       <div className="relative mx-auto max-w-6xl px-6 py-10 sm:py-12">
         <header className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-3xl">🐾</span>
-          <span className="text-2xl font-extrabold text-brand-700">
-            StudyPet<span className="text-mint-500">+</span>
-          </span>
-        </div>
-        <Link href="/login" className="btn-secondary">
-          Log in
-        </Link>
+          <div className="flex items-center gap-2">
+            <span className="text-3xl">🐾</span>
+            <span className="text-2xl font-extrabold text-brand-700">
+              StudyPet<span className="text-mint-500">+</span>
+            </span>
+          </div>
+          <Link href="/login" className="btn-secondary">
+            Log in
+          </Link>
         </header>
 
         <section className="mt-14 grid items-center gap-12 lg:grid-cols-[1.15fr_0.85fr]">
@@ -134,15 +134,13 @@ export default async function LandingPage() {
               >
                 🚀 Try the demo
               </a>
-              <Link
-                href="/login"
-                className="btn-secondary px-6 py-3 text-base"
-              >
+              <Link href="/login" className="btn-secondary px-6 py-3 text-base">
                 Log in / Sign up
               </Link>
             </div>
             <p className="mt-3 text-sm text-slate-400">
-              One-click demo for project reviews, class demos, and quick testing.
+              One-click demo for project reviews, class demos, and quick
+              testing.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -159,7 +157,9 @@ export default async function LandingPage() {
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm">
-                <p className="text-2xl font-black text-brand-700">0 passwords</p>
+                <p className="text-2xl font-black text-brand-700">
+                  0 passwords
+                </p>
                 <p className="mt-1 text-sm text-slate-600">
                   with secure magic-link sign-in
                 </p>
