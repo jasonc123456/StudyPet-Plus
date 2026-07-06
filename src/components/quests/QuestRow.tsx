@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/courses/ConfirmDialog';
 import { DEFAULT_QUEST_DIFFICULTY, QUEST_STATUSES } from '@/lib/constants';
 import {
   difficultyLabel,
-  formatDueDate,
+  formatDueDate as formatQuestDueDate,
   formatEstimatedTime,
 } from '@/lib/format';
 
@@ -130,7 +130,7 @@ export function QuestRow({ quest }: QuestRowProps) {
           +{quest.xpReward} XP
         </td>
         <td className="px-4 py-3 text-sm text-slate-600">
-          {formatDueDate(quest.dueAt)}
+          {formatQuestDueDate(quest.dueAt)}
         </td>
         <td className="px-4 py-3">
           <select
