@@ -62,9 +62,12 @@ export function CourseCard({ course }: CourseCardProps) {
         <div className="flex items-start gap-3">
           <ColorSwatch color={course.color} size="md" className="mt-1" />
           <div className="min-w-0 flex-1">
-            <h2 className="truncate font-semibold text-slate-900">
+            <Link
+              href={`/dashboard/courses/${course.id}/assignments`}
+              className="block truncate font-semibold text-slate-900 hover:text-brand-600"
+            >
               {course.name}
-            </h2>
+            </Link>
             {course.term && (
               <p className="mt-0.5 text-sm text-slate-500">{course.term}</p>
             )}
@@ -79,6 +82,12 @@ export function CourseCard({ course }: CourseCardProps) {
         )}
 
         <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
+          <Link
+            href={`/dashboard/courses/${course.id}/assignments`}
+            className="btn-primary flex-1 text-center text-sm"
+          >
+            Assignments
+          </Link>
           <Link
             href={`/dashboard/courses/${course.id}/edit`}
             className="btn-secondary flex-1 text-center text-sm"

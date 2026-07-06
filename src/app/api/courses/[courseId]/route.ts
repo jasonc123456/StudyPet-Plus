@@ -3,13 +3,13 @@ import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
 import { getOwnedCourse } from '@/lib/planner';
 import { updateCourseSchema, zodFirstError } from '@/lib/validators';
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: { courseId: string } };
 
 export async function PUT(request: Request, { params }: RouteContext) {
   const authResult = await requireUser();
   if (authResult instanceof Response) return authResult;
 
-  const existing = await getOwnedCourse(params.id, authResult.user.id);
+  const existing = await getOwnedCourse(params.courseId, authResult.user.id);
   if (!existing) {
     return jsonError('Course not found', 404);
   }
@@ -29,7 +29,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
   const { name, color, term } = parsed.data;
 
   const course = await prisma.course.update({
-    where: { id: params.id },
+    where: { id: params.courseId },
     data: {
       ...(name !== undefined && { name }),
       ...(color !== undefined && { color }),
@@ -45,12 +45,12 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const authResult = await requireUser();
   if (authResult instanceof Response) return authResult;
 
-  const existing = await getOwnedCourse(params.id, authResult.user.id);
+  const existing = await getOwnedCourse(params.courseId, authResult.user.id);
   if (!existing) {
     return jsonError('Course not found', 404);
   }
 
-  await prisma.course.delete({ where: { id: params.id } });
+  await prisma.course.delete({ where: { id: params.courseId } });
 
   return jsonOk({ success: true });
 }

@@ -48,6 +48,24 @@ function CoursesIcon({ className }: { className?: string }) {
   );
 }
 
+function AssignmentsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
 function FlashcardsIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -110,6 +128,11 @@ function SignOutIcon({ className }: { className?: string }) {
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { href: '/dashboard/courses', label: 'Courses', Icon: CoursesIcon },
+  {
+    href: '/dashboard/assignments',
+    label: 'Assignments',
+    Icon: AssignmentsIcon,
+  },
   { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
   { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
