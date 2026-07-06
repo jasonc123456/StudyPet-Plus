@@ -157,6 +157,7 @@ async function seedDemoPlanner(userId: string) {
       status: quest.status,
       dueAt: daysFromNow(quest.dueInDays),
       estimatedMinutes: quest.estimatedMinutes,
+      rewardClaimed: quest.status === 'done',
     })),
   });
 

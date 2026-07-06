@@ -15,6 +15,7 @@ import {
 } from '@/lib/constants';
 
 const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
+const profileImagePathRegex = /^\/profile-pics\/(?:[1-9]|10)\.png$/;
 
 const colorSchema = z
   .string()
@@ -123,6 +124,18 @@ export const updateQuestSchema = updateQuestSchemaBase
 
 export type CreateQuestInput = z.infer<typeof createQuestSchema>;
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>;
+
+export const updateProfileSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  email: z.string().trim().email('Valid email is required').max(255),
+  petName: z.string().trim().min(1, 'StudyPet name is required').max(50),
+  image: z
+    .string()
+    .trim()
+    .regex(profileImagePathRegex, 'Select one of the default profile pictures'),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 /** First human-readable message from a Zod safeParse failure. */
 export function zodFirstError(

@@ -123,6 +123,7 @@ model Quest {
   difficulty  String    @default("medium") // easy | medium | hard
   xpReward    Int       @default(10)
   estimatedMinutes Int?
+  rewardClaimed Boolean @default(false)
   createdAt   DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

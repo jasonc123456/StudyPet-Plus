@@ -40,17 +40,43 @@ export async function PUT(request: Request, { params }: RouteContext) {
     xpReward,
   } = parsed.data;
 
-  const quest = await prisma.quest.update({
-    where: { id: params.questId },
-    data: {
-      ...(title !== undefined && { title }),
-      ...(description !== undefined && { description: description || null }),
-      ...(dueAt !== undefined && { dueAt }),
-      ...(status !== undefined && { status }),
-      ...(difficulty !== undefined && { difficulty }),
-      ...(estimatedMinutes !== undefined && { estimatedMinutes }),
-      ...(xpReward !== undefined && { xpReward }),
-    },
+  const shouldAwardXp =
+    status === 'done' &&
+    existing.status !== 'done' &&
+    existing.rewardClaimed === false;
+
+  const quest = await prisma.$transaction(async (tx) => {
+    const updatedQuest = await tx.quest.update({
+      where: { id: params.questId },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description: description || null }),
+        ...(dueAt !== undefined && { dueAt }),
+        ...(status !== undefined && { status }),
+        ...(difficulty !== undefined && { difficulty }),
+        ...(estimatedMinutes !== undefined && { estimatedMinutes }),
+        ...(xpReward !== undefined && { xpReward }),
+        ...(shouldAwardXp && { rewardClaimed: true }),
+      },
+    });
+
+    if (shouldAwardXp) {
+      await tx.pet.upsert({
+        where: { userId: authResult.user.id },
+        update: {
+          xp: { increment: updatedQuest.xpReward },
+          lastStudyDate: new Date(),
+        },
+        create: {
+          userId: authResult.user.id,
+          name: 'StudyPet',
+          xp: updatedQuest.xpReward,
+          lastStudyDate: new Date(),
+        },
+      });
+    }
+
+    return updatedQuest;
   });
 
   return jsonOk(quest);
