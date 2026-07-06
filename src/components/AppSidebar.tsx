@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import { useState } from 'react';
+
+import { SettingsModal } from '@/components/settings/SettingsModal';
 
 // ---------------------------------------------------------------------------
 // Inline SVG icons — no extra dependency required
@@ -152,63 +155,88 @@ const NAV_LINKS = [
   },
   { href: '/dashboard/quests', label: 'Quests', Icon: QuestsIcon },
   { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
-  { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
+
+type AppChromeUser = {
+  name?: string | null;
+  email?: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Sidebar — desktop persistent drawer
 // ---------------------------------------------------------------------------
 
-export function AppSidebar() {
+export function AppSidebar({ user }: { user: AppChromeUser }) {
   const pathname = usePathname();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <aside className="flex h-full w-64 flex-col bg-brand-700">
-      {/* Brand mark */}
-      <div className="flex items-center gap-2.5 border-b border-brand-600 px-6 py-5">
-        <span className="text-xl">🐾</span>
-        <span className="text-lg font-bold tracking-tight text-white">
-          StudyPet<span className="text-mint-500">+</span>
-        </span>
-      </div>
+    <>
+      <aside className="app-sidebar flex h-full w-64 flex-col">
+        {/* Brand mark */}
+        <div className="app-sidebar-divider flex items-center gap-2.5 border-b px-6 py-5">
+          <span className="text-xl">🐾</span>
+          <span className="text-lg font-bold tracking-tight text-white">
+            StudyPet<span style={{ color: '#f9a8d4' }}>+</span>
+          </span>
+        </div>
 
-      {/* Primary navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Main navigation">
-        {NAV_LINKS.map(({ href, label, Icon }) => {
-          const isActive =
-            href === '/dashboard'
-              ? pathname === '/dashboard'
-              : pathname === href || pathname.startsWith(href + '/');
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={[
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'border-l-2 border-mint-500 bg-white/10 pl-[10px] text-white'
-                  : 'text-blue-100 hover:bg-white/10 hover:text-white',
-              ].join(' ')}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Sign-out action */}
-      <div className="border-t border-brand-600 p-3">
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-blue-100 transition-colors hover:bg-white/10 hover:text-white"
+        {/* Primary navigation */}
+        <nav
+          className="flex-1 space-y-1 px-3 py-4"
+          aria-label="Main navigation"
         >
-          <SignOutIcon className="h-5 w-5 shrink-0" />
-          Sign out
-        </button>
-      </div>
-    </aside>
+          {NAV_LINKS.map(({ href, label, Icon }) => {
+            const isActive =
+              href === '/dashboard'
+                ? pathname === '/dashboard'
+                : pathname === href || pathname.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={[
+                  'app-sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'app-sidebar-link-active pl-[10px] text-white'
+                    : '',
+                ].join(' ')}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                {label}
+              </Link>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="app-sidebar-link flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:text-white"
+          >
+            <SettingsIcon className="h-5 w-5 shrink-0" />
+            Settings
+          </button>
+        </nav>
+
+        {/* Sign-out action */}
+        <div className="app-sidebar-divider border-t p-3">
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="app-sidebar-link flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:text-white"
+          >
+            <SignOutIcon className="h-5 w-5 shrink-0" />
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user}
+      />
+    </>
   );
 }
 
@@ -216,53 +244,69 @@ export function AppSidebar() {
 // Mobile top bar — shown below md breakpoint
 // ---------------------------------------------------------------------------
 
-export function AppTopBar() {
+export function AppTopBar({ user }: { user: AppChromeUser }) {
   const pathname = usePathname();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <header className="flex items-center justify-between border-b border-brand-600 bg-brand-700 px-4 py-3">
-      {/* Brand */}
-      <div className="flex items-center gap-2">
-        <span className="text-base">🐾</span>
-        <span className="font-bold tracking-tight text-white">
-          StudyPet<span className="text-mint-500">+</span>
-        </span>
-      </div>
+    <>
+      <header className="app-sidebar app-sidebar-divider flex items-center justify-between border-b px-4 py-3">
+        {/* Brand */}
+        <div className="flex items-center gap-2">
+          <span className="text-base">🐾</span>
+          <span className="font-bold tracking-tight text-white">
+            StudyPet<span style={{ color: '#f9a8d4' }}>+</span>
+          </span>
+        </div>
 
-      {/* Nav links (compact) */}
-      <nav className="flex items-center gap-1" aria-label="Main navigation">
-        {NAV_LINKS.map(({ href, label, Icon }) => {
-          const isActive =
-            href === '/dashboard'
-              ? pathname === '/dashboard'
-              : pathname === href || pathname.startsWith(href + '/');
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={[
-                'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
-                isActive
-                  ? 'bg-white/20 text-white'
-                  : 'text-blue-100 hover:bg-white/10 hover:text-white',
-              ].join(' ')}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="hidden xs:inline">{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+        {/* Nav links (compact) */}
+        <nav className="flex items-center gap-1" aria-label="Main navigation">
+          {NAV_LINKS.map(({ href, label, Icon }) => {
+            const isActive =
+              href === '/dashboard'
+                ? pathname === '/dashboard'
+                : pathname === href || pathname.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={[
+                  'app-sidebar-link flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  isActive ? 'bg-white/20 text-white' : '',
+                ].join(' ')}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden xs:inline">{label}</span>
+              </Link>
+            );
+          })}
 
-      {/* Sign out (icon only on mobile) */}
-      <button
-        onClick={() => signOut({ callbackUrl: '/login' })}
-        title="Sign out"
-        className="rounded-md p-1.5 text-blue-100 transition-colors hover:bg-white/10 hover:text-white"
-      >
-        <SignOutIcon className="h-5 w-5" />
-      </button>
-    </header>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="app-sidebar-link flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors hover:text-white"
+          >
+            <SettingsIcon className="h-4 w-4" />
+            <span className="hidden xs:inline">Settings</span>
+          </button>
+        </nav>
+
+        {/* Sign out (icon only on mobile) */}
+        <button
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          title="Sign out"
+          className="app-sidebar-link rounded-md p-1.5 transition-colors hover:text-white"
+        >
+          <SignOutIcon className="h-5 w-5" />
+        </button>
+      </header>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user}
+      />
+    </>
   );
 }
