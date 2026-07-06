@@ -1,0 +1,56 @@
+import { prisma } from '@/lib/prisma';
+import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { getOwnedCourse } from '@/lib/planner';
+import { updateCourseSchema, zodFirstError } from '@/lib/validators';
+
+type RouteContext = { params: { id: string } };
+
+export async function PUT(request: Request, { params }: RouteContext) {
+  const authResult = await requireUser();
+  if (authResult instanceof Response) return authResult;
+
+  const existing = await getOwnedCourse(params.id, authResult.user.id);
+  if (!existing) {
+    return jsonError('Course not found', 404);
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body', 400);
+  }
+
+  const parsed = updateCourseSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(zodFirstError(parsed.error), 400);
+  }
+
+  const { name, color, term } = parsed.data;
+
+  const course = await prisma.course.update({
+    where: { id: params.id },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(color !== undefined && { color }),
+      ...(term !== undefined && { term: term || null }),
+    },
+    include: { _count: { select: { assignments: true } } },
+  });
+
+  return jsonOk(course);
+}
+
+export async function DELETE(_request: Request, { params }: RouteContext) {
+  const authResult = await requireUser();
+  if (authResult instanceof Response) return authResult;
+
+  const existing = await getOwnedCourse(params.id, authResult.user.id);
+  if (!existing) {
+    return jsonError('Course not found', 404);
+  }
+
+  await prisma.course.delete({ where: { id: params.id } });
+
+  return jsonOk({ success: true });
+}
