@@ -28,6 +28,11 @@ model User {
 
   accounts Account[]
   sessions Session[]
+
+  // Sprint 2 — planner + gamification relations.
+  courses Course[]
+  quests  Quest[]
+  pet     Pet?
 }
 
 model Account {
@@ -64,4 +69,77 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 2 — Planner core (Courses, Assignments, Quests) + Pet shell.
+//
+// status/type are plain Strings (not enums) so the frontend team can add new
+// values without a schema migration mid-sprint; the allowed values below are a
+// convention, enforced in the API layer. Everything cascades from its owner so
+// deleting a User (or a Course) cleans up its planner data.
+// ---------------------------------------------------------------------------
+
+// A class/subject the student is taking. Root of the planner hierarchy.
+model Course {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#6366f1") // hex tag shown in the UI (indigo default)
+  term      String? // e.g. "Fall 2026"; optional
+  createdAt DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+
+  @@index([userId])
+}
+
+// A graded item tied to a Course (homework, exam, project, …).
+model Assignment {
+  id          String    @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  dueAt       DateTime? // planner sorts by this; nullable for "someday" items
+  status      String    @default("todo") // todo | in_progress | done
+  type        String    @default("homework") // homework | exam | project | reading | other
+  createdAt   DateTime  @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+// A lightweight study goal/task owned directly by the user (not course-bound).
+// xpReward exists now; the XP payout logic lands in Sprint 4.
+model Quest {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  dueAt       DateTime?
+  status      String    @default("todo") // todo | in_progress | done
+  xpReward    Int       @default(10)
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// The gamified study pet. One per user. Sprint 2 stores static placeholder
+// state; the live XP/streak/evolution logic arrives in Sprint 4.
+model Pet {
+  id            String    @id @default(cuid())
+  userId        String    @unique // one pet per user
+  name          String    @default("StudyPet")
+  xp            Int       @default(0)
+  level         Int       @default(1)
+  stage         String    @default("egg") // egg | hatchling | chick | owl | dragon
+  streakCount   Int       @default(0)
+  lastStudyDate DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
