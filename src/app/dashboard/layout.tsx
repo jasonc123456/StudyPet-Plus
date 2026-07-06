@@ -1,3 +1,6 @@
+import { redirect } from 'next/navigation';
+
+import { auth } from '@/auth';
 import { AppSidebar, AppTopBar } from '@/components/AppSidebar';
 
 /**
@@ -9,23 +12,29 @@ import { AppSidebar, AppTopBar } from '@/components/AppSidebar';
  * The root layout.tsx keeps ownership of <html> / <body> and global styles;
  * this layout only adds the navigation chrome for authenticated routes.
  */
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
+
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="app-shell flex h-screen overflow-hidden">
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
       <div className="hidden md:flex md:shrink-0">
-        <AppSidebar />
+        <AppSidebar user={session.user} />
       </div>
 
       {/* ── Right-hand panel (top bar + page content) ────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div className="md:hidden">
-          <AppTopBar />
+          <AppTopBar user={session.user} />
         </div>
 
         {/* Page content */}

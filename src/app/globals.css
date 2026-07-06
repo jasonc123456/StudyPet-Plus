@@ -6,27 +6,232 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --page-bg: #f8fafc;
+  --page-text: #0f172a;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --card-muted: #64748b;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-text: #334155;
+  --btn-secondary-border: #cbd5e1;
+  --btn-secondary-hover: #f8fafc;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-soft: #eef2ff;
+  --sidebar-bg: #4f46e5;
+  --sidebar-divider: rgba(255, 255, 255, 0.12);
+  --sidebar-text: #f8fafc;
+  --sidebar-text-strong: #f8fafc;
+  --sidebar-active-bg: color-mix(in srgb, var(--accent) 38%, white 18%);
+  --sidebar-active-border: var(--accent);
+}
+
+html[data-theme='dark'] {
+  --page-bg: #191919;
+  --page-text: #e2e8f0;
+  --card-bg: #222222;
+  --card-border: #2f2f2f;
+  --card-muted: #94a3b8;
+  --btn-secondary-bg: #222222;
+  --btn-secondary-text: #e2e8f0;
+  --btn-secondary-border: #3a3a3a;
+  --btn-secondary-hover: #2b2b2b;
+  --sidebar-bg: #4f46e5;
+  --sidebar-divider: rgba(255, 255, 255, 0.12);
+  --sidebar-text: #f8fafc;
+  --sidebar-text-strong: #f8fafc;
+  --sidebar-active-bg: color-mix(in srgb, var(--accent) 38%, white 14%);
+  --sidebar-active-border: var(--accent);
+}
+
+html,
+body {
+  background: var(--page-bg);
+  color: var(--page-text);
+}
+
 /* Custom component classes referenced across the app. Defining them in
    @layer components lets Tailwind utilities still override them when needed,
    and keeps the JSX readable (className="btn-primary" instead of 10 utils). */
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600
-           px-4 py-2 font-semibold text-white shadow-sm transition
-           hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background: var(--accent);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    color: white;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+    transition:
+      transform 150ms ease,
+      background-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-strong);
+  }
+
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border
-           border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700
-           shadow-sm transition hover:bg-slate-50 focus:outline-none
-           focus:ring-2 focus:ring-brand-500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--btn-secondary-border);
+    background: var(--btn-secondary-bg);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    color: var(--btn-secondary-text);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    transition:
+      transform 150ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .btn-secondary:hover {
+    background: var(--btn-secondary-hover);
+  }
+
+  .btn-secondary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm transition
-           hover:shadow-md;
+    border-radius: 1rem;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    transition: box-shadow 150ms ease;
   }
+
+  .card:hover {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  }
+}
+
+.app-shell {
+  background: var(--page-bg);
+  color: var(--page-text);
+}
+
+.app-sidebar {
+  background: var(--sidebar-bg);
+}
+
+.app-sidebar-divider {
+  border-color: var(--sidebar-divider);
+}
+
+.app-sidebar-link {
+  color: var(--sidebar-text);
+}
+
+.app-sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--sidebar-text-strong);
+}
+
+.app-sidebar-link-active {
+  border-left: 2px solid rgba(255, 255, 255, 0.95);
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-text-strong);
+}
+
+.theme-input {
+  width: 100%;
+  border-radius: 0.875rem;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--page-text);
+  padding: 0.75rem 0.95rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.theme-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.theme-muted {
+  color: var(--card-muted);
+}
+
+.text-brand-500,
+.text-brand-600,
+.text-brand-700 {
+  color: var(--accent) !important;
+}
+
+.hover\:text-brand-600:hover,
+.hover\:text-brand-700:hover {
+  color: var(--accent) !important;
+}
+
+.bg-brand-50 {
+  background-color: var(--accent-soft) !important;
+}
+
+.bg-brand-500,
+.bg-brand-600,
+.bg-brand-700 {
+  background-color: var(--accent) !important;
+}
+
+.border-brand-200,
+.border-brand-300,
+.border-brand-500,
+.border-brand-600 {
+  border-color: var(--accent) !important;
+}
+
+.ring-brand-600 {
+  --tw-ring-color: var(--accent) !important;
+}
+
+.focus\:border-brand-500:focus {
+  border-color: var(--accent) !important;
+}
+
+.focus\:ring-brand-500\/20:focus,
+.focus\:ring-brand-500:focus,
+.focus\:ring-brand-400:focus {
+  --tw-ring-color: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
+.text-slate-900 {
+  color: var(--page-text) !important;
+}
+
+.text-slate-700,
+.text-slate-600,
+.text-slate-500,
+.text-slate-400 {
+  color: var(--card-muted) !important;
+}
+
+.bg-slate-50,
+.bg-slate-100 {
+  background-color: var(--btn-secondary-hover) !important;
+}
+
+.border-slate-200,
+.border-slate-300,
+.border-slate-100 {
+  border-color: var(--card-border) !important;
 }
 
 /* --- Interactive landing-page helpers (used by the client components) --- */
