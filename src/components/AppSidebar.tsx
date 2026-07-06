@@ -28,6 +28,26 @@ function DashboardIcon({ className }: { className?: string }) {
   );
 }
 
+function CoursesIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <line x1="8" y1="7" x2="16" y2="7" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  );
+}
+
 function FlashcardsIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -89,6 +109,7 @@ function SignOutIcon({ className }: { className?: string }) {
 
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
+  { href: '/dashboard/courses', label: 'Courses', Icon: CoursesIcon },
   { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
   { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
@@ -113,7 +134,10 @@ export function AppSidebar() {
       {/* Primary navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Main navigation">
         {NAV_LINKS.map(({ href, label, Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/');
+          const isActive =
+            href === '/dashboard'
+              ? pathname === '/dashboard'
+              : pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
@@ -167,7 +191,10 @@ export function AppTopBar() {
       {/* Nav links (compact) */}
       <nav className="flex items-center gap-1" aria-label="Main navigation">
         {NAV_LINKS.map(({ href, label, Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/');
+          const isActive =
+            href === '/dashboard'
+              ? pathname === '/dashboard'
+              : pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
