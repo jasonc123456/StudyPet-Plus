@@ -332,11 +332,13 @@ function SidebarShell({
         />
       </div>
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        user={user}
-      />
+      {settingsOpen && (
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          user={user}
+        />
+      )}
     </>
   );
 }

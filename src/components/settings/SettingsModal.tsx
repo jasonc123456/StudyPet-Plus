@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const DEFAULT_ACCENT = '#4f46e5';
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
@@ -70,6 +71,7 @@ function applyTheme(
 
 export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [mode, setMode] = useState<'light' | 'dark'>('light');
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
@@ -95,6 +97,19 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -145,8 +160,6 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [open, onClose]);
-
-  if (!open) return null;
 
   function handleModeChange(nextMode: 'light' | 'dark') {
     setMode(nextMode);
@@ -248,20 +261,33 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     }
   }
 
-  return (
+  if (!open || !mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-sm sm:p-6"
-      onClick={onClose}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-modal-title"
     >
-      <div className="mx-auto my-4 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-[var(--card-border)] bg-[var(--card-bg)] shadow-2xl">
-        <div
-          className="grid lg:grid-cols-[280px_1fr]"
-          onClick={(event) => event.stopPropagation()}
-        >
+      <button
+        type="button"
+        aria-label="Close settings"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-all duration-200"
+        onClick={onClose}
+      />
+
+      <div className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-[var(--card-border)] bg-[var(--card-bg)] shadow-2xl">
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[280px_1fr]">
           <aside className="border-b border-[var(--card-border)] bg-[var(--card-bg)] px-8 py-8 lg:border-b-0 lg:border-r">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-black tracking-tight">Settings</h2>
+                <h2
+                  id="settings-modal-title"
+                  className="text-3xl font-black tracking-tight"
+                >
+                  Settings
+                </h2>
                 <p className="theme-muted mt-3 text-sm">
                   Manage your profile and theme preferences.
                 </p>
@@ -307,7 +333,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
           </aside>
 
           <section className="flex min-h-0 flex-col">
-            <div className="flex-1 overflow-y-auto px-8 py-8 pb-20">
+            <div className="flex-1 overflow-y-auto px-8 py-8">
               {activeTab === 'profile' ? (
                 <div className="max-w-5xl">
                   <h3 className="text-3xl font-black tracking-tight">
@@ -387,7 +413,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                           {profileSuccess}
                         </p>
                       )}
-                      <div className="md:col-span-2 flex justify-end">
+                      <div className="flex justify-end md:col-span-2">
                         <button
                           type="button"
                           onClick={handleProfileSave}
@@ -407,7 +433,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     Control dark mode and your app accent color from one place.
                   </p>
 
-                  <div className="mt-8 card p-5">
+                  <div className="card mt-8 p-5">
                     <h4 className="text-xl font-bold">Mode</h4>
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <button
@@ -443,7 +469,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     </div>
                   </div>
 
-                  <div className="mt-5 card p-5">
+                  <div className="card mt-5 p-5">
                     <h4 className="text-xl font-bold">Accent Color</h4>
                     <p className="theme-muted mt-2 text-sm">
                       Use a hex code and apply it across buttons, highlights,
@@ -491,7 +517,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
 
                     <button
                       type="button"
-                      onClick={() => setTextEditorOpen((open) => !open)}
+                      onClick={() => setTextEditorOpen((isOpen) => !isOpen)}
                       className="mt-5 w-full rounded-3xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 text-left transition hover:bg-[var(--btn-secondary-hover)]"
                     >
                       <p className="theme-muted text-sm font-semibold uppercase tracking-[0.2em]">
@@ -606,9 +632,16 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                 </div>
               )}
             </div>
+
+            <footer className="flex justify-end border-t border-[var(--card-border)] px-8 py-4">
+              <button type="button" onClick={onClose} className="btn-secondary">
+                Close
+              </button>
+            </footer>
           </section>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
