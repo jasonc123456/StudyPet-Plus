@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { StatusBadge } from '@/components/assignments/StatusBadge';
 import { TypeBadge } from '@/components/assignments/TypeBadge';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
 import { ConfirmDialog } from '@/components/courses/ConfirmDialog';
 import { DueDate } from '@/components/DueDate';
+import { ASSIGNMENT_STATUSES } from '@/lib/constants';
 
 export type AssignmentRowData = {
   id: string;
@@ -31,11 +31,47 @@ export function AssignmentRow({
   showCourse = false,
 }: AssignmentRowProps) {
   const router = useRouter();
+  const [status, setStatus] = useState(assignment.status);
+  const [savingStatus, setSavingStatus] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const editHref = `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`;
+
+  async function handleStatusChange(nextStatus: string) {
+    const previousStatus = status;
+    setStatus(nextStatus);
+    setSavingStatus(true);
+    setError(null);
+
+    try {
+      const res = await fetch(
+        `/api/courses/${assignment.courseId}/assignments/${assignment.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStatus }),
+        }
+      );
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setStatus(previousStatus);
+        setError(data?.error ?? 'Failed to update status');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setStatus(previousStatus);
+      setError('Network error — please try again');
+    } finally {
+      setSavingStatus(false);
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -95,7 +131,19 @@ export function AssignmentRow({
           <DueDate dueAt={assignment.dueAt} />
         </td>
         <td className="px-4 py-3">
-          <StatusBadge status={assignment.status} />
+          <select
+            aria-label={`Change status for ${assignment.title}`}
+            value={status}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            disabled={savingStatus}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-wait disabled:opacity-70"
+          >
+            {ASSIGNMENT_STATUSES.map((assignmentStatus) => (
+              <option key={assignmentStatus.value} value={assignmentStatus.value}>
+                {assignmentStatus.label}
+              </option>
+            ))}
+          </select>
         </td>
         <td className="px-4 py-3">
           <TypeBadge type={assignment.type} />
