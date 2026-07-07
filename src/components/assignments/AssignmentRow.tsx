@@ -26,10 +26,7 @@ type AssignmentRowProps = {
   showCourse?: boolean;
 };
 
-export function AssignmentRow({
-  assignment,
-  showCourse = false,
-}: AssignmentRowProps) {
+function useAssignmentRowState(assignment: AssignmentRowData) {
   const router = useRouter();
   const [status, setStatus] = useState(assignment.status);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -100,10 +97,206 @@ export function AssignmentRow({
     }
   }
 
+  return {
+    status,
+    savingStatus,
+    confirmOpen,
+    deleting,
+    error,
+    editHref,
+    setConfirmOpen,
+    handleStatusChange,
+    handleDelete,
+  };
+}
+
+function AssignmentStatusSelect({
+  title,
+  status,
+  savingStatus,
+  onChange,
+}: {
+  title: string;
+  status: string;
+  savingStatus: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <select
+      aria-label={`Change status for ${title}`}
+      value={status}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={savingStatus}
+      className="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+    >
+      {ASSIGNMENT_STATUSES.map((assignmentStatus) => (
+        <option key={assignmentStatus.value} value={assignmentStatus.value}>
+          {assignmentStatus.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function AssignmentRowActions({
+  editHref,
+  onDelete,
+  fullWidth = false,
+}: {
+  editHref: string;
+  onDelete: () => void;
+  fullWidth?: boolean;
+}) {
+  return (
+    <div className={fullWidth ? 'flex gap-2' : 'flex justify-end gap-2'}>
+      <Link
+        href={editHref}
+        data-action="edit"
+        className={
+          fullWidth
+            ? 'btn-secondary flex-1 text-center text-xs'
+            : 'btn-secondary shrink-0 whitespace-nowrap px-3 py-1.5 text-xs'
+        }
+      >
+        Edit
+      </Link>
+      <button
+        type="button"
+        data-action="delete"
+        onClick={onDelete}
+        className={
+          fullWidth
+            ? 'flex-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50'
+            : 'shrink-0 whitespace-nowrap rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50'
+        }
+      >
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function AssignmentDeleteDialog({
+  open,
+  title,
+  loading,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  loading: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <ConfirmDialog
+      open={open}
+      title="Delete assignment?"
+      message={`"${title}" will be permanently removed.`}
+      loading={loading}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
+export function AssignmentMobileCard({
+  assignment,
+  showCourse = false,
+}: AssignmentRowProps) {
+  const {
+    status,
+    savingStatus,
+    confirmOpen,
+    deleting,
+    error,
+    editHref,
+    setConfirmOpen,
+    handleStatusChange,
+    handleDelete,
+  } = useAssignmentRowState(assignment);
+
+  return (
+    <>
+      <div className="card p-4">
+        <Link
+          href={editHref}
+          className="font-medium text-slate-900 hover:text-brand-600"
+        >
+          {assignment.title}
+        </Link>
+
+        {assignment.description && (
+          <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+            {assignment.description}
+          </p>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {showCourse && assignment.course && (
+            <span className="inline-flex items-center gap-1.5">
+              <ColorSwatch color={assignment.course.color} size="sm" />
+              {assignment.course.name}
+            </span>
+          )}
+          <span>
+            Due <DueDate dueAt={assignment.dueAt} />
+          </span>
+          <TypeBadge type={assignment.type} />
+        </div>
+
+        <div className="mt-3">
+          <AssignmentStatusSelect
+            title={assignment.title}
+            status={status}
+            savingStatus={savingStatus}
+            onChange={handleStatusChange}
+          />
+        </div>
+
+        <div className="mt-3">
+          <AssignmentRowActions
+            editHref={editHref}
+            onDelete={() => setConfirmOpen(true)}
+            fullWidth
+          />
+        </div>
+
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      </div>
+
+      <AssignmentDeleteDialog
+        open={confirmOpen}
+        title={assignment.title}
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
+  );
+}
+
+export function AssignmentRow({
+  assignment,
+  showCourse = false,
+}: AssignmentRowProps) {
+  const {
+    status,
+    savingStatus,
+    confirmOpen,
+    deleting,
+    error,
+    editHref,
+    setConfirmOpen,
+    handleStatusChange,
+    handleDelete,
+  } = useAssignmentRowState(assignment);
+
   return (
     <>
       <tr className="border-b border-slate-100 last:border-0">
-        <td className="px-4 py-3">
+        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
           <Link
             href={editHref}
             className="font-medium text-slate-900 hover:text-brand-600"
@@ -118,7 +311,7 @@ export function AssignmentRow({
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         </td>
         {showCourse && assignment.course && (
-          <td className="px-4 py-3">
+          <td className="px-2 py-2.5 sm:px-4 sm:py-3">
             <div className="flex items-center gap-2">
               <ColorSwatch color={assignment.course.color} size="sm" />
               <span className="text-sm text-slate-600">
@@ -127,50 +320,31 @@ export function AssignmentRow({
             </div>
           </td>
         )}
-        <td className="px-4 py-3 text-sm text-slate-600">
+        <td className="px-2 py-2.5 text-sm text-slate-600 sm:px-4 sm:py-3">
           <DueDate dueAt={assignment.dueAt} />
         </td>
-        <td className="px-4 py-3">
-          <select
-            aria-label={`Change status for ${assignment.title}`}
-            value={status}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            disabled={savingStatus}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-wait disabled:opacity-70"
-          >
-            {ASSIGNMENT_STATUSES.map((assignmentStatus) => (
-              <option
-                key={assignmentStatus.value}
-                value={assignmentStatus.value}
-              >
-                {assignmentStatus.label}
-              </option>
-            ))}
-          </select>
+        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+          <AssignmentStatusSelect
+            title={assignment.title}
+            status={status}
+            savingStatus={savingStatus}
+            onChange={handleStatusChange}
+          />
         </td>
-        <td className="px-4 py-3">
+        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
           <TypeBadge type={assignment.type} />
         </td>
-        <td className="px-4 py-3 text-right">
-          <div className="flex justify-end gap-2">
-            <Link href={editHref} className="btn-secondary text-xs px-3 py-1.5">
-              Edit
-            </Link>
-            <button
-              type="button"
-              onClick={() => setConfirmOpen(true)}
-              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
-            >
-              Delete
-            </button>
-          </div>
+        <td className="px-2 py-2.5 text-right sm:px-4 sm:py-3">
+          <AssignmentRowActions
+            editHref={editHref}
+            onDelete={() => setConfirmOpen(true)}
+          />
         </td>
       </tr>
 
-      <ConfirmDialog
+      <AssignmentDeleteDialog
         open={confirmOpen}
-        title="Delete assignment?"
-        message={`"${assignment.title}" will be permanently removed.`}
+        title={assignment.title}
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setConfirmOpen(false)}

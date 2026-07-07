@@ -3,9 +3,13 @@ import { notFound, redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { AssignmentEmptyState } from '@/components/assignments/AssignmentEmptyState';
-import { AssignmentRow } from '@/components/assignments/AssignmentRow';
+import {
+  AssignmentMobileCard,
+  AssignmentRow,
+} from '@/components/assignments/AssignmentRow';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
 import { PageHeader } from '@/components/courses/PageHeader';
+import { ResponsiveDataTable } from '@/components/ResponsiveDataTable';
 import { prisma } from '@/lib/prisma';
 
 type CourseAssignmentsPageProps = {
@@ -60,27 +64,40 @@ export default async function CourseAssignmentsPage({
       {course.assignments.length === 0 ? (
         <AssignmentEmptyState actionHref={`${baseHref}/new`} />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Title</th>
-                <th className="px-4 py-3">Due</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {course.assignments.map((assignment) => (
-                <AssignmentRow
-                  key={assignment.id}
-                  assignment={{ ...assignment, courseId: course.id }}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="flex flex-col gap-3 md:hidden">
+            {course.assignments.map((assignment) => (
+              <AssignmentMobileCard
+                key={assignment.id}
+                assignment={{ ...assignment, courseId: course.id }}
+              />
+            ))}
+          </div>
+
+          <div className="card hidden overflow-hidden md:block">
+            <ResponsiveDataTable>
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Title</th>
+                    <th className="px-4 py-3">Due</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {course.assignments.map((assignment) => (
+                    <AssignmentRow
+                      key={assignment.id}
+                      assignment={{ ...assignment, courseId: course.id }}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveDataTable>
+          </div>
+        </>
       )}
     </div>
   );
