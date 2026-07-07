@@ -25,23 +25,29 @@ export default function RootLayout({
                 var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
                 return luminance > 0.72;
               }
+              function studypetContrastText(hex) {
+                return studypetIsLightColor(hex) ? '#111111' : '#ffffff';
+              }
               (function () {
                 try {
                   var mode = localStorage.getItem('studypet-theme-mode') || 'light';
                   var accent = localStorage.getItem('studypet-theme-accent') || '#4f46e5';
-                  var sidebarText = studypetIsLightColor(accent) ? '#111111' : '#f8fafc';
-                  var sidebarDivider = studypetIsLightColor(accent)
+                  var textMode = localStorage.getItem('studypet-theme-text-mode') || 'auto';
+                  var savedTextColor = localStorage.getItem('studypet-theme-text-color') || '#ffffff';
+                  var accentText = textMode === 'custom' ? savedTextColor : studypetContrastText(accent);
+                  var sidebarDivider = accentText === '#111111'
                     ? 'rgba(17, 17, 17, 0.14)'
                     : 'rgba(255, 255, 255, 0.12)';
                   document.documentElement.setAttribute('data-theme', mode);
                   document.documentElement.style.setProperty('--accent', accent);
                   document.documentElement.style.setProperty('--accent-strong', accent);
                   document.documentElement.style.setProperty('--accent-soft', accent + '18');
+                  document.documentElement.style.setProperty('--accent-text', accentText);
                   document.documentElement.style.setProperty('--sidebar-bg', accent);
                   document.documentElement.style.setProperty('--sidebar-active-bg', accent + '33');
                   document.documentElement.style.setProperty('--sidebar-active-border', accent);
-                  document.documentElement.style.setProperty('--sidebar-text', sidebarText);
-                  document.documentElement.style.setProperty('--sidebar-text-strong', sidebarText);
+                  document.documentElement.style.setProperty('--sidebar-text', accentText);
+                  document.documentElement.style.setProperty('--sidebar-text-strong', accentText);
                   document.documentElement.style.setProperty('--sidebar-divider', sidebarDivider);
                 } catch (e) {}
               })();
