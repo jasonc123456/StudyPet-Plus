@@ -43,7 +43,12 @@ const demoCourses = [
     color: '#6366f1', // Indigo
     term: 'Fall 2026',
     assignments: [
-      { title: 'Problem Set 3', type: 'homework', status: 'todo', dueInDays: 2 },
+      {
+        title: 'Problem Set 3',
+        type: 'homework',
+        status: 'todo',
+        dueInDays: 2,
+      },
       { title: 'Midterm Exam', type: 'exam', status: 'todo', dueInDays: 6 },
       {
         title: 'Hello World Lab',
@@ -65,7 +70,12 @@ const demoCourses = [
         status: 'in_progress',
         dueInDays: 1,
       },
-      { title: 'Chapter 5 Reading', type: 'reading', status: 'todo', dueInDays: 4 },
+      {
+        title: 'Chapter 5 Reading',
+        type: 'reading',
+        status: 'todo',
+        dueInDays: 4,
+      },
     ],
   },
   {
@@ -80,7 +90,12 @@ const demoCourses = [
         dueInDays: 5,
         description: '1500 words on the social impact of industrialization.',
       },
-      { title: 'Reading: Chapter 12', type: 'reading', status: 'todo', dueInDays: 9 },
+      {
+        title: 'Reading: Chapter 12',
+        type: 'reading',
+        status: 'todo',
+        dueInDays: 9,
+      },
     ],
   },
 ];
