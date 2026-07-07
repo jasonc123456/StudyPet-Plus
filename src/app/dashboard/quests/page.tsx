@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { QuestEmptyState } from '@/components/quests/QuestEmptyState';
-import { QuestRow } from '@/components/quests/QuestRow';
+import { QuestMobileCard, QuestRow } from '@/components/quests/QuestRow';
+import { ResponsiveDataTable } from '@/components/ResponsiveDataTable';
 import { prisma } from '@/lib/prisma';
 
 type QuestsPageProps = {
@@ -46,24 +47,34 @@ export default async function QuestsPage({ searchParams }: QuestsPageProps) {
           actionHref="/dashboard/quests/new"
         />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Goal</th>
-                <th className="px-4 py-3">Reward</th>
-                <th className="px-4 py-3">Due</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quests.map((quest) => (
-                <QuestRow key={quest.id} quest={quest} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="flex flex-col gap-3 md:hidden">
+            {quests.map((quest) => (
+              <QuestMobileCard key={quest.id} quest={quest} />
+            ))}
+          </div>
+
+          <div className="card hidden overflow-hidden md:block">
+            <ResponsiveDataTable>
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Goal</th>
+                    <th className="px-4 py-3">Reward</th>
+                    <th className="px-4 py-3">Due</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quests.map((quest) => (
+                    <QuestRow key={quest.id} quest={quest} />
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveDataTable>
+          </div>
+        </>
       )}
     </div>
   );
