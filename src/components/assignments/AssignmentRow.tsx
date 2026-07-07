@@ -139,7 +139,10 @@ export function AssignmentRow({
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-wait disabled:opacity-70"
           >
             {ASSIGNMENT_STATUSES.map((assignmentStatus) => (
-              <option key={assignmentStatus.value} value={assignmentStatus.value}>
+              <option
+                key={assignmentStatus.value}
+                value={assignmentStatus.value}
+              >
                 {assignmentStatus.label}
               </option>
             ))}
