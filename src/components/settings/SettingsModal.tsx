@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 const DEFAULT_ACCENT = '#4f46e5';
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 const DEFAULT_PROFILE_IMAGE = '/profile-pics/1.png';
+const DEFAULT_TEXT_MODE = 'auto';
+const DEFAULT_TEXT_COLOR = '#ffffff';
 const PROFILE_IMAGE_OPTIONS = [
   '/profile-pics/1.png',
   '/profile-pics/2.png',
@@ -33,6 +35,8 @@ type SettingsModalProps = {
 
 type SettingsTab = 'profile' | 'theme';
 
+type ThemeTextMode = 'auto' | 'custom';
+
 function isLightColor(hex: string) {
   if (!HEX_COLOR_REGEX.test(hex)) return false;
   const r = Number.parseInt(hex.slice(1, 3), 16);
@@ -42,26 +46,40 @@ function isLightColor(hex: string) {
   return luminance > 0.72;
 }
 
-function applyTheme(mode: 'light' | 'dark', accent: string) {
-  const sidebarText = isLightColor(accent) ? '#111111' : '#f8fafc';
-  const sidebarDivider = isLightColor(accent)
-    ? 'rgba(17, 17, 17, 0.14)'
-    : 'rgba(255, 255, 255, 0.12)';
+function getContrastTextColor(hex: string) {
+  return isLightColor(hex) ? '#111111' : '#ffffff';
+}
+
+function applyTheme(
+  mode: 'light' | 'dark',
+  accent: string,
+  textMode: ThemeTextMode,
+  customTextColor: string
+) {
+  const accentText =
+    textMode === 'custom' && HEX_COLOR_REGEX.test(customTextColor)
+      ? customTextColor
+      : getContrastTextColor(accent);
+  const sidebarDivider =
+    accentText === '#111111'
+      ? 'rgba(17, 17, 17, 0.14)'
+      : 'rgba(255, 255, 255, 0.12)';
 
   document.documentElement.setAttribute('data-theme', mode);
   document.documentElement.style.setProperty('--accent', accent);
   document.documentElement.style.setProperty('--accent-strong', accent);
   document.documentElement.style.setProperty('--accent-soft', `${accent}18`);
+  document.documentElement.style.setProperty('--accent-text', accentText);
   document.documentElement.style.setProperty('--sidebar-bg', accent);
   document.documentElement.style.setProperty(
     '--sidebar-active-bg',
     `${accent}33`
   );
   document.documentElement.style.setProperty('--sidebar-active-border', accent);
-  document.documentElement.style.setProperty('--sidebar-text', sidebarText);
+  document.documentElement.style.setProperty('--sidebar-text', accentText);
   document.documentElement.style.setProperty(
     '--sidebar-text-strong',
-    sidebarText
+    accentText
   );
   document.documentElement.style.setProperty(
     '--sidebar-divider',
@@ -75,6 +93,10 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
   const [mode, setMode] = useState<'light' | 'dark'>('light');
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const [draftAccent, setDraftAccent] = useState(DEFAULT_ACCENT);
+  const [textMode, setTextMode] = useState<ThemeTextMode>(DEFAULT_TEXT_MODE);
+  const [textColor, setTextColor] = useState(DEFAULT_TEXT_COLOR);
+  const [draftTextColor, setDraftTextColor] = useState(DEFAULT_TEXT_COLOR);
+  const [textEditorOpen, setTextEditorOpen] = useState(false);
   const [profileName, setProfileName] = useState(user.name ?? 'Demo Student');
   const [profileEmail, setProfileEmail] = useState(
     user.email ?? 'demo@studypetplus.corecrafted.net'
@@ -100,10 +122,20 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
       localStorage.getItem('studypet-theme-mode') === 'dark' ? 'dark' : 'light';
     const savedAccent =
       localStorage.getItem('studypet-theme-accent') || DEFAULT_ACCENT;
+    const savedTextMode =
+      localStorage.getItem('studypet-theme-text-mode') === 'custom'
+        ? 'custom'
+        : 'auto';
+    const savedTextColor =
+      localStorage.getItem('studypet-theme-text-color') || DEFAULT_TEXT_COLOR;
 
     setMode(savedMode);
     setAccent(savedAccent);
     setDraftAccent(savedAccent);
+    setTextMode(savedTextMode);
+    setTextColor(savedTextColor);
+    setDraftTextColor(savedTextColor);
+    setTextEditorOpen(false);
     setThemeError(null);
     setProfileError(null);
     setProfileSuccess(null);
@@ -138,7 +170,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
   function handleModeChange(nextMode: 'light' | 'dark') {
     setMode(nextMode);
     localStorage.setItem('studypet-theme-mode', nextMode);
-    applyTheme(nextMode, accent);
+    applyTheme(nextMode, accent, textMode, textColor);
   }
 
   function handleAccentSave() {
@@ -152,17 +184,53 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     setThemeError(null);
     setAccent(nextAccent);
     localStorage.setItem('studypet-theme-accent', nextAccent);
-    applyTheme(mode, nextAccent);
+    applyTheme(mode, nextAccent, textMode, textColor);
   }
 
   function resetTheme() {
     setMode('light');
     setAccent(DEFAULT_ACCENT);
     setDraftAccent(DEFAULT_ACCENT);
+    setTextMode(DEFAULT_TEXT_MODE);
+    setTextColor(DEFAULT_TEXT_COLOR);
+    setDraftTextColor(DEFAULT_TEXT_COLOR);
     setThemeError(null);
     localStorage.setItem('studypet-theme-mode', 'light');
     localStorage.setItem('studypet-theme-accent', DEFAULT_ACCENT);
-    applyTheme('light', DEFAULT_ACCENT);
+    localStorage.setItem('studypet-theme-text-mode', DEFAULT_TEXT_MODE);
+    localStorage.setItem('studypet-theme-text-color', DEFAULT_TEXT_COLOR);
+    applyTheme('light', DEFAULT_ACCENT, DEFAULT_TEXT_MODE, DEFAULT_TEXT_COLOR);
+  }
+
+  function handleTextPreset(nextTextColor: string) {
+    setTextMode('custom');
+    setTextColor(nextTextColor);
+    setDraftTextColor(nextTextColor);
+    localStorage.setItem('studypet-theme-text-mode', 'custom');
+    localStorage.setItem('studypet-theme-text-color', nextTextColor);
+    applyTheme(mode, accent, 'custom', nextTextColor);
+  }
+
+  function handleAutoTextColor() {
+    setTextMode('auto');
+    localStorage.setItem('studypet-theme-text-mode', 'auto');
+    applyTheme(mode, accent, 'auto', textColor);
+  }
+
+  function handleCustomTextColorSave() {
+    const nextTextColor = draftTextColor.trim();
+
+    if (!HEX_COLOR_REGEX.test(nextTextColor)) {
+      setThemeError('Enter a full hex color like #111111 or #ffffff');
+      return;
+    }
+
+    setThemeError(null);
+    setTextMode('custom');
+    setTextColor(nextTextColor);
+    localStorage.setItem('studypet-theme-text-mode', 'custom');
+    localStorage.setItem('studypet-theme-text-color', nextTextColor);
+    applyTheme(mode, accent, 'custom', nextTextColor);
   }
 
   async function handleProfileSave() {
@@ -201,10 +269,10 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-sm sm:p-6"
       onClick={onClose}
     >
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-[var(--card-border)] bg-[var(--card-bg)] shadow-2xl">
+      <div className="mx-auto my-4 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-[var(--card-border)] bg-[var(--card-bg)] shadow-2xl">
         <div
           className="grid lg:grid-cols-[280px_1fr]"
           onClick={(event) => event.stopPropagation()}
@@ -258,7 +326,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
           </aside>
 
           <section className="flex min-h-0 flex-col">
-            <div className="flex-1 overflow-y-auto px-8 py-8">
+            <div className="flex-1 overflow-y-auto px-8 py-8 pb-20">
               {activeTab === 'profile' ? (
                 <div className="max-w-5xl">
                   <h3 className="text-3xl font-black tracking-tight">
@@ -358,7 +426,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     Control dark mode and your app accent color from one place.
                   </p>
 
-                  <div className="mt-8 card p-6">
+                  <div className="mt-8 card p-5">
                     <h4 className="text-xl font-bold">Mode</h4>
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <button
@@ -394,7 +462,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     </div>
                   </div>
 
-                  <div className="mt-6 card p-6">
+                  <div className="mt-5 card p-5">
                     <h4 className="text-xl font-bold">Accent Color</h4>
                     <p className="theme-muted mt-2 text-sm">
                       Use a hex code and apply it across buttons, highlights,
@@ -440,12 +508,25 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                       </p>
                     )}
 
-                    <div className="mt-6 rounded-3xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5">
+                    <button
+                      type="button"
+                      onClick={() => setTextEditorOpen((open) => !open)}
+                      className="mt-5 w-full rounded-3xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 text-left transition hover:bg-[var(--btn-secondary-hover)]"
+                    >
                       <p className="theme-muted text-sm font-semibold uppercase tracking-[0.2em]">
                         Preview
                       </p>
                       <div className="mt-4 flex flex-wrap items-center gap-3">
-                        <button type="button" className="btn-primary">
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{
+                            color:
+                              textMode === 'custom'
+                                ? textColor
+                                : getContrastTextColor(accent),
+                          }}
+                        >
                           Primary action
                         </button>
                         <button type="button" className="btn-secondary">
@@ -453,14 +534,85 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                         </button>
                         <span
                           className="rounded-full px-3 py-1 text-sm font-semibold text-white"
-                          style={{ backgroundColor: accent }}
+                          style={{
+                            backgroundColor: accent,
+                            color:
+                              textMode === 'custom'
+                                ? textColor
+                                : getContrastTextColor(accent),
+                          }}
                         >
                           Accent chip
                         </span>
                       </div>
-                    </div>
+                      <p className="theme-muted mt-4 text-xs">
+                        Click preview to change text color on accent surfaces.
+                      </p>
+                    </button>
 
-                    <div className="mt-6">
+                    {textEditorOpen && (
+                      <div className="mt-4 rounded-2xl border border-[var(--card-border)] bg-[var(--btn-secondary-hover)] p-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleAutoTextColor}
+                            className="btn-secondary text-sm"
+                          >
+                            Auto contrast
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTextPreset('#111111')}
+                            className="btn-secondary text-sm"
+                          >
+                            Black text
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTextPreset('#ffffff')}
+                            className="btn-secondary text-sm"
+                          >
+                            White text
+                          </button>
+                        </div>
+
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                          <div className="flex-1">
+                            <label
+                              htmlFor="text-color-hex"
+                              className="mb-2 block text-sm font-semibold"
+                            >
+                              Custom text color
+                            </label>
+                            <input
+                              id="text-color-hex"
+                              type="text"
+                              value={draftTextColor}
+                              onChange={(e) =>
+                                setDraftTextColor(e.target.value)
+                              }
+                              placeholder="#111111"
+                              className="theme-input"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCustomTextColorSave}
+                            className="btn-primary"
+                            style={{
+                              color:
+                                textMode === 'custom'
+                                  ? textColor
+                                  : getContrastTextColor(accent),
+                            }}
+                          >
+                            Save text color
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-5">
                       <button
                         type="button"
                         onClick={resetTheme}
@@ -472,18 +624,6 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                   </div>
                 </div>
               )}
-            </div>
-
-            <div className="border-t border-[var(--card-border)] px-8 py-5">
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn-secondary"
-                >
-                  Close
-                </button>
-              </div>
             </div>
           </section>
         </div>
