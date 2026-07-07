@@ -11,11 +11,7 @@ export function DashboardPanel({
 }: DashboardPanelProps) {
   return (
     <div
-      className={[
-        'dashboard-panel',
-        padding ? '' : '!p-0',
-        className,
-      ]
+      className={['dashboard-panel', padding ? '' : '!p-0', className]
         .filter(Boolean)
         .join(' ')}
     >

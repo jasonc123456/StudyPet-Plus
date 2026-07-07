@@ -7,5 +7,7 @@ export function getNextAssignmentStatus(current: string): string {
   if (index === -1) {
     return ASSIGNMENT_STATUS_VALUES[0];
   }
-  return ASSIGNMENT_STATUS_VALUES[(index + 1) % ASSIGNMENT_STATUS_VALUES.length];
+  return ASSIGNMENT_STATUS_VALUES[
+    (index + 1) % ASSIGNMENT_STATUS_VALUES.length
+  ];
 }

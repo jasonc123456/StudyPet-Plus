@@ -21,7 +21,11 @@
   --accent-soft: #eef2ff;
   --accent-text: #ffffff;
   --shell-sidebar-bg: color-mix(in srgb, #ffffff 92%, #f8fafc);
-  --shell-sidebar-border: color-mix(in srgb, var(--card-border) 55%, transparent);
+  --shell-sidebar-border: color-mix(
+    in srgb,
+    var(--card-border) 55%,
+    transparent
+  );
   --shell-surface-bg: var(--page-bg);
 }
 
@@ -37,7 +41,11 @@ html[data-theme='dark'] {
   --btn-secondary-hover: #2b2b2b;
   --accent-text: #ffffff;
   --shell-sidebar-bg: color-mix(in srgb, var(--card-bg) 90%, var(--page-bg));
-  --shell-sidebar-border: color-mix(in srgb, var(--card-border) 55%, transparent);
+  --shell-sidebar-border: color-mix(
+    in srgb,
+    var(--card-border) 55%,
+    transparent
+  );
   --shell-surface-bg: var(--page-bg);
 }
 
@@ -252,7 +260,11 @@ body {
 .focus\:ring-brand-500\/20:focus,
 .focus\:ring-brand-500:focus,
 .focus\:ring-brand-400:focus {
-  --tw-ring-color: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+  --tw-ring-color: color-mix(
+    in srgb,
+    var(--accent) 20%,
+    transparent
+  ) !important;
 }
 
 .text-slate-900 {
