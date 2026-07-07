@@ -55,7 +55,8 @@ export function UpcomingAssignments({ assignments }: UpcomingAssignmentsProps) {
                   {assignment.title}
                 </p>
                 <p className="mt-0.5 truncate text-xs text-slate-500">
-                  {assignment.course.name} · <DueDate dueAt={assignment.dueAt} />
+                  {assignment.course.name} ·{' '}
+                  <DueDate dueAt={assignment.dueAt} />
                 </p>
               </div>
               <StatusBadge status={assignment.status} />
