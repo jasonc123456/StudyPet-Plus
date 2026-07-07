@@ -60,31 +60,12 @@ function applyTheme(
     textMode === 'custom' && HEX_COLOR_REGEX.test(customTextColor)
       ? customTextColor
       : getContrastTextColor(accent);
-  const sidebarDivider =
-    accentText === '#111111'
-      ? 'rgba(17, 17, 17, 0.14)'
-      : 'rgba(255, 255, 255, 0.12)';
 
   document.documentElement.setAttribute('data-theme', mode);
   document.documentElement.style.setProperty('--accent', accent);
   document.documentElement.style.setProperty('--accent-strong', accent);
   document.documentElement.style.setProperty('--accent-soft', `${accent}18`);
   document.documentElement.style.setProperty('--accent-text', accentText);
-  document.documentElement.style.setProperty('--sidebar-bg', accent);
-  document.documentElement.style.setProperty(
-    '--sidebar-active-bg',
-    `${accent}33`
-  );
-  document.documentElement.style.setProperty('--sidebar-active-border', accent);
-  document.documentElement.style.setProperty('--sidebar-text', accentText);
-  document.documentElement.style.setProperty(
-    '--sidebar-text-strong',
-    accentText
-  );
-  document.documentElement.style.setProperty(
-    '--sidebar-divider',
-    sidebarDivider
-  );
 }
 
 export function SettingsModal({ open, onClose, user }: SettingsModalProps) {

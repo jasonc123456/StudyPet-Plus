@@ -1,8 +1,10 @@
 import Link from 'next/link';
 
-import { StatusBadge } from '@/components/assignments/StatusBadge';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
 import { DueDate } from '@/components/DueDate';
+import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
+import { InlineAssignmentStatusBadge } from '@/components/dashboard/InlineAssignmentStatusBadge';
 import type { DashboardAssignment } from '@/lib/dashboard';
 
 type UpcomingAssignmentsProps = {
@@ -12,54 +14,54 @@ type UpcomingAssignmentsProps = {
 export function UpcomingAssignments({ assignments }: UpcomingAssignmentsProps) {
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Upcoming assignments
-        </h2>
-        {assignments.length > 0 && (
-          <Link
-            href="/dashboard/assignments"
-            className="text-sm font-medium text-brand-600 hover:text-brand-700"
-          >
-            View all
-          </Link>
-        )}
-      </div>
+      <DashboardSectionHeader
+        title="Upcoming assignments"
+        href={assignments.length > 0 ? '/dashboard/assignments' : undefined}
+      />
 
       {assignments.length === 0 ? (
-        <div className="card flex flex-col items-center px-6 py-8 text-center">
-          <span className="text-3xl" aria-hidden>
+        <DashboardPanel className="flex flex-col items-center text-center">
+          <span className="text-3xl opacity-80" aria-hidden>
             📝
           </span>
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-4 text-sm font-normal text-slate-500">
             No open assignments. You&apos;re all caught up!
           </p>
           <Link
             href="/dashboard/assignments/new"
-            className="btn-primary mt-4 inline-flex text-sm"
+            className="btn-primary mt-5 inline-flex text-sm"
           >
             Add assignment
           </Link>
-        </div>
+        </DashboardPanel>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {assignments.map((assignment) => (
             <Link
               key={assignment.id}
               href={`/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`}
-              className="card flex items-center gap-3 p-4 transition hover:border-brand-200"
+              className="dashboard-row group flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
             >
-              <ColorSwatch color={assignment.course.color} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-slate-900">
-                  {assignment.title}
-                </p>
-                <p className="mt-0.5 truncate text-xs text-slate-500">
-                  {assignment.course.name} ·{' '}
-                  <DueDate dueAt={assignment.dueAt} />
-                </p>
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <ColorSwatch color={assignment.course.color} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-medium tracking-tight text-slate-900">
+                    {assignment.title}
+                  </p>
+                  <p className="mt-1 truncate text-xs font-normal text-slate-500">
+                    {assignment.course.name} ·{' '}
+                    <DueDate dueAt={assignment.dueAt} />
+                  </p>
+                </div>
               </div>
-              <StatusBadge status={assignment.status} />
+              <div className="flex items-center justify-between gap-3 sm:shrink-0 sm:justify-end">
+                <InlineAssignmentStatusBadge
+                  courseId={assignment.courseId}
+                  assignmentId={assignment.id}
+                  status={assignment.status}
+                  title={assignment.title}
+                />
+              </div>
             </Link>
           ))}
         </div>

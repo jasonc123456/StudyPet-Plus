@@ -7,8 +7,8 @@ import { prisma } from '@/lib/prisma';
 /**
  * App Shell Layout — wraps every route under /dashboard.
  *
- * Desktop (md+): persistent left sidebar + scrollable content area.
- * Mobile (<md):  sticky top bar + full-width content area.
+ * Desktop (md+): minimalist left sidebar + scrollable content area.
+ * Mobile (<md):  floating top bar with hamburger + slide-in drawer.
  *
  * The root layout.tsx keeps ownership of <html> / <body> and global styles;
  * this layout only adds the navigation chrome for authenticated routes.
@@ -38,36 +38,23 @@ export default async function DashboardLayout({
     },
   });
 
+  const user = {
+    name: userProfile?.name ?? session.user.name,
+    email: userProfile?.email ?? session.user.email,
+    image: userProfile?.image ?? session.user.image,
+    petName: userProfile?.pet?.name ?? 'StudyPet',
+  };
+
   return (
     <div className="app-shell flex h-screen overflow-hidden">
-      {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
-      <div className="hidden md:flex md:shrink-0">
-        <AppSidebar
-          user={{
-            name: userProfile?.name ?? session.user.name,
-            email: userProfile?.email ?? session.user.email,
-            image: userProfile?.image ?? session.user.image,
-            petName: userProfile?.pet?.name ?? 'StudyPet',
-          }}
-        />
-      </div>
+      <AppSidebar user={user} />
 
-      {/* ── Right-hand panel (top bar + page content) ────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile top bar */}
-        <div className="md:hidden">
-          <AppTopBar
-            user={{
-              name: userProfile?.name ?? session.user.name,
-              email: userProfile?.email ?? session.user.email,
-              image: userProfile?.image ?? session.user.image,
-              petName: userProfile?.pet?.name ?? 'StudyPet',
-            }}
-          />
-        </div>
+      <div className="app-shell-content flex min-w-0 flex-1 flex-col overflow-hidden">
+        <AppTopBar user={user} />
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto px-6 py-8">{children}</main>
+        <main className="app-shell-main flex-1 overflow-y-auto">
+          <div className="px-4 py-6 sm:px-6 sm:py-8">{children}</div>
+        </main>
       </div>
     </div>
   );

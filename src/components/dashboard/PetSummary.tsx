@@ -1,5 +1,7 @@
 import { getPetStageDisplay } from '@/lib/pet-display';
 
+import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import type { DashboardPet } from '@/lib/dashboard';
 
 type PetSummaryProps = {
@@ -10,50 +12,59 @@ export function PetSummary({ pet }: PetSummaryProps) {
   const stage = pet ? getPetStageDisplay(pet.stage) : null;
 
   return (
-    <section>
-      <h2 className="mb-4 text-lg font-semibold text-slate-900">StudyPet</h2>
+    <section className="lg:sticky lg:top-0 lg:self-start">
+      <DashboardSectionHeader title="StudyPet" />
 
       {!pet || !stage ? (
-        <div className="card flex flex-col items-center px-6 py-8 text-center">
-          <span className="text-3xl" aria-hidden>
+        <DashboardPanel className="flex flex-col items-center text-center">
+          <span className="text-4xl opacity-80" aria-hidden>
             🥚
           </span>
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-4 text-sm font-normal text-slate-500">
             No StudyPet yet. Complete quests to hatch your companion.
           </p>
-        </div>
+        </DashboardPanel>
       ) : (
-        <div className="card p-5">
+        <DashboardPanel>
           <div className="flex items-center gap-4">
-            <span className="text-4xl" aria-hidden>
+            <span
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50/90 to-violet-50/80 text-3xl ring-1 ring-inset ring-indigo-100/60"
+              aria-hidden
+            >
               {stage.emoji}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold text-slate-900">
+              <p className="truncate text-lg font-semibold tracking-tight text-slate-900">
                 {pet.name}
               </p>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="mt-0.5 text-xs font-normal text-slate-500">
                 Lv {pet.level} · {stage.label}
               </p>
             </div>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-sm">
+
+          <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100/80 pt-5">
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <dt className="text-[11px] font-medium uppercase tracking-widest text-neutral-400">
                 XP
               </dt>
-              <dd className="mt-0.5 font-semibold text-brand-600">{pet.xp}</dd>
+              <dd className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight text-brand-600">
+                {pet.xp}
+              </dd>
             </div>
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <dt className="text-[11px] font-medium uppercase tracking-widest text-neutral-400">
                 Streak
               </dt>
-              <dd className="mt-0.5 font-semibold text-mint-600">
-                {pet.streakCount} day{pet.streakCount === 1 ? '' : 's'}
+              <dd className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight text-mint-600">
+                {pet.streakCount}
+                <span className="ml-1 text-sm font-medium text-slate-500">
+                  day{pet.streakCount === 1 ? '' : 's'}
+                </span>
               </dd>
             </div>
           </dl>
-        </div>
+        </DashboardPanel>
       )}
     </section>
   );

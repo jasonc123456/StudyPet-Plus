@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { SettingsModal } from '@/components/settings/SettingsModal';
 
@@ -141,6 +141,43 @@ function SignOutIcon({ className }: { className?: string }) {
   );
 }
 
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Nav link definitions
 // ---------------------------------------------------------------------------
@@ -164,74 +201,136 @@ type AppChromeUser = {
   petName?: string | null;
 };
 
-// ---------------------------------------------------------------------------
-// Sidebar — desktop persistent drawer
-// ---------------------------------------------------------------------------
+function isNavActive(pathname: string, href: string) {
+  return href === '/dashboard'
+    ? pathname === '/dashboard'
+    : pathname === href || pathname.startsWith(href + '/');
+}
 
-export function AppSidebar({ user }: { user: AppChromeUser }) {
+function BrandMark({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span
+        className={`flex items-center justify-center rounded-xl bg-brand-50 ring-1 ring-inset ring-brand-500/10 ${compact ? 'h-8 w-8 text-base' : 'h-9 w-9 text-lg'}`}
+        aria-hidden
+      >
+        🐾
+      </span>
+      <span
+        className={`font-semibold tracking-tight text-slate-900 ${compact ? 'text-base' : 'text-lg'}`}
+      >
+        StudyPet<span className="text-brand-600">+</span>
+      </span>
+    </div>
+  );
+}
+
+type SidebarNavProps = {
+  pathname: string;
+  onNavigate?: () => void;
+  onOpenSettings: () => void;
+};
+
+function SidebarNav({ pathname, onNavigate, onOpenSettings }: SidebarNavProps) {
+  const linkClass = (active: boolean) =>
+    [
+      'app-sidebar-link group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+      active ? 'app-sidebar-link-active' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+  const iconClass = (active: boolean) =>
+    [
+      'h-5 w-5 shrink-0 transition-all duration-200',
+      active ? 'text-brand-600' : 'text-slate-400 group-hover:text-slate-600',
+    ].join(' ');
+
+  return (
+    <>
+      <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Main navigation">
+        {NAV_LINKS.map(({ href, label, Icon }) => {
+          const active = isNavActive(pathname, href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              className={linkClass(active)}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon className={iconClass(active)} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => {
+            onOpenSettings();
+            onNavigate?.();
+          }}
+          className={linkClass(false)}
+        >
+          <SettingsIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
+          Settings
+        </button>
+      </nav>
+
+      <div className="app-sidebar-divider border-t p-3">
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          className="app-sidebar-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
+        >
+          <SignOutIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
+          Sign out
+        </button>
+      </div>
+    </>
+  );
+}
+
+type SidebarShellProps = {
+  user: AppChromeUser;
+  onNavigate?: () => void;
+  showClose?: boolean;
+  onClose?: () => void;
+};
+
+function SidebarShell({
+  user,
+  onNavigate,
+  showClose = false,
+  onClose,
+}: SidebarShellProps) {
   const pathname = usePathname();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
-      <aside className="app-sidebar flex h-full w-64 flex-col">
-        {/* Brand mark */}
-        <div className="app-sidebar-divider flex items-center gap-2.5 border-b px-6 py-5">
-          <span className="text-xl">🐾</span>
-          <span className="text-lg font-bold tracking-tight text-white">
-            StudyPet<span style={{ color: '#f9a8d4' }}>+</span>
-          </span>
+      <div className="flex h-full w-full flex-col">
+        <div className="app-sidebar-divider flex items-center justify-between border-b px-5 py-5">
+          <BrandMark />
+          {showClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close menu"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
-        {/* Primary navigation */}
-        <nav
-          className="flex-1 space-y-1 px-3 py-4"
-          aria-label="Main navigation"
-        >
-          {NAV_LINKS.map(({ href, label, Icon }) => {
-            const isActive =
-              href === '/dashboard'
-                ? pathname === '/dashboard'
-                : pathname === href || pathname.startsWith(href + '/');
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={[
-                  'app-sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'app-sidebar-link-active pl-[10px] text-white'
-                    : '',
-                ].join(' ')}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                {label}
-              </Link>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="app-sidebar-link flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:text-white"
-          >
-            <SettingsIcon className="h-5 w-5 shrink-0" />
-            Settings
-          </button>
-        </nav>
-
-        {/* Sign-out action */}
-        <div className="app-sidebar-divider border-t p-3">
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="app-sidebar-link flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:text-white"
-          >
-            <SignOutIcon className="h-5 w-5 shrink-0" />
-            Sign out
-          </button>
-        </div>
-      </aside>
+        <SidebarNav
+          pathname={pathname}
+          onNavigate={onNavigate}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      </div>
 
       <SettingsModal
         open={settingsOpen}
@@ -243,72 +342,85 @@ export function AppSidebar({ user }: { user: AppChromeUser }) {
 }
 
 // ---------------------------------------------------------------------------
-// Mobile top bar — shown below md breakpoint
+// Desktop sidebar — minimalist persistent panel
+// ---------------------------------------------------------------------------
+
+export function AppSidebar({ user }: { user: AppChromeUser }) {
+  return (
+    <aside className="app-sidebar hidden h-full w-64 shrink-0 flex-col border-r border-[var(--shell-sidebar-border)] md:flex">
+      <SidebarShell user={user} />
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mobile top bar + slide-in drawer
 // ---------------------------------------------------------------------------
 
 export function AppTopBar({ user }: { user: AppChromeUser }) {
   const pathname = usePathname();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [menuOpen]);
 
   return (
     <>
-      <header className="app-sidebar app-sidebar-divider flex items-center justify-between border-b px-4 py-3">
-        {/* Brand */}
-        <div className="flex items-center gap-2">
-          <span className="text-base">🐾</span>
-          <span className="font-bold tracking-tight text-white">
-            StudyPet<span style={{ color: '#f9a8d4' }}>+</span>
-          </span>
-        </div>
-
-        {/* Nav links (compact) */}
-        <nav className="flex items-center gap-1" aria-label="Main navigation">
-          {NAV_LINKS.map(({ href, label, Icon }) => {
-            const isActive =
-              href === '/dashboard'
-                ? pathname === '/dashboard'
-                : pathname === href || pathname.startsWith(href + '/');
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={[
-                  'app-sidebar-link flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  isActive ? 'bg-white/20 text-white' : '',
-                ].join(' ')}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden xs:inline">{label}</span>
-              </Link>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="app-sidebar-link flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors hover:text-white"
-          >
-            <SettingsIcon className="h-4 w-4" />
-            <span className="hidden xs:inline">Settings</span>
-          </button>
-        </nav>
-
-        {/* Sign out (icon only on mobile) */}
+      <header className="app-mobile-bar sticky top-0 z-30 flex items-center justify-between border-b px-4 py-3 md:hidden">
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          title="Sign out"
-          className="app-sidebar-link rounded-md p-1.5 transition-colors hover:text-white"
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
         >
-          <SignOutIcon className="h-5 w-5" />
+          <MenuIcon className="h-5 w-5" />
         </button>
+
+        <BrandMark compact />
+
+        <div className="h-10 w-10" aria-hidden />
       </header>
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        user={user}
-      />
+      <div
+        className={[
+          'fixed inset-0 z-40 transition-all duration-200 md:hidden',
+          menuOpen
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0',
+        ].join(' ')}
+        aria-hidden={!menuOpen}
+      >
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-all duration-200"
+          onClick={() => setMenuOpen(false)}
+        />
+      </div>
+
+      <aside
+        className={[
+          'app-sidebar fixed inset-y-0 left-0 z-50 w-[min(85vw,18rem)] border-r border-[var(--shell-sidebar-border)] shadow-2xl shadow-slate-900/10 transition-all duration-200 ease-out md:hidden',
+          menuOpen ? 'translate-x-0' : '-translate-x-full',
+        ].join(' ')}
+        aria-hidden={!menuOpen}
+      >
+        <SidebarShell
+          user={user}
+          showClose
+          onClose={() => setMenuOpen(false)}
+          onNavigate={() => setMenuOpen(false)}
+        />
+      </aside>
     </>
   );
 }
