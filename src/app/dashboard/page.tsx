@@ -9,6 +9,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
+import { CalendarTaskChecklist } from '@/components/calendar/CalendarTaskChecklist';
+import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { PetSummary } from '@/components/dashboard/PetSummary';
 import { StudyQuests } from '@/components/dashboard/StudyQuests';
 import { UpcomingAssignments } from '@/components/dashboard/UpcomingAssignments';
