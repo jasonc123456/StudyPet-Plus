@@ -526,8 +526,20 @@ async function loadAssignedGroupTasks(
   gridStart: Date,
   gridEnd: Date
 ) {
+  const groupTaskAssignee = (
+    prisma as typeof prisma & {
+      groupTaskAssignee?: {
+        findMany: typeof prisma.groupTaskAssignee.findMany;
+      };
+    }
+  ).groupTaskAssignee;
+
+  if (!groupTaskAssignee) {
+    return [];
+  }
+
   try {
-    return await prisma.groupTaskAssignee.findMany({
+    return await groupTaskAssignee.findMany({
       where: {
         userId,
         task: {
