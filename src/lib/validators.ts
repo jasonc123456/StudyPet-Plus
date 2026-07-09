@@ -125,6 +125,30 @@ export const updateQuestSchema = updateQuestSchemaBase
 export type CreateQuestInput = z.infer<typeof createQuestSchema>;
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>;
 
+export const createCalendarSubscriptionSchema = z.object({
+  name: z.string().trim().min(1, 'Calendar name is required').max(100),
+  icsUrl: z.string().trim().url('Valid ICS URL is required').max(2000),
+  color: z
+    .string()
+    .trim()
+    .refine((value) => hexColorRegex.test(value), {
+      message: 'Enter a full hex color like #0ea5e9',
+    }),
+});
+
+export const updateCalendarSubscriptionSchema = createCalendarSubscriptionSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export type CreateCalendarSubscriptionInput = z.infer<
+  typeof createCalendarSubscriptionSchema
+>;
+export type UpdateCalendarSubscriptionInput = z.infer<
+  typeof updateCalendarSubscriptionSchema
+>;
+
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
   email: z.string().trim().email('Valid email is required').max(255),

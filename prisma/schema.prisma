@@ -30,9 +30,10 @@ model User {
   sessions Session[]
 
   // Sprint 2 — planner + gamification relations.
-  courses Course[]
-  quests  Quest[]
-  pet     Pet?
+  courses               Course[]
+  quests                Quest[]
+  pet                   Pet?
+  calendarSubscriptions CalendarSubscription[]
 }
 
 model Account {
@@ -145,4 +146,19 @@ model Pet {
   createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CalendarSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  icsUrl       String
+  color        String   @default("#0ea5e9")
+  createdAt    DateTime @default(now())
+  lastSyncedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([userId, icsUrl])
 }
