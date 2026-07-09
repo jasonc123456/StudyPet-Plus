@@ -31,9 +31,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (!targetMembership) {
     return jsonError('Member not found', 404);
   }
-  if (targetMembership.role === GroupRole.OWNER) {
-    return jsonError('The owner role cannot be changed', 400);
-  }
 
   let body: unknown;
   try {
@@ -46,13 +43,38 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (!parsed.success) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
+  if (targetMembership.role === GroupRole.OWNER && parsed.data.role) {
+    return jsonError('The owner role cannot be changed', 400);
+  }
+
+  if (parsed.data.customRoleId) {
+    const customRole = await prisma.groupCustomRole.findFirst({
+      where: { id: parsed.data.customRoleId, groupId: params.groupId },
+      select: { id: true },
+    });
+    if (!customRole) {
+      return jsonError('Custom role not found in this group', 400);
+    }
+  }
 
   const membership = await prisma.groupMembership.update({
     where: { id: params.memberId },
-    data: { role: parsed.data.role },
+    data: {
+      ...(parsed.data.role !== undefined && { role: parsed.data.role }),
+      ...(parsed.data.customRoleId !== undefined && {
+        customRoleId: parsed.data.customRoleId || null,
+      }),
+    },
     select: {
       id: true,
       role: true,
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+        },
+      },
       joinedAt: true,
       user: {
         select: {

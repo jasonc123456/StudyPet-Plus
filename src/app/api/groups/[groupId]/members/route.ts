@@ -24,6 +24,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     select: {
       id: true,
       role: true,
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+        },
+      },
       joinedAt: true,
       user: {
         select: {

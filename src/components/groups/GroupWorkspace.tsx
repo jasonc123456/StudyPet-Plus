@@ -26,6 +26,11 @@ type GroupWorkspaceProps = {
   members: Array<{
     id: string;
     role: string;
+    customRole: {
+      id: string;
+      name: string;
+      color: string;
+    } | null;
     joinedAt: string;
     user: {
       id: string;
@@ -33,6 +38,12 @@ type GroupWorkspaceProps = {
       email: string | null;
       image: string | null;
     };
+  }>;
+  customRoles: Array<{
+    id: string;
+    name: string;
+    color: string;
+    createdAt: string;
   }>;
   initialMessages: Array<{
     id: string;
@@ -92,7 +103,19 @@ const TAB_OPTIONS = [
   { value: 'invites', label: 'Invites' },
 ] as const;
 
-function formatDateTime(value: string | null) {
+function formatDateTimeUTC(value: string | null) {
+  if (!value) return 'No due date';
+  return new Date(value).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
+function formatDateTimeLocal(value: string | null) {
   if (!value) return 'No due date';
   return new Date(value).toLocaleString(undefined, {
     month: 'short',
@@ -103,7 +126,17 @@ function formatDateTime(value: string | null) {
   });
 }
 
-function formatShortDate(value: string | null) {
+function formatShortDateUTC(value: string | null) {
+  if (!value) return 'No date';
+  return new Date(value).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function formatShortDateLocal(value: string | null) {
   if (!value) return 'No date';
   return new Date(value).toLocaleDateString(undefined, {
     month: 'short',
@@ -112,7 +145,16 @@ function formatShortDate(value: string | null) {
   });
 }
 
-function formatTime(value: string | null) {
+function formatTimeUTC(value: string | null) {
+  if (!value) return 'All day';
+  return new Date(value).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
+function formatTimeLocal(value: string | null) {
   if (!value) return 'All day';
   return new Date(value).toLocaleTimeString(undefined, {
     hour: 'numeric',
@@ -127,12 +169,15 @@ function getDayKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function parseDayKey(dayKey: string) {
-  const [year, month, day] = dayKey.split('-').map(Number);
-  return new Date(year, (month || 1) - 1, day || 1, 12);
+function monthTitleUTC(date: Date) {
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
-function monthTitle(date: Date) {
+function monthTitleLocal(date: Date) {
   return date.toLocaleDateString(undefined, {
     month: 'long',
     year: 'numeric',
@@ -163,6 +208,75 @@ function displayName(user: {
   return user.name || user.email || user.id;
 }
 
+function displayRole(member: GroupMember) {
+  return member.customRole?.name || member.role;
+}
+
+function roleBadgeStyle(member: GroupMember) {
+  return member.customRole
+    ? {
+        backgroundColor: `${member.customRole.color}20`,
+        color: member.customRole.color,
+        borderColor: `${member.customRole.color}40`,
+      }
+    : undefined;
+}
+
+function Avatar({
+  user,
+  size = 'md',
+}: {
+  user: GroupMember['user'];
+  size?: 'sm' | 'md';
+}) {
+  const initials = displayName(user).slice(0, 2).toUpperCase();
+  const classes = size === 'sm' ? 'h-9 w-9 text-xs' : 'h-10 w-10 text-sm';
+
+  if (user.image) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={user.image}
+        alt={displayName(user)}
+        className={`${classes} rounded-full object-cover ring-1 ring-slate-200`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${classes} flex items-center justify-center rounded-full bg-slate-200 font-semibold text-slate-600 ring-1 ring-slate-200`}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function DateLabel({
+  value,
+  mode,
+  mounted,
+}: {
+  value: string | null;
+  mode: 'dateTime' | 'shortDate' | 'time';
+  mounted: boolean;
+}) {
+  const text =
+    mode === 'dateTime'
+      ? mounted
+        ? formatDateTimeLocal(value)
+        : formatDateTimeUTC(value)
+      : mode === 'shortDate'
+        ? mounted
+          ? formatShortDateLocal(value)
+          : formatShortDateUTC(value)
+        : mounted
+          ? formatTimeLocal(value)
+          : formatTimeUTC(value);
+
+  return <span suppressHydrationWarning>{text}</span>;
+}
+
 export function GroupWorkspace({
   currentUserId,
   group,
@@ -170,6 +284,7 @@ export function GroupWorkspace({
   initialSelectedChannelId,
   channels: initialChannels,
   members: initialMembers,
+  customRoles: initialCustomRoles,
   initialMessages,
   tasks: initialTasks,
   invites: initialInvites,
@@ -181,8 +296,10 @@ export function GroupWorkspace({
   const [selectedChannelId, setSelectedChannelId] = useState(
     initialSelectedChannelId
   );
+  const [mounted, setMounted] = useState(false);
   const [channels, setChannels] = useState(initialChannels);
   const [members, setMembers] = useState(initialMembers);
+  const [customRoles, setCustomRoles] = useState(initialCustomRoles);
   const [tasks, setTasks] = useState(initialTasks);
   const [invites, setInvites] = useState(initialInvites);
   const [messagesByChannel, setMessagesByChannel] = useState<
@@ -209,15 +326,29 @@ export function GroupWorkspace({
     assigneeUserIds: [] as string[],
   });
   const [creatingInvite, setCreatingInvite] = useState(false);
+  const [creatingCustomRole, setCreatingCustomRole] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [inviteForm, setInviteForm] = useState({ expiresAt: '', maxUses: '' });
+  const [customRoleForm, setCustomRoleForm] = useState({
+    name: '',
+    color: '#2563eb',
+  });
   const [latestInviteLink, setLatestInviteLink] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const isAdmin =
     group.currentUserRole === 'OWNER' || group.currentUserRole === 'ADMIN';
+  const isOwner = group.currentUserRole === 'OWNER';
   const activeChannelId = selectedChannelId || channels[0]?.id || null;
   const activeMessages = activeChannelId
     ? messagesByChannel[activeChannelId] || []
     : [];
+  const membersByUserId = members.reduce<Record<string, GroupMember>>(
+    (acc, member) => {
+      acc[member.user.id] = member;
+      return acc;
+    },
+    {}
+  );
   const calendarDays = buildMonthGrid(calendarMonth);
   const dueTasks = tasks.filter((task) => task.dueAt);
   const tasksByDay = dueTasks.reduce<Record<string, GroupTask[]>>(
@@ -242,6 +373,10 @@ export function GroupWorkspace({
 
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!activeChannelId || messagesByChannel[activeChannelId]) {
@@ -296,6 +431,46 @@ export function GroupWorkspace({
       cancelled = true;
     };
   }, [activeChannelId, group.id, messagesByChannel]);
+
+  useEffect(() => {
+    if (!activeChannelId) {
+      return;
+    }
+
+    let cancelled = false;
+    const channelId = activeChannelId;
+
+    async function refreshMessages() {
+      try {
+        const response = await fetch(
+          `/api/groups/${group.id}/channels/${channelId}/messages`,
+          {
+            cache: 'no-store',
+          }
+        );
+        const data = (await response.json().catch(() => null)) as
+          GroupMessage[] | { error: string } | null;
+
+        if (cancelled || !response.ok || !Array.isArray(data)) {
+          return;
+        }
+
+        setMessagesByChannel((current) => ({
+          ...current,
+          [channelId]: data,
+        }));
+      } catch {
+        // Keep polling silent so chat doesn't flash an error while waiting.
+      }
+    }
+
+    const intervalId = window.setInterval(refreshMessages, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeChannelId, group.id]);
 
   async function createChannel() {
     setCreatingChannel(true);
@@ -489,7 +664,10 @@ export function GroupWorkspace({
     }
   }
 
-  async function updateMemberRole(memberId: string, role: string) {
+  async function updateMember(
+    memberId: string,
+    updates: { role?: string; customRoleId?: string | null }
+  ) {
     setWorkspaceError(null);
 
     try {
@@ -498,7 +676,7 @@ export function GroupWorkspace({
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role }),
+          body: JSON.stringify(updates),
         }
       );
       const data = (await response.json().catch(() => null)) as
@@ -521,6 +699,73 @@ export function GroupWorkspace({
       );
     } catch {
       setWorkspaceError('Network error while updating the member');
+    }
+  }
+
+  async function createCustomRole() {
+    setCreatingCustomRole(true);
+    setWorkspaceError(null);
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}/roles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: customRoleForm.name.trim(),
+          color: customRoleForm.color.trim(),
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        GroupWorkspaceProps['customRoles'][number] | { error: string } | null;
+
+      if (!response.ok || !data || 'error' in data) {
+        setWorkspaceError(
+          data && 'error' in data && data.error
+            ? data.error
+            : 'Unable to create the custom role'
+        );
+        return;
+      }
+
+      setCustomRoles((current) => [...current, data]);
+      setCustomRoleForm({
+        name: '',
+        color: '#2563eb',
+      });
+    } catch {
+      setWorkspaceError('Network error while creating the custom role');
+    } finally {
+      setCreatingCustomRole(false);
+    }
+  }
+
+  async function deleteCustomRole(roleId: string) {
+    setWorkspaceError(null);
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}/roles/${roleId}`, {
+        method: 'DELETE',
+      });
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !data?.success) {
+        setWorkspaceError(data?.error ?? 'Unable to delete the custom role');
+        return;
+      }
+
+      setCustomRoles((current) => current.filter((role) => role.id !== roleId));
+      setMembers((current) =>
+        current.map((member) =>
+          member.customRole?.id === roleId
+            ? { ...member, customRole: null }
+            : member
+        )
+      );
+    } catch {
+      setWorkspaceError('Network error while deleting the custom role');
     }
   }
 
@@ -628,6 +873,40 @@ export function GroupWorkspace({
     }
   }
 
+  async function deleteGroup() {
+    if (!isOwner || deletingGroup) return;
+
+    const confirmed = window.confirm(
+      `Delete "${group.name}"? This removes its channels, messages, tasks, invites, and memberships.`
+    );
+    if (!confirmed) return;
+
+    setDeletingGroup(true);
+    setWorkspaceError(null);
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}`, {
+        method: 'DELETE',
+      });
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !data?.success) {
+        setWorkspaceError(data?.error ?? 'Unable to delete the group');
+        return;
+      }
+
+      router.push('/dashboard/groups');
+      router.refresh();
+    } catch {
+      setWorkspaceError('Network error while deleting the group');
+    } finally {
+      setDeletingGroup(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <DashboardPanel>
@@ -666,6 +945,19 @@ export function GroupWorkspace({
             </div>
           </div>
         </div>
+
+        {isOwner && (
+          <div className="mt-5 flex justify-start">
+            <button
+              type="button"
+              onClick={deleteGroup}
+              disabled={deletingGroup}
+              className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deletingGroup ? 'Deleting…' : 'Delete group'}
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 flex flex-wrap gap-2">
           {TAB_OPTIONS.map((tab) => (
@@ -777,9 +1069,6 @@ export function GroupWorkspace({
                     ? `# ${channels.find((channel) => channel.id === activeChannelId)?.name || 'channel'}`
                     : 'No channels yet'}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Discord-style discussion for this study group.
-                </p>
               </div>
             </div>
 
@@ -791,24 +1080,51 @@ export function GroupWorkspace({
                   No messages here yet. Start the conversation.
                 </p>
               ) : (
-                activeMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className="rounded-2xl border border-slate-200 px-4 py-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium text-slate-900">
-                        {displayName(message.author)}
-                      </p>
-                      <span className="text-xs text-slate-400">
-                        {formatDateTime(message.createdAt)}
-                      </span>
+                activeMessages.map((message) => {
+                  const authorMember = membersByUserId[message.author.id];
+                  const isCurrentUser = message.author.id === currentUserId;
+
+                  return (
+                    <div
+                      key={message.id}
+                      className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3"
+                    >
+                      <Avatar user={message.author} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p
+                            className={[
+                              'font-medium',
+                              isCurrentUser
+                                ? 'text-brand-700'
+                                : 'text-slate-900',
+                            ].join(' ')}
+                          >
+                            {displayName(message.author)}
+                          </p>
+                          {authorMember && (
+                            <span
+                              className="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                              style={roleBadgeStyle(authorMember)}
+                            >
+                              {displayRole(authorMember)}
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-400">
+                            <DateLabel
+                              value={message.createdAt}
+                              mode="dateTime"
+                              mounted={mounted}
+                            />
+                          </span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
+                          {message.content}
+                        </p>
+                      </div>
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
-                      {message.content}
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -982,8 +1298,13 @@ export function GroupWorkspace({
                         </p>
                       )}
                       <p className="mt-3 text-sm text-slate-500">
-                        Due {formatDateTime(task.dueAt)} · Created by{' '}
-                        {displayName(task.createdBy)}
+                        Due{' '}
+                        <DateLabel
+                          value={task.dueAt}
+                          mode="dateTime"
+                          mounted={mounted}
+                        />{' '}
+                        · Created by {displayName(task.createdBy)}
                       </p>
                       <p className="mt-2 text-sm text-slate-500">
                         Assigned to{' '}
@@ -1080,7 +1401,11 @@ export function GroupWorkspace({
             </div>
 
             <h3 className="mt-5 text-xl font-semibold text-slate-900">
-              {monthTitle(calendarMonth)}
+              <span suppressHydrationWarning>
+                {mounted
+                  ? monthTitleLocal(calendarMonth)
+                  : monthTitleUTC(calendarMonth)}
+              </span>
             </h3>
             <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
@@ -1122,7 +1447,12 @@ export function GroupWorkspace({
                           key={task.id}
                           className="rounded-xl bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-700"
                         >
-                          {formatTime(task.dueAt)} · {task.title}
+                          <DateLabel
+                            value={task.dueAt}
+                            mode="time"
+                            mounted={mounted}
+                          />{' '}
+                          · {task.title}
                         </div>
                       ))}
                       {dayTasks.length > 3 && (
@@ -1159,7 +1489,11 @@ export function GroupWorkspace({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">
-                      {formatDateTime(task.dueAt)}
+                      <DateLabel
+                        value={task.dueAt}
+                        mode="dateTime"
+                        mounted={mounted}
+                      />
                     </p>
                     <p className="mt-2 text-sm text-slate-500">
                       {task.assignees.length === 0
@@ -1177,50 +1511,193 @@ export function GroupWorkspace({
       )}
 
       {selectedTab === 'members' && (
-        <div className="space-y-4">
-          {members.map((member) => (
-            <DashboardPanel key={member.id}>
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    {displayName(member.user)}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Joined {formatShortDate(member.joinedAt)}
-                  </p>
-                </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <div className="space-y-4">
+            {members.map((member) => (
+              <DashboardPanel key={member.id}>
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex items-start gap-3">
+                    <Avatar user={member.user} />
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-semibold text-slate-900">
+                          {displayName(member.user)}
+                        </h2>
+                        <span
+                          className="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600"
+                          style={roleBadgeStyle(member)}
+                        >
+                          {displayRole(member)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Joined{' '}
+                        <DateLabel
+                          value={member.joinedAt}
+                          mode="shortDate"
+                          mounted={mounted}
+                        />
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  {isAdmin && member.role !== 'OWNER' ? (
-                    <select
-                      value={member.role}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {isAdmin && member.role !== 'OWNER' ? (
+                      <>
+                        <select
+                          value={member.role}
+                          onChange={(event) =>
+                            updateMember(member.id, {
+                              role: event.target.value,
+                            })
+                          }
+                          className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-400"
+                        >
+                          <option value="MEMBER">Member</option>
+                          <option value="ADMIN">Admin</option>
+                        </select>
+                        <select
+                          value={member.customRole?.id || ''}
+                          onChange={(event) =>
+                            updateMember(member.id, {
+                              customRoleId: event.target.value || null,
+                            })
+                          }
+                          className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-400"
+                        >
+                          <option value="">No custom role</option>
+                          {customRoles.map((customRole) => (
+                            <option key={customRole.id} value={customRole.id}>
+                              {customRole.name}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        {member.role}
+                      </span>
+                    )}
+
+                    {isAdmin && member.role !== 'OWNER' && (
+                      <button
+                        type="button"
+                        onClick={() => removeMember(member.id)}
+                        className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </DashboardPanel>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            <DashboardPanel>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Custom roles
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Create display roles for members. Admin and owner permissions
+                still come from the permission dropdown.
+              </p>
+              {isAdmin ? (
+                <div className="mt-4 space-y-3">
+                  <input
+                    value={customRoleForm.name}
+                    onChange={(event) =>
+                      setCustomRoleForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="Role name"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
+                  />
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={customRoleForm.color}
                       onChange={(event) =>
-                        updateMemberRole(member.id, event.target.value)
+                        setCustomRoleForm((current) => ({
+                          ...current,
+                          color: event.target.value,
+                        }))
                       }
-                      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-400"
-                    >
-                      <option value="MEMBER">Member</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
-                  ) : (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {member.role}
-                    </span>
-                  )}
-
-                  {isAdmin && member.role !== 'OWNER' && (
-                    <button
-                      type="button"
-                      onClick={() => removeMember(member.id)}
-                      className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  )}
+                      className="h-12 w-16 rounded-2xl border border-slate-200 bg-white p-1"
+                    />
+                    <input
+                      value={customRoleForm.color}
+                      onChange={(event) =>
+                        setCustomRoleForm((current) => ({
+                          ...current,
+                          color: event.target.value,
+                        }))
+                      }
+                      placeholder="#2563eb"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={createCustomRole}
+                    disabled={
+                      creatingCustomRole ||
+                      customRoleForm.name.trim().length === 0
+                    }
+                    className="btn-primary"
+                  >
+                    {creatingCustomRole ? 'Creating…' : 'Create custom role'}
+                  </button>
                 </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-500">
+                  Only admins can create and assign custom roles.
+                </p>
+              )}
+            </DashboardPanel>
+
+            <DashboardPanel>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Existing roles
+              </h2>
+              <div className="mt-4 space-y-3">
+                {customRoles.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    No custom roles created yet.
+                  </p>
+                ) : (
+                  customRoles.map((customRole) => (
+                    <div
+                      key={customRole.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="h-3 w-3 rounded-full"
+                          style={{ backgroundColor: customRole.color }}
+                        />
+                        <span className="font-medium text-slate-900">
+                          {customRole.name}
+                        </span>
+                      </div>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => deleteCustomRole(customRole.id)}
+                          className="rounded-2xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </DashboardPanel>
-          ))}
+          </div>
         </div>
       )}
 
@@ -1312,14 +1789,24 @@ export function GroupWorkspace({
                         {invite.normalizedStatus}
                       </p>
                       <p className="mt-2 text-sm text-slate-500">
-                        Created {formatDateTime(invite.createdAt)}
+                        Created{' '}
+                        <DateLabel
+                          value={invite.createdAt}
+                          mode="dateTime"
+                          mounted={mounted}
+                        />
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         Uses {invite.useCount}
                         {invite.maxUses ? ` / ${invite.maxUses}` : ''}
-                        {invite.expiresAt
-                          ? ` · Expires ${formatDateTime(invite.expiresAt)}`
-                          : ''}
+                        {invite.expiresAt ? ' · Expires ' : ''}
+                        {invite.expiresAt && (
+                          <DateLabel
+                            value={invite.expiresAt}
+                            mode="dateTime"
+                            mounted={mounted}
+                          />
+                        )}
                       </p>
                     </div>
                     {isAdmin && invite.normalizedStatus === 'ACTIVE' && (

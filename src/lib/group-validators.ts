@@ -61,8 +61,26 @@ export const joinGroupSchema = z.object({
     .transform(extractInviteToken),
 });
 
-export const updateGroupMemberSchema = z.object({
-  role: z.enum(['ADMIN', 'MEMBER']),
+export const updateGroupMemberSchema = z
+  .object({
+    role: z.enum(['ADMIN', 'MEMBER']).optional(),
+    customRoleId: z.string().trim().min(1).optional().nullable(),
+  })
+  .refine(
+    (data) => data.role !== undefined || data.customRoleId !== undefined,
+    {
+      message: 'At least one field is required',
+    }
+  );
+
+const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#(?:[0-9a-fA-F]{6})$/, 'Enter a valid 6-digit hex color');
+
+export const createGroupCustomRoleSchema = z.object({
+  name: z.string().trim().min(1, 'Role name is required').max(50),
+  color: hexColorSchema.default('#2563eb'),
 });
 
 export const createGroupChannelSchema = z.object({
