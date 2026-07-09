@@ -12,7 +12,7 @@ export function PetSummary({ pet }: PetSummaryProps) {
   const stage = pet ? getPetStageDisplay(pet.stage) : null;
 
   return (
-    <section className="lg:sticky lg:top-0 lg:self-start">
+    <section>
       <DashboardSectionHeader title="StudyPet" />
 
       {!pet || !stage ? (

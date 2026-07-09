@@ -13,6 +13,7 @@ import { CalendarTaskChecklist } from '@/components/calendar/CalendarTaskCheckli
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { PetSummary } from '@/components/dashboard/PetSummary';
+import { PomodoroTimer } from '@/components/dashboard/PomodoroTimer';
 import { StudyQuests } from '@/components/dashboard/StudyQuests';
 import { UpcomingAssignments } from '@/components/dashboard/UpcomingAssignments';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
@@ -97,7 +98,10 @@ export default async function DashboardPage() {
           <UpcomingAssignments assignments={upcomingAssignments} />
           <StudyQuests quests={openQuests} />
         </div>
-        <PetSummary pet={pet} />
+        <div className="flex flex-col gap-8 lg:sticky lg:top-8 lg:self-start">
+          <PetSummary pet={pet} />
+          <PomodoroTimer />
+        </div>
       </div>
 
       <StudyQuests quests={openQuests} />
