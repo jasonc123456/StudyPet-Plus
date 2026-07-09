@@ -61,11 +61,12 @@ export function GroupJoinCard({ token, signedIn }: GroupJoinCardProps) {
         <div className="mt-6 space-y-3">
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">
-              Invite token
+              Invite link or token
             </span>
             <input
               value={inviteToken}
               onChange={(event) => setInviteToken(event.target.value)}
+              placeholder="Paste invite link or token"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400"
             />
           </label>

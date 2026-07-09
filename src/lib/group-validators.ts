@@ -12,6 +12,19 @@ const dueAtSchema = z
 const optionalTrimmedString = (max: number) =>
   z.string().trim().max(max).optional().nullable();
 
+function extractInviteToken(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    return url.searchParams.get('token')?.trim() || trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1, 'Group name is required').max(100),
   description: optionalTrimmedString(1000),
@@ -40,7 +53,12 @@ export const createGroupInviteSchema = z.object({
 });
 
 export const joinGroupSchema = z.object({
-  token: z.string().trim().min(1, 'Invite token is required').max(500),
+  token: z
+    .string()
+    .trim()
+    .min(1, 'Invite token is required')
+    .max(500)
+    .transform(extractInviteToken),
 });
 
 export const updateGroupMemberSchema = z.object({
