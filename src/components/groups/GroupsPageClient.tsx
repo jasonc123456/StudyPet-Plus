@@ -221,17 +221,17 @@ export function GroupsPageClient({
 
         <DashboardPanel>
           <h2 className="text-lg font-semibold text-slate-900">
-            Join with invite token
+            Join with invite link or token
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Paste the token from a private invite link and we&apos;ll add you to
-            the group.
+            Paste the private invite link or just the token and we&apos;ll add
+            you to the group.
           </p>
           <div className="mt-4 space-y-3">
             <input
               value={inviteToken}
               onChange={(event) => setInviteToken(event.target.value)}
-              placeholder="Paste invite token"
+              placeholder="Paste invite link or token"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400"
             />
             {joinError && (
