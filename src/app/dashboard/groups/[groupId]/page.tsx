@@ -50,6 +50,13 @@ export default async function GroupWorkspacePage({
           select: {
             id: true,
             role: true,
+            customRole: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
             joinedAt: true,
             user: {
               select: {
@@ -83,6 +90,15 @@ export default async function GroupWorkspacePage({
                 },
               },
             },
+          },
+        },
+        customRoles: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            createdAt: true,
           },
         },
         invites: {
@@ -153,6 +169,10 @@ export default async function GroupWorkspacePage({
         members={group.memberships.map((membership) => ({
           ...membership,
           joinedAt: membership.joinedAt.toISOString(),
+        }))}
+        customRoles={group.customRoles.map((customRole) => ({
+          ...customRole,
+          createdAt: customRole.createdAt.toISOString(),
         }))}
         initialMessages={initialMessages.map((message) => ({
           ...message,

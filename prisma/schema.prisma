@@ -203,6 +203,7 @@ model StudyGroup {
 
   createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
   memberships GroupMembership[]
+  customRoles GroupCustomRole[]
   invites     GroupInvite[]
   channels    GroupChannel[]
   messages    GroupMessage[]
@@ -216,14 +217,31 @@ model GroupMembership {
   groupId  String
   userId   String
   role     GroupRole @default(MEMBER)
+  customRoleId String?
   joinedAt DateTime  @default(now())
 
-  group StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group      StudyGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRole GroupCustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@unique([groupId, userId])
   @@index([userId])
   @@index([groupId, role])
+  @@index([customRoleId])
+}
+
+model GroupCustomRole {
+  id        String   @id @default(cuid())
+  groupId    String
+  name       String
+  color      String   @default("#2563eb")
+  createdAt  DateTime @default(now())
+
+  group       StudyGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  memberships GroupMembership[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
 }
 
 model GroupInvite {
