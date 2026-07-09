@@ -1,0 +1,194 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import type { CalendarSubscriptionWithError } from '@/lib/calendar';
+
+type CalendarSubscriptionManagerProps = {
+  subscriptions: CalendarSubscriptionWithError[];
+};
+
+const DEFAULT_COLOR = '#0ea5e9';
+
+export function CalendarSubscriptionManager({
+  subscriptions,
+}: CalendarSubscriptionManagerProps) {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [icsUrl, setIcsUrl] = useState('');
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/calendar/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, icsUrl, color }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(data?.error ?? 'Unable to add calendar');
+        return;
+      }
+
+      setName('');
+      setIcsUrl('');
+      setColor(DEFAULT_COLOR);
+      router.refresh();
+    } catch {
+      setError('Network error while saving the calendar link');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(subscriptionId: string) {
+    setDeletingId(subscriptionId);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/calendar/subscriptions/${subscriptionId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(data?.error ?? 'Unable to remove calendar');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setError('Network error while removing the calendar link');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <div className="card p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Connected calendars
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Add an ICS feed and it will appear alongside assignments and quests.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-5 grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-3">
+          <label className="mb-2 block text-sm font-semibold text-slate-700">
+            Calendar name
+          </label>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="theme-input"
+            placeholder="Class schedule"
+          />
+        </div>
+        <div className="lg:col-span-6">
+          <label className="mb-2 block text-sm font-semibold text-slate-700">
+            ICS URL
+          </label>
+          <input
+            value={icsUrl}
+            onChange={(event) => setIcsUrl(event.target.value)}
+            className="theme-input"
+            placeholder="https://example.com/calendar.ics"
+          />
+        </div>
+        <div className="lg:col-span-1">
+          <label className="mb-2 block text-sm font-semibold text-slate-700">
+            Color
+          </label>
+          <input
+            type="color"
+            value={color}
+            onChange={(event) => setColor(event.target.value)}
+            className="h-12 w-full rounded-xl border border-[var(--card-border)] bg-white p-1"
+          />
+        </div>
+        <div className="lg:col-span-2 lg:self-end">
+          <button
+            type="submit"
+            className="btn-primary w-full"
+            disabled={saving}
+          >
+            {saving ? 'Adding…' : 'Add calendar'}
+          </button>
+        </div>
+      </form>
+
+      {error && (
+        <p className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+
+      {subscriptions.length === 0 ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+          No ICS calendars connected yet.
+        </div>
+      ) : (
+        <div className="mt-5 space-y-3">
+          {subscriptions.map((subscription) => (
+            <div
+              key={subscription.id}
+              className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-4 sm:flex-row sm:items-start sm:justify-between"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ backgroundColor: subscription.color }}
+                    aria-hidden
+                  />
+                  <p className="truncate font-medium text-slate-900">
+                    {subscription.name}
+                  </p>
+                </div>
+                <p className="mt-1 truncate text-xs text-slate-500">
+                  {subscription.icsUrl}
+                </p>
+                {subscription.syncError && (
+                  <p className="mt-2 text-xs font-medium text-amber-700">
+                    Sync warning: {subscription.syncError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleDelete(subscription.id)}
+                disabled={deletingId === subscription.id}
+                className="btn-secondary shrink-0 text-sm"
+              >
+                {deletingId === subscription.id ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -104,6 +104,26 @@ function FlashcardsIcon({ className }: { className?: string }) {
   );
 }
 
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M3 10h18" />
+    </svg>
+  );
+}
+
 function SettingsIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -191,6 +211,7 @@ const NAV_LINKS = [
     Icon: AssignmentsIcon,
   },
   { href: '/dashboard/quests', label: 'Quests', Icon: QuestsIcon },
+  { href: '/dashboard/calendar', label: 'Calendar', Icon: CalendarIcon },
   { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
 ];
 

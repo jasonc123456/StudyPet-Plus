@@ -9,12 +9,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
-import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
-import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { PetSummary } from '@/components/dashboard/PetSummary';
 import { StudyQuests } from '@/components/dashboard/StudyQuests';
 import { UpcomingAssignments } from '@/components/dashboard/UpcomingAssignments';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
+import { getDashboardCalendarTasks } from '@/lib/calendar';
 import { getDashboardData } from '@/lib/dashboard';
 
 export default async function DashboardPage() {
@@ -24,8 +23,13 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const { courses, stats, upcomingAssignments, openQuests, pet } =
-    await getDashboardData(session.user.id);
+  const [
+    { courses, stats, upcomingAssignments, openQuests, pet },
+    calendarTasks,
+  ] = await Promise.all([
+    getDashboardData(session.user.id),
+    getDashboardCalendarTasks(session.user.id),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
@@ -92,6 +96,8 @@ export default async function DashboardPage() {
         </div>
         <PetSummary pet={pet} />
       </div>
+
+      <StudyQuests quests={openQuests} />
 
       <section>
         <DashboardSectionHeader
