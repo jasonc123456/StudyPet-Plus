@@ -11,6 +11,28 @@ datasource db {
   url      = env("DATABASE_URL") // loaded from .env (points at the `postgres` service)
 }
 
+enum GroupRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum GroupInviteStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum ChannelType {
+  TEXT
+}
+
+enum GroupTaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
 // ---------------------------------------------------------------------------
 // Auth.js (NextAuth) models — Sprint 1.
 // These four tables are required by the Auth.js Prisma adapter. Magic-link
@@ -34,6 +56,14 @@ model User {
   quests                Quest[]
   pet                   Pet?
   calendarSubscriptions CalendarSubscription[]
+  groupsCreated         StudyGroup[]         @relation("GroupCreator")
+  groupMemberships      GroupMembership[]
+  groupInvitesCreated   GroupInvite[]        @relation("GroupInviteCreator")
+  groupChannelsCreated  GroupChannel[]       @relation("GroupChannelCreator")
+  groupMessages         GroupMessage[]       @relation("GroupMessageAuthor")
+  groupTasksCreated     GroupTask[]          @relation("GroupTaskCreator")
+  assignedGroupTasks    GroupTaskAssignee[]  @relation("GroupTaskAssigneeUser")
+  groupTaskAssignmentsMade GroupTaskAssignee[] @relation("GroupTaskAssignedBy")
 }
 
 model Account {
@@ -161,4 +191,127 @@ model CalendarSubscription {
 
   @@index([userId])
   @@unique([userId, icsUrl])
+}
+
+model StudyGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  memberships GroupMembership[]
+  invites     GroupInvite[]
+  channels    GroupChannel[]
+  messages    GroupMessage[]
+  tasks       GroupTask[]
+
+  @@index([createdById])
+}
+
+model GroupMembership {
+  id       String    @id @default(cuid())
+  groupId  String
+  userId   String
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  group StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId, role])
+}
+
+model GroupInvite {
+  id         String            @id @default(cuid())
+  groupId     String
+  createdById String
+  tokenHash   String            @unique
+  status      GroupInviteStatus @default(ACTIVE)
+  expiresAt   DateTime?
+  maxUses     Int?
+  useCount    Int               @default(0)
+  createdAt   DateTime          @default(now())
+
+  group     StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User       @relation("GroupInviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+}
+
+model GroupChannel {
+  id          String      @id @default(cuid())
+  groupId      String
+  createdById  String
+  name         String
+  description  String?
+  type         ChannelType @default(TEXT)
+  position     Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  group     StudyGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User          @relation("GroupChannelCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  messages  GroupMessage[]
+  tasks     GroupTask[]
+
+  @@unique([groupId, name])
+  @@index([groupId, position])
+}
+
+model GroupMessage {
+  id        String   @id @default(cuid())
+  groupId    String
+  channelId  String
+  authorId   String
+  content    String
+  createdAt  DateTime @default(now())
+  editedAt   DateTime?
+
+  group   StudyGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  channel GroupChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author  User         @relation("GroupMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([authorId])
+}
+
+model GroupTask {
+  id          String          @id @default(cuid())
+  groupId      String
+  createdById  String
+  channelId    String?
+  title        String
+  description  String?
+  dueAt        DateTime?
+  status       GroupTaskStatus @default(TODO)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  group     StudyGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("GroupTaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  channel   GroupChannel?      @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  assignees GroupTaskAssignee[]
+
+  @@index([groupId, dueAt])
+  @@index([channelId])
+  @@index([status])
+}
+
+model GroupTaskAssignee {
+  id           String   @id @default(cuid())
+  taskId        String
+  userId        String
+  assignedAt    DateTime @default(now())
+  assignedById  String
+
+  task       GroupTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User      @relation("GroupTaskAssigneeUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User      @relation("GroupTaskAssignedBy", fields: [assignedById], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
 }

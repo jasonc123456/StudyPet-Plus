@@ -4,17 +4,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { formatCalendarDate, formatCalendarTime } from '@/lib/calendar';
+import { formatCalendarDate, formatCalendarTime } from '@/lib/calendar-format';
 
 type CalendarTaskChecklistItem = {
   id: string;
-  source: 'assignment' | 'quest';
+  source: 'assignment' | 'quest' | 'group_task';
   sourceId: string;
   title: string;
   dueAt: Date | string;
   status: string;
   href: string;
   courseId?: string;
+  groupId?: string;
   meta: string | null;
 };
 
@@ -38,13 +39,17 @@ export function CalendarTaskChecklist({ tasks }: CalendarTaskChecklistProps) {
     const endpoint =
       task.source === 'assignment'
         ? `/api/courses/${task.courseId}/assignments/${task.sourceId}`
-        : `/api/quests/${task.sourceId}`;
+        : task.source === 'quest'
+          ? `/api/quests/${task.sourceId}`
+          : `/api/groups/${task.groupId}/tasks/${task.sourceId}`;
 
     try {
       const response = await fetch(endpoint, {
-        method: 'PUT',
+        method: task.source === 'group_task' ? 'PATCH' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'done' }),
+        body: JSON.stringify({
+          status: task.source === 'group_task' ? 'DONE' : 'done',
+        }),
       });
 
       if (!response.ok) {

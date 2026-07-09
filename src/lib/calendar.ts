@@ -1,8 +1,10 @@
 import { Prisma } from '@prisma/client';
 
+import { isMissingGroupTables } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
 
-export type CalendarEventSource = 'assignment' | 'quest' | 'imported';
+export type CalendarEventSource =
+  'assignment' | 'quest' | 'group_task' | 'imported';
 
 export type CalendarEvent = {
   id: string;
@@ -21,13 +23,14 @@ export type CalendarEvent = {
 
 export type CalendarTask = {
   id: string;
-  source: 'assignment' | 'quest';
+  source: 'assignment' | 'quest' | 'group_task';
   sourceId: string;
   title: string;
   dueAt: Date;
   status: string;
   href: string;
   courseId?: string;
+  groupId?: string;
   meta: string | null;
 };
 
@@ -518,6 +521,42 @@ async function loadCalendarSubscriptions(userId: string) {
   }
 }
 
+async function loadAssignedGroupTasks(
+  userId: string,
+  gridStart: Date,
+  gridEnd: Date
+) {
+  try {
+    return await prisma.groupTaskAssignee.findMany({
+      where: {
+        userId,
+        task: {
+          dueAt: { gte: gridStart, lte: gridEnd },
+        },
+      },
+      select: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            dueAt: true,
+            status: true,
+            groupId: true,
+            group: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: [{ task: { dueAt: 'asc' } }],
+    });
+  } catch (error) {
+    if (isMissingGroupTables(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function getCalendarPageData(
   userId: string,
   monthParam?: string,
@@ -527,41 +566,43 @@ export async function getCalendarPageData(
   const selectedDate = parseDayParam(dayParam, month);
   const { gridStart, gridEnd } = getCalendarGridRange(month);
 
-  const [assignments, quests, subscriptions] = await Promise.all([
-    prisma.assignment.findMany({
-      where: {
-        course: { userId },
-        dueAt: { gte: gridStart, lte: gridEnd },
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        dueAt: true,
-        status: true,
-        courseId: true,
-        course: { select: { name: true, color: true } },
-      },
-      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-    }),
-    prisma.quest.findMany({
-      where: {
-        userId,
-        dueAt: { gte: gridStart, lte: gridEnd },
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        dueAt: true,
-        status: true,
-        estimatedMinutes: true,
-        xpReward: true,
-      },
-      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-    }),
-    loadCalendarSubscriptions(userId),
-  ]);
+  const [assignments, quests, assignedGroupTasks, subscriptions] =
+    await Promise.all([
+      prisma.assignment.findMany({
+        where: {
+          course: { userId },
+          dueAt: { gte: gridStart, lte: gridEnd },
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueAt: true,
+          status: true,
+          courseId: true,
+          course: { select: { name: true, color: true } },
+        },
+        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+      }),
+      prisma.quest.findMany({
+        where: {
+          userId,
+          dueAt: { gte: gridStart, lte: gridEnd },
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueAt: true,
+          status: true,
+          estimatedMinutes: true,
+          xpReward: true,
+        },
+        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+      }),
+      loadAssignedGroupTasks(userId, gridStart, gridEnd),
+      loadCalendarSubscriptions(userId),
+    ]);
 
   const localEvents: CalendarEvent[] = [
     ...assignments.flatMap((assignment) =>
@@ -609,6 +650,26 @@ export async function getCalendarPageData(
           ]
         : []
     ),
+    ...assignedGroupTasks.flatMap((assignment) =>
+      assignment.task.dueAt
+        ? [
+            {
+              id: `group-task-${assignment.task.id}`,
+              source: 'group_task' as const,
+              sourceId: assignment.task.id,
+              title: assignment.task.title,
+              startsAt: assignment.task.dueAt,
+              endsAt: null,
+              allDay: false,
+              status: assignment.task.status,
+              color: '#0f766e',
+              description: assignment.task.description,
+              href: `/dashboard/groups/${assignment.task.groupId}?tab=tasks`,
+              meta: `Group · ${assignment.task.group.name}`,
+            },
+          ]
+        : []
+    ),
   ];
 
   const importedResults = await Promise.all(
@@ -650,7 +711,7 @@ export async function getDashboardCalendarTasks(
   const now = new Date();
   const nextTwoWeeks = addDays(now, 14);
 
-  const [assignments, quests] = await Promise.all([
+  const [assignments, quests, groupTasks] = await Promise.all([
     prisma.assignment.findMany({
       where: {
         course: { userId },
@@ -684,6 +745,7 @@ export async function getDashboardCalendarTasks(
       orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
       take: limit,
     }),
+    loadAssignedGroupTasks(userId, now, nextTwoWeeks),
   ]);
 
   return [
@@ -720,6 +782,23 @@ export async function getDashboardCalendarTasks(
           ]
         : []
     ),
+    ...groupTasks.flatMap((assignment) =>
+      assignment.task.dueAt
+        ? [
+            {
+              id: `group-task-${assignment.task.id}`,
+              source: 'group_task' as const,
+              sourceId: assignment.task.id,
+              title: assignment.task.title,
+              dueAt: assignment.task.dueAt,
+              status: assignment.task.status,
+              href: `/dashboard/groups/${assignment.task.groupId}?tab=tasks`,
+              groupId: assignment.task.groupId,
+              meta: assignment.task.group.name,
+            },
+          ]
+        : []
+    ),
   ]
     .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
     .slice(0, limit);
@@ -727,14 +806,14 @@ export async function getDashboardCalendarTasks(
 
 export function formatCalendarTime(date: Date, allDay = false) {
   if (allDay) return 'All day';
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   }).format(date);
 }
 
 export function formatCalendarDate(date: Date) {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(undefined, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',

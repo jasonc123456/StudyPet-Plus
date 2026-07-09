@@ -97,14 +97,13 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-8 lg:col-span-2">
           <UpcomingAssignments assignments={upcomingAssignments} />
           <StudyQuests quests={openQuests} />
+          <CalendarTaskChecklist tasks={calendarTasks} />
         </div>
         <div className="flex flex-col gap-8 lg:sticky lg:top-8 lg:self-start">
           <PetSummary pet={pet} />
           <PomodoroTimer />
         </div>
       </div>
-
-      <StudyQuests quests={openQuests} />
 
       <section>
         <DashboardSectionHeader
