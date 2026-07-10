@@ -48,6 +48,9 @@ export default async function CalendarPage({
           startsAt: event.startsAt.toISOString(),
           endsAt: event.endsAt ? event.endsAt.toISOString() : null,
         }))}
+        autoSyncSubscriptionIds={data.subscriptions
+          .filter((subscription) => subscription.autoSync)
+          .map((subscription) => subscription.id)}
       />
 
       <CalendarSubscriptionManager subscriptions={data.subscriptions} />

@@ -187,6 +187,12 @@ export const createCalendarSubscriptionSchema = z.object({
     .refine((value) => hexColorRegex.test(value), {
       message: 'Enter a full hex color like #0ea5e9',
     }),
+  // Left un-defaulted on purpose: updateCalendarSubscriptionSchema is this
+  // schema `.partial()`, and a default here would make an omitted autoSync parse
+  // as `false` — turning a rename into an accidental "disable sync + delete the
+  // synced assignments". Absent must stay absent. The POST route applies the
+  // false default itself.
+  autoSync: z.boolean().optional(),
 });
 
 export const updateCalendarSubscriptionSchema = createCalendarSubscriptionSchema
@@ -195,12 +201,25 @@ export const updateCalendarSubscriptionSchema = createCalendarSubscriptionSchema
     message: 'At least one field is required',
   });
 
+// Ignoring a feed event addresses it by (subscription, uid) — the same key
+// auto-sync uses to upsert assignments.
+export const calendarIgnoreSchema = z.object({
+  subscriptionId: z.string().trim().min(1, 'Calendar connection is required'),
+  uid: z.string().trim().min(1, 'Event id is required').max(500),
+  title: z.string().trim().max(300).optional().default('Untitled event'),
+});
+
+export const calendarSyncSchema = z.object({
+  force: z.boolean().optional().default(false),
+});
+
 export type CreateCalendarSubscriptionInput = z.infer<
   typeof createCalendarSubscriptionSchema
 >;
 export type UpdateCalendarSubscriptionInput = z.infer<
   typeof updateCalendarSubscriptionSchema
 >;
+export type CalendarIgnoreInput = z.infer<typeof calendarIgnoreSchema>;
 
 const optionalCourseIdSchema = z
   .union([z.string().trim().min(1), z.null(), z.literal('')])

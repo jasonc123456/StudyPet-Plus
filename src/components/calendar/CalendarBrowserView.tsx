@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { EventDescription } from '@/components/calendar/EventDescription';
+import { EventStatusIcon } from '@/components/calendar/EventStatusIcon';
 import { useTimezone } from '@/components/TimezoneProvider';
 
 type CalendarBrowserEvent = {
@@ -19,6 +21,15 @@ type CalendarBrowserEvent = {
   description: string | null;
   href: string | null;
   meta: string | null;
+  uid: string | null;
+  subscriptionId: string | null;
+  ignored: boolean;
+  autoSynced: boolean;
+};
+
+type ParsedEvent = CalendarBrowserEvent & {
+  startsAtDate: Date;
+  endsAtDate: Date | null;
 };
 
 type CalendarBrowserViewProps = {
@@ -27,6 +38,8 @@ type CalendarBrowserViewProps = {
   initialGridStart: string;
   initialGridEnd: string;
   initialEvents: CalendarBrowserEvent[];
+  /** Subscriptions with auto-sync on — these get the "not an assignment" control. */
+  autoSyncSubscriptionIds: string[];
 };
 
 function toDayKey(date: Date) {
@@ -90,12 +103,51 @@ function formatEventTime(date: Date, allDay: boolean, timeZone?: string) {
   });
 }
 
+function formatEventRange(event: ParsedEvent, timeZone?: string) {
+  if (event.allDay) return 'All day';
+
+  const start = formatEventTime(event.startsAtDate, false, timeZone);
+  if (!event.endsAtDate) return start;
+
+  return `${start} – ${formatEventTime(event.endsAtDate, false, timeZone)}`;
+}
+
+/** The subtle uppercase pill on the right of an agenda card. */
+function SourceBadge({ event }: { event: ParsedEvent }) {
+  if (event.ignored) {
+    return (
+      <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        Ignored
+      </span>
+    );
+  }
+
+  if (event.autoSynced) {
+    return (
+      <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-600">
+        Synced
+      </span>
+    );
+  }
+
+  if (event.source === 'imported') {
+    return (
+      <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        Imported
+      </span>
+    );
+  }
+
+  return null;
+}
+
 export function CalendarBrowserView({
   initialMonth,
   initialSelectedDate,
   initialGridStart,
   initialGridEnd,
   initialEvents,
+  autoSyncSubscriptionIds,
 }: CalendarBrowserViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -106,6 +158,15 @@ export function CalendarBrowserView({
   // the user's stored zone (or their browser's when none is set).
   const [mounted, setMounted] = useState(false);
   const displayZone = mounted ? userTimeZone : 'UTC';
+
+  const [syncing, setSyncing] = useState(false);
+  const [pendingEventId, setPendingEventId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  // One auto-sync attempt per mount; router.refresh() below must not retrigger it.
+  const autoSyncAttempted = useRef(false);
+
+  const autoSyncIds = new Set(autoSyncSubscriptionIds);
+  const hasAutoSync = autoSyncSubscriptionIds.length > 0;
 
   const queryString = searchParams.toString();
   const monthKey = searchParams.get('month') || initialMonth;
@@ -129,7 +190,7 @@ export function CalendarBrowserView({
   );
   const monthDays = buildGridDays(initialGridStart, initialGridEnd);
   const todayKey = clientTodayKey || toDayKey(new Date());
-  const parsedEvents = initialEvents
+  const parsedEvents: ParsedEvent[] = initialEvents
     .map((event) => ({
       ...event,
       startsAtDate: new Date(event.startsAt),
@@ -142,22 +203,15 @@ export function CalendarBrowserView({
       return left.title.localeCompare(right.title);
     });
 
-  const eventsByDay = parsedEvents.reduce<
-    Record<
-      string,
-      Array<
-        CalendarBrowserEvent & {
-          startsAtDate: Date;
-          endsAtDate: Date | null;
-        }
-      >
-    >
-  >((acc, event) => {
-    const key = toDayKey(event.startsAtDate);
-    acc[key] ??= [];
-    acc[key].push(event);
-    return acc;
-  }, {});
+  const eventsByDay = parsedEvents.reduce<Record<string, ParsedEvent[]>>(
+    (acc, event) => {
+      const key = toDayKey(event.startsAtDate);
+      acc[key] ??= [];
+      acc[key].push(event);
+      return acc;
+    },
+    {}
+  );
   const selectedDayEvents = eventsByDay[selectedDayKey] ?? [];
 
   function buildCalendarHref(nextMonthKey: string, nextDayKey: string) {
@@ -165,6 +219,43 @@ export function CalendarBrowserView({
     params.set('month', nextMonthKey);
     params.set('day', nextDayKey);
     return `${pathname}?${params.toString()}`;
+  }
+
+  /** An event can be ignored when it came from a feed the user auto-syncs. */
+  function canIgnore(event: ParsedEvent) {
+    if (!event.subscriptionId || !event.uid) return false;
+    return event.ignored || autoSyncIds.has(event.subscriptionId);
+  }
+
+  async function toggleIgnore(event: ParsedEvent) {
+    setPendingEventId(event.id);
+    setActionError(null);
+
+    try {
+      const response = await fetch('/api/calendar/ignores', {
+        method: event.ignored ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionId: event.subscriptionId,
+          uid: event.uid,
+          title: event.title,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setActionError(data?.error ?? 'Unable to update this event');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setActionError('Network error — please try again');
+    } finally {
+      setPendingEventId(null);
+    }
   }
 
   useEffect(() => {
@@ -186,8 +277,37 @@ export function CalendarBrowserView({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [pathname, queryString, router, searchParams]);
 
+  // Auto-sync on arrival. The API throttles each feed to one upstream pull per
+  // 10 minutes, and we only refresh when rows actually changed — otherwise this
+  // would loop against its own router.refresh().
+  useEffect(() => {
+    if (!hasAutoSync || autoSyncAttempted.current) return;
+    autoSyncAttempted.current = true;
+
+    let cancelled = false;
+    setSyncing(true);
+
+    fetch('/api/calendar/sync', { method: 'POST' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((result: { changed?: number } | null) => {
+        if (!cancelled && result && (result.changed ?? 0) > 0) {
+          router.refresh();
+        }
+      })
+      .catch(() => {
+        /* A failed background sync is silent — the feed still renders. */
+      })
+      .finally(() => {
+        if (!cancelled) setSyncing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasAutoSync, router]);
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)]">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(340px,1fr)]">
       <section className="card p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -195,8 +315,9 @@ export function CalendarBrowserView({
               {formatMonthTitle(monthKey)}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Planner items appear automatically with their due time in your
-              timezone.
+              {syncing
+                ? 'Syncing your connected calendars…'
+                : 'Planner items appear automatically with their due time in your timezone.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -280,18 +401,33 @@ export function CalendarBrowserView({
                   {dayEvents.slice(0, 3).map((event) => (
                     <div
                       key={event.id}
-                      className="truncate rounded-lg px-2 py-1 text-[11px] font-medium text-slate-700"
+                      className={[
+                        'flex items-center gap-1.5 rounded-lg py-1 pl-2 pr-1.5 text-[11px] font-medium',
+                        event.ignored
+                          ? 'text-slate-400 line-through'
+                          : 'text-slate-700',
+                      ].join(' ')}
                       style={{
                         borderLeft: `3px solid ${event.color}`,
                         backgroundColor: `${event.color}18`,
                       }}
                     >
-                      {formatEventTime(
-                        event.startsAtDate,
-                        event.allDay,
-                        displayZone
-                      )}{' '}
-                      · {event.title}
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="tabular-nums text-slate-500">
+                          {formatEventTime(
+                            event.startsAtDate,
+                            event.allDay,
+                            displayZone
+                          )}
+                        </span>{' '}
+                        {event.title}
+                      </span>
+                      {event.status && !event.ignored && (
+                        <EventStatusIcon
+                          status={event.status}
+                          className="h-3 w-3"
+                        />
+                      )}
                     </div>
                   ))}
                   {dayEvents.length > 3 && (
@@ -314,6 +450,12 @@ export function CalendarBrowserView({
           Day agenda from your planner plus imported calendars.
         </p>
 
+        {actionError && (
+          <p className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+            {actionError}
+          </p>
+        )}
+
         {selectedDayEvents.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
             Nothing scheduled for this day yet.
@@ -321,60 +463,100 @@ export function CalendarBrowserView({
         ) : (
           <div className="mt-5 space-y-3">
             {selectedDayEvents.map((event) => (
-              <div
+              <article
                 key={event.id}
-                className="rounded-2xl border border-slate-200 px-4 py-4"
+                className={[
+                  'relative overflow-hidden rounded-2xl border border-slate-200 bg-white pl-5 pr-4 py-4 transition hover:border-slate-300',
+                  event.ignored ? 'opacity-70' : '',
+                ].join(' ')}
               >
+                {/* Colour rail: the course / feed colour, full card height. */}
+                <span
+                  className="absolute inset-y-0 left-0 w-1.5"
+                  style={{ backgroundColor: event.color }}
+                  aria-hidden
+                />
+
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-start gap-2">
+                    {event.status ? (
+                      <EventStatusIcon
+                        status={event.status}
+                        className="mt-0.5"
+                      />
+                    ) : (
                       <span
-                        className="h-2.5 w-2.5 rounded-full"
+                        className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
                         style={{ backgroundColor: event.color }}
                         aria-hidden
                       />
-                      <p className="truncate font-medium text-slate-900">
-                        {event.title}
+                    )}
+
+                    <div className="min-w-0">
+                      {event.href ? (
+                        <Link
+                          href={event.href}
+                          className={[
+                            'font-semibold text-slate-900 hover:text-brand-600',
+                            event.ignored ? 'line-through' : '',
+                          ].join(' ')}
+                        >
+                          {event.title}
+                        </Link>
+                      ) : (
+                        <p
+                          className={[
+                            'font-semibold text-slate-900',
+                            event.ignored ? 'line-through' : '',
+                          ].join(' ')}
+                        >
+                          {event.title}
+                        </p>
+                      )}
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        <span className="tabular-nums">
+                          {formatEventRange(event, displayZone)}
+                        </span>
+                        {event.meta ? ` · ${event.meta}` : ''}
                       </p>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {event.allDay
-                        ? 'All day'
-                        : `${formatEventTime(
-                            event.startsAtDate,
-                            false,
-                            displayZone
-                          )}${
-                            event.endsAtDate
-                              ? ` - ${formatEventTime(
-                                  event.endsAtDate,
-                                  false,
-                                  displayZone
-                                )}`
-                              : ''
-                          }`}
-                      {event.meta ? ` · ${event.meta}` : ''}
-                    </p>
                   </div>
-                  {event.href ? (
-                    <Link
-                      href={event.href}
-                      className="shrink-0 text-sm font-medium text-brand-600 hover:text-brand-700"
-                    >
-                      Open
-                    </Link>
-                  ) : (
-                    <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Imported
-                    </span>
-                  )}
+
+                  <SourceBadge event={event} />
                 </div>
+
                 {event.description && (
-                  <p className="mt-3 text-sm text-slate-600">
-                    {event.description}
-                  </p>
+                  <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <EventDescription
+                      text={event.description}
+                      className="text-sm leading-relaxed text-slate-600"
+                    />
+                  </div>
                 )}
-              </div>
+
+                {canIgnore(event) && (
+                  <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleIgnore(event)}
+                      disabled={pendingEventId === event.id}
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {pendingEventId === event.id
+                        ? 'Saving…'
+                        : event.ignored
+                          ? 'Track as assignment'
+                          : 'Not an assignment'}
+                    </button>
+                    <span className="text-xs text-slate-400">
+                      {event.ignored
+                        ? 'Skipped by auto-sync'
+                        : 'Hide from your assignments'}
+                    </span>
+                  </div>
+                )}
+              </article>
             ))}
           </div>
         )}

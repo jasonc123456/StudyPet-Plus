@@ -43,6 +43,7 @@ export default async function AssignmentsPage({
     },
     include: {
       course: { select: { id: true, name: true, color: true } },
+      calendarSubscription: { select: { name: true } },
     },
     orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
   });

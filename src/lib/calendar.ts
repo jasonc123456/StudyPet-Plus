@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 
+import { cleanIcsText } from '@/lib/calendar-text';
 import { isMissingGroupTables } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
 
@@ -19,6 +20,15 @@ export type CalendarEvent = {
   description: string | null;
   href: string | null;
   meta: string | null;
+  // Feed provenance. Set on imported events and on the assignments auto-sync
+  // created from them; together (subscriptionId, uid) address one feed event,
+  // which is what the ignore + un-ignore actions post back to the API.
+  uid: string | null;
+  subscriptionId: string | null;
+  /** The user marked this feed event "not an assignment". */
+  ignored: boolean;
+  /** This event is backed by an Assignment row created by auto-sync. */
+  autoSynced: boolean;
 };
 
 export type CalendarTask = {
@@ -39,8 +49,13 @@ export type CalendarSubscriptionWithError = {
   name: string;
   icsUrl: string;
   color: string;
+  autoSync: boolean;
   lastSyncedAt: Date | null;
   syncError: string | null;
+  /** Assignments currently materialized from this feed. */
+  syncedCount: number;
+  /** Feed events the user marked "not an assignment". */
+  ignoredCount: number;
 };
 
 export type CalendarPageData = {
@@ -54,7 +69,7 @@ export type CalendarPageData = {
   subscriptions: CalendarSubscriptionWithError[];
 };
 
-type ParsedIcsEvent = {
+export type ParsedIcsEvent = {
   uid: string;
   summary: string;
   description: string | null;
@@ -67,12 +82,14 @@ type ParsedIcsEvent = {
 const ICAL_DAY_KEYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const;
 const DEFAULT_IMPORTED_COLOR = '#0ea5e9';
 
+/** True when a calendar table hasn't been migrated in yet (dev DBs lag deploys). */
 function isMissingCalendarSubscriptionTable(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === 'P2021' &&
     typeof error.message === 'string' &&
-    error.message.includes('CalendarSubscription')
+    (error.message.includes('CalendarSubscription') ||
+      error.message.includes('CalendarIgnoredEvent'))
   );
 }
 
@@ -439,31 +456,47 @@ function parseIcsEvents(icsText: string) {
   return events;
 }
 
-async function fetchSubscriptionEvents(
-  subscription: {
-    id: string;
-    name: string;
-    icsUrl: string;
-    color: string;
-    lastSyncedAt: Date | null;
-  },
+/**
+ * Fetch + parse a feed into its raw (unexpanded) events. Shared by the calendar
+ * renderer and the auto-sync engine; the 5-minute revalidate means a page view
+ * and the sync that follows it hit one upstream request, not two.
+ */
+export async function fetchIcsEvents(
+  icsUrl: string
+): Promise<ParsedIcsEvent[]> {
+  const response = await fetch(icsUrl, {
+    next: { revalidate: 300 },
+    headers: {
+      Accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Calendar responded with ${response.status}`);
+  }
+
+  return parseIcsEvents(await response.text());
+}
+
+type SubscriptionForFetch = {
+  id: string;
+  name: string;
+  icsUrl: string;
+  color: string;
+  autoSync: boolean;
+  lastSyncedAt: Date | null;
+};
+
+// Generic over the row shape so callers keep their extra selected fields
+// (`_count`, …) on the returned `subscription`.
+async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
+  subscription: T,
   rangeStart: Date,
-  rangeEnd: Date
+  rangeEnd: Date,
+  ignoredUids: Set<string>
 ) {
   try {
-    const response = await fetch(subscription.icsUrl, {
-      next: { revalidate: 300 },
-      headers: {
-        Accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Calendar responded with ${response.status}`);
-    }
-
-    const icsText = await response.text();
-    const parsedEvents = parseIcsEvents(icsText);
+    const parsedEvents = await fetchIcsEvents(subscription.icsUrl);
     const events = parsedEvents
       .flatMap((event) => expandRecurringEvent(event, rangeStart, rangeEnd))
       .filter((event) =>
@@ -473,15 +506,19 @@ async function fetchSubscriptionEvents(
         id: `imported-${subscription.id}-${event.uid}-${index}`,
         source: 'imported',
         sourceId: subscription.id,
-        title: event.summary,
+        title: cleanIcsText(event.summary) || event.summary,
         startsAt: event.startsAt,
         endsAt: event.endsAt,
         allDay: event.allDay,
         status: null,
         color: subscription.color || DEFAULT_IMPORTED_COLOR,
-        description: event.description,
+        description: cleanIcsText(event.description) || null,
         href: null,
         meta: subscription.name,
+        uid: event.uid,
+        subscriptionId: subscription.id,
+        ignored: ignoredUids.has(event.uid),
+        autoSynced: false,
       }));
 
     return {
@@ -560,7 +597,9 @@ async function loadCalendarSubscriptions(userId: string) {
         name: true,
         icsUrl: true,
         color: true,
+        autoSync: true,
         lastSyncedAt: true,
+        _count: { select: { syncedAssignments: true, ignoredEvents: true } },
       },
     });
   } catch (error) {
@@ -569,6 +608,29 @@ async function loadCalendarSubscriptions(userId: string) {
     }
     throw error;
   }
+}
+
+/** Ignored feed UIDs keyed by subscription id. */
+async function loadIgnoredEventUids(userId: string) {
+  let rows: Array<{ subscriptionId: string; uid: string }> = [];
+  try {
+    rows = await prisma.calendarIgnoredEvent.findMany({
+      where: { subscription: { userId } },
+      select: { subscriptionId: true, uid: true },
+    });
+  } catch (error) {
+    if (isMissingCalendarSubscriptionTable(error)) {
+      return new Map<string, Set<string>>();
+    }
+    throw error;
+  }
+
+  return rows.reduce((acc, row) => {
+    const uids = acc.get(row.subscriptionId) ?? new Set<string>();
+    uids.add(row.uid);
+    acc.set(row.subscriptionId, uids);
+    return acc;
+  }, new Map<string, Set<string>>());
 }
 
 async function loadAssignedGroupTasks(
@@ -628,7 +690,7 @@ export async function getCalendarPageData(
   const selectedDate = parseDayParam(dayParam, month);
   const { gridStart, gridEnd } = getCalendarGridRange(month);
 
-  const [assignments, quests, assignedGroupTasks, subscriptions] =
+  const [assignments, quests, assignedGroupTasks, subscriptions, ignoredUids] =
     await Promise.all([
       prisma.assignment.findMany({
         where: {
@@ -642,6 +704,8 @@ export async function getCalendarPageData(
           dueAt: true,
           status: true,
           courseId: true,
+          calendarSubscriptionId: true,
+          externalUid: true,
           course: { select: { name: true, color: true } },
         },
         orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
@@ -664,7 +728,23 @@ export async function getCalendarPageData(
       }),
       loadAssignedGroupTasks(userId, gridStart, gridEnd),
       loadCalendarSubscriptions(userId),
+      loadIgnoredEventUids(userId),
     ]);
+
+  const subscriptionNames = new Map(
+    subscriptions.map((subscription) => [subscription.id, subscription.name])
+  );
+
+  // Feed events already materialized as assignments are dropped from the
+  // imported list below — the assignment row is the richer copy (it carries a
+  // status and an edit link), so showing both would double-book the day.
+  const syncedFeedKeys = new Set(
+    assignments.flatMap((assignment) =>
+      assignment.calendarSubscriptionId && assignment.externalUid
+        ? [`${assignment.calendarSubscriptionId}::${assignment.externalUid}`]
+        : []
+    )
+  );
 
   const localEvents: CalendarEvent[] = [
     ...assignments.flatMap((assignment) =>
@@ -682,7 +762,16 @@ export async function getCalendarPageData(
               color: assignment.course.color,
               description: assignment.description,
               href: `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`,
-              meta: assignment.course.name,
+              meta: assignment.calendarSubscriptionId
+                ? `${assignment.course.name} · ${
+                    subscriptionNames.get(assignment.calendarSubscriptionId) ??
+                    'Imported'
+                  }`
+                : assignment.course.name,
+              uid: assignment.externalUid,
+              subscriptionId: assignment.calendarSubscriptionId,
+              ignored: false,
+              autoSynced: Boolean(assignment.calendarSubscriptionId),
             },
           ]
         : []
@@ -708,6 +797,10 @@ export async function getCalendarPageData(
               description: quest.description,
               href: `/dashboard/quests/${quest.id}/edit`,
               meta: `Quest · ${quest.xpReward} XP`,
+              uid: null,
+              subscriptionId: null,
+              ignored: false,
+              autoSynced: false,
             },
           ]
         : []
@@ -728,6 +821,10 @@ export async function getCalendarPageData(
               description: assignment.task.description,
               href: `/dashboard/groups/${assignment.task.groupId}?tab=tasks`,
               meta: `Group · ${assignment.task.group.name}`,
+              uid: null,
+              subscriptionId: null,
+              ignored: false,
+              autoSynced: false,
             },
           ]
         : []
@@ -736,14 +833,33 @@ export async function getCalendarPageData(
 
   const importedResults = await Promise.all(
     subscriptions.map((subscription) =>
-      fetchSubscriptionEvents(subscription, gridStart, gridEnd)
+      fetchSubscriptionEvents(
+        subscription,
+        gridStart,
+        gridEnd,
+        ignoredUids.get(subscription.id) ?? new Set()
+      )
     )
   );
 
-  const importedEvents = importedResults.flatMap((result) => result.events);
-  const syncedSubscriptions = importedResults.map(
-    (result) => result.subscription
-  );
+  const importedEvents = importedResults
+    .flatMap((result) => result.events)
+    .filter(
+      (event) => !syncedFeedKeys.has(`${event.subscriptionId}::${event.uid}`)
+    );
+
+  const syncedSubscriptions =
+    importedResults.map<CalendarSubscriptionWithError>(({ subscription }) => ({
+      id: subscription.id,
+      name: subscription.name,
+      icsUrl: subscription.icsUrl,
+      color: subscription.color,
+      autoSync: subscription.autoSync,
+      lastSyncedAt: subscription.lastSyncedAt,
+      syncError: subscription.syncError,
+      syncedCount: subscription._count.syncedAssignments,
+      ignoredCount: subscription._count.ignoredEvents,
+    }));
 
   const events = [...localEvents, ...importedEvents].sort((a, b) => {
     const timeDiff = a.startsAt.getTime() - b.startsAt.getTime();

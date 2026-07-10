@@ -19,12 +19,46 @@ export type AssignmentRowData = {
   status: string;
   type: string;
   course?: { id: string; name: string; color: string };
+  /** Set when calendar auto-sync created this row rather than the user. */
+  calendarSubscription?: { name: string } | null;
 };
 
 type AssignmentRowProps = {
   assignment: AssignmentRowData;
   showCourse?: boolean;
 };
+
+/**
+ * Marks a row the feed owns: its title, description and due date are rewritten
+ * on every sync, so edits there won't stick (status and course will).
+ */
+function SyncedBadge({ name }: { name: string }) {
+  return (
+    <span
+      title={`Auto-synced from ${name} — title, description and due date follow the calendar feed`}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600"
+    >
+      <svg viewBox="0 0 16 16" className="h-3 w-3" aria-hidden>
+        <path
+          d="M13 8a5 5 0 0 1-8.5 3.5M3 8a5 5 0 0 1 8.5-3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+        <path
+          d="M11 2v3H8M5 14v-3h3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {name}
+    </span>
+  );
+}
 
 function useAssignmentRowState(assignment: AssignmentRowData) {
   const router = useRouter();
@@ -220,12 +254,17 @@ export function AssignmentMobileCard({
   return (
     <>
       <div className="card p-4">
-        <Link
-          href={editHref}
-          className="font-medium text-slate-900 hover:text-brand-600"
-        >
-          {assignment.title}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={editHref}
+            className="font-medium text-slate-900 hover:text-brand-600"
+          >
+            {assignment.title}
+          </Link>
+          {assignment.calendarSubscription && (
+            <SyncedBadge name={assignment.calendarSubscription.name} />
+          )}
+        </div>
 
         {assignment.description && (
           <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
@@ -297,12 +336,17 @@ export function AssignmentRow({
     <>
       <tr className="border-b border-slate-100 last:border-0">
         <td className="px-2 py-2.5 sm:px-4 sm:py-3">
-          <Link
-            href={editHref}
-            className="font-medium text-slate-900 hover:text-brand-600"
-          >
-            {assignment.title}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={editHref}
+              className="font-medium text-slate-900 hover:text-brand-600"
+            >
+              {assignment.title}
+            </Link>
+            {assignment.calendarSubscription && (
+              <SyncedBadge name={assignment.calendarSubscription.name} />
+            )}
+          </div>
           {assignment.description && (
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
               {assignment.description}

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 
+import { UpdatedAt } from '@/components/UpdatedAt';
 import type { CalendarSubscriptionWithError } from '@/lib/calendar';
 
 type CalendarSubscriptionManagerProps = {
@@ -17,11 +18,17 @@ export function CalendarSubscriptionManager({
 }: CalendarSubscriptionManagerProps) {
   const router = useRouter();
   const icsInputRef = useRef<HTMLInputElement>(null);
+  const hasAutoSync = subscriptions.some(
+    (subscription) => subscription.autoSync
+  );
   const [name, setName] = useState('');
   const [icsUrl, setIcsUrl] = useState('');
   const [color, setColor] = useState(DEFAULT_COLOR);
+  const [autoSync, setAutoSync] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCanvasGuide, setShowCanvasGuide] = useState(false);
 
@@ -45,7 +52,7 @@ export function CalendarSubscriptionManager({
       const response = await fetch('/api/calendar/subscriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, icsUrl, color }),
+        body: JSON.stringify({ name, icsUrl, color, autoSync }),
       });
 
       if (!response.ok) {
@@ -64,6 +71,68 @@ export function CalendarSubscriptionManager({
       setError('Network error while saving the calendar link');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Turning this on backfills assignments immediately; turning it off deletes
+  // the ones auto-sync created that the student never started.
+  async function handleAutoSyncToggle(
+    subscriptionId: string,
+    nextValue: boolean
+  ) {
+    setTogglingId(subscriptionId);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/calendar/subscriptions/${subscriptionId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ autoSync: nextValue }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(data?.error ?? 'Unable to update auto-sync');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setError('Network error while updating auto-sync');
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function handleSyncNow() {
+    setSyncing(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(data?.error ?? 'Unable to sync calendars');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setError('Network error while syncing calendars');
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -108,6 +177,16 @@ export function CalendarSubscriptionManager({
             it.
           </p>
         </div>
+        {hasAutoSync && (
+          <button
+            type="button"
+            onClick={handleSyncNow}
+            disabled={syncing}
+            className="btn-secondary shrink-0 text-sm"
+          >
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </button>
+        )}
       </div>
 
       {/* Canvas quick-connect: pre-fills the form below and reveals the guide. */}
@@ -203,6 +282,25 @@ export function CalendarSubscriptionManager({
             {saving ? 'Adding…' : 'Add calendar'}
           </button>
         </div>
+
+        <label className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 lg:col-span-12">
+          <input
+            type="checkbox"
+            checked={autoSync}
+            onChange={(event) => setAutoSync(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          />
+          <span className="text-sm">
+            <span className="font-semibold text-slate-800">
+              Auto-sync to my assignments
+            </span>
+            <span className="mt-0.5 block text-xs text-slate-500">
+              Turn each calendar event into a trackable assignment, filed under
+              a course matching its code. Meetings and exams can be excluded one
+              by one from the calendar.
+            </span>
+          </span>
+        </label>
       </form>
 
       {error && (
@@ -232,10 +330,31 @@ export function CalendarSubscriptionManager({
                   <p className="truncate font-medium text-slate-900">
                     {subscription.name}
                   </p>
+                  {subscription.autoSync && (
+                    <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600">
+                      Auto-sync
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 truncate text-xs text-slate-500">
                   {subscription.icsUrl}
                 </p>
+
+                {subscription.autoSync && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    {subscription.syncedCount} assignment
+                    {subscription.syncedCount === 1 ? '' : 's'} synced
+                    {subscription.ignoredCount > 0 &&
+                      ` · ${subscription.ignoredCount} ignored`}
+                    {subscription.lastSyncedAt && (
+                      <>
+                        {' · last synced '}
+                        <UpdatedAt updatedAt={subscription.lastSyncedAt} />
+                      </>
+                    )}
+                  </p>
+                )}
+
                 {subscription.syncError && (
                   <p className="mt-2 text-xs font-medium text-amber-700">
                     Sync warning: {subscription.syncError}
@@ -243,14 +362,36 @@ export function CalendarSubscriptionManager({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleDelete(subscription.id)}
-                disabled={deletingId === subscription.id}
-                className="btn-secondary shrink-0 text-sm"
-              >
-                {deletingId === subscription.id ? 'Removing…' : 'Remove'}
-              </button>
+              <div className="flex shrink-0 items-center gap-4">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={subscription.autoSync}
+                    disabled={togglingId === subscription.id}
+                    onChange={(event) =>
+                      handleAutoSyncToggle(
+                        subscription.id,
+                        event.target.checked
+                      )
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:cursor-wait"
+                  />
+                  <span className="text-xs font-semibold text-slate-600">
+                    {togglingId === subscription.id
+                      ? 'Saving…'
+                      : 'Sync assignments'}
+                  </span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => handleDelete(subscription.id)}
+                  disabled={deletingId === subscription.id}
+                  className="btn-secondary shrink-0 text-sm"
+                >
+                  {deletingId === subscription.id ? 'Removing…' : 'Remove'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
