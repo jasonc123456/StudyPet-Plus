@@ -41,3 +41,31 @@ export async function getOwnedNote(noteId: string, userId: string) {
     },
   });
 }
+
+/** Returns the grade category if it belongs to one of the user's courses. */
+export async function getOwnedGradeCategory(
+  categoryId: string,
+  userId: string
+) {
+  return prisma.gradeCategory.findFirst({
+    where: {
+      id: categoryId,
+      course: { userId },
+    },
+  });
+}
+
+/** Returns the grade item if it belongs to one of the user's courses. */
+export async function getOwnedGradeItem(itemId: string, userId: string) {
+  return prisma.gradeItem.findFirst({
+    where: {
+      id: itemId,
+      category: {
+        course: { userId },
+      },
+    },
+    include: {
+      category: true,
+    },
+  });
+}

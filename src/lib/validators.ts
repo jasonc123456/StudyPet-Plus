@@ -48,13 +48,23 @@ const colorSchema = z
     { message: 'Invalid color' }
   );
 
-export const createCourseSchema = z.object({
+const courseSchemaFields = {
   name: z.string().trim().min(1, 'Name is required').max(100),
   color: colorSchema.optional().default(DEFAULT_COURSE_COLOR),
   term: z.string().trim().max(50).optional().nullable(),
-});
+  credits: z.coerce
+    .number()
+    .int()
+    .min(0, 'Credits must be 0 or more')
+    .max(12, 'Credits must be 12 or fewer')
+    .optional()
+    .default(3),
+};
 
-export const updateCourseSchema = createCourseSchema
+export const createCourseSchema = z.object(courseSchemaFields);
+
+export const updateCourseSchema = z
+  .object(courseSchemaFields)
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field is required',
@@ -252,6 +262,99 @@ export const updateNoteSchema = updateNoteSchemaBase
 
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
+
+const nonNegativeNumberSchema = z.coerce.number().min(0);
+
+export const updateGradeProfileSchema = z.object({
+  currentGpa: z
+    .union([z.coerce.number(), z.null(), z.literal('')])
+    .optional()
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') return null;
+      return Number(value);
+    })
+    .refine((value) => value === null || (value >= 0 && value <= 4.3), {
+      message: 'Current GPA must be between 0.0 and 4.3',
+    }),
+  completedCredits: z.coerce
+    .number()
+    .min(0, 'Completed credits must be 0 or more')
+    .max(400, 'Completed credits must be 400 or fewer'),
+});
+
+export const createGradeScaleEntrySchema = z
+  .object({
+    label: z.string().trim().min(1, 'Letter grade is required').max(20),
+    minPercent: z.coerce
+      .number()
+      .min(0, 'Minimum percent must be 0 or more')
+      .max(100, 'Minimum percent must be 100 or less'),
+    maxPercent: z.coerce
+      .number()
+      .min(0, 'Maximum percent must be 0 or more')
+      .max(100, 'Maximum percent must be 100 or less'),
+    gpaPoints: z.coerce
+      .number()
+      .min(0, 'GPA points must be 0 or more')
+      .max(4.3, 'GPA points must be 4.3 or less'),
+  })
+  .refine((data) => data.minPercent <= data.maxPercent, {
+    message: 'Minimum percent must be less than or equal to maximum percent',
+    path: ['minPercent'],
+  });
+
+export const createGradeCategorySchema = z.object({
+  name: z.string().trim().min(1, 'Category name is required').max(100),
+  weight: z.coerce
+    .number()
+    .gt(0, 'Weight must be greater than 0')
+    .max(100, 'Weight must be 100 or less'),
+});
+
+export const updateGradeCategorySchema = createGradeCategorySchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export const createGradeItemSchema = z.object({
+  title: z.string().trim().min(1, 'Item name is required').max(150),
+  assignmentId: z
+    .union([z.string().trim().min(1), z.null(), z.literal('')])
+    .optional()
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') return null;
+      return value;
+    }),
+  scoreEarned: nonNegativeNumberSchema.refine((value) => value <= 100000, {
+    message: 'Earned points are too large',
+  }),
+  scorePossible: z.coerce
+    .number()
+    .gt(0, 'Possible points must be greater than 0')
+    .max(100000, 'Possible points are too large'),
+  notes: z.string().trim().max(2000).optional().nullable(),
+  gradedAt: z
+    .union([z.string(), z.date(), z.null(), z.literal('')])
+    .optional()
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const date = value instanceof Date ? value : new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }),
+});
+
+export type UpdateGradeProfileInput = z.infer<typeof updateGradeProfileSchema>;
+export type CreateGradeScaleEntryInput = z.infer<
+  typeof createGradeScaleEntrySchema
+>;
+export type CreateGradeCategoryInput = z.infer<
+  typeof createGradeCategorySchema
+>;
+export type UpdateGradeCategoryInput = z.infer<
+  typeof updateGradeCategorySchema
+>;
+export type CreateGradeItemInput = z.infer<typeof createGradeItemSchema>;
 
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),

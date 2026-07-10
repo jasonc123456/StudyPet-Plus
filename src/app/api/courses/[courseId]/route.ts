@@ -26,7 +26,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { name, color, term } = parsed.data;
+  const { name, color, term, credits } = parsed.data;
 
   const course = await prisma.course.update({
     where: { id: params.courseId },
@@ -34,6 +34,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
       ...(name !== undefined && { name }),
       ...(color !== undefined && { color }),
       ...(term !== undefined && { term: term || null }),
+      ...(credits !== undefined && { credits }),
     },
     include: { _count: { select: { assignments: true } } },
   });
