@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { name, color, term } = parsed.data;
+  const { name, color, term, credits } = parsed.data;
 
   const course = await prisma.course.create({
     data: {
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       name,
       color,
       term: term || null,
+      credits,
     },
     include: { _count: { select: { assignments: true } } },
   });

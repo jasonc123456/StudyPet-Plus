@@ -156,6 +156,74 @@ const demoNotes = [
   },
 ];
 
+const demoGradeScale = [
+  { label: 'A+', minPercent: 95, maxPercent: 100, gpaPoints: 4.0 },
+  { label: 'A', minPercent: 90, maxPercent: 94.99, gpaPoints: 4.0 },
+  { label: 'A-', minPercent: 87, maxPercent: 89.99, gpaPoints: 3.7 },
+  { label: 'B+', minPercent: 83, maxPercent: 86.99, gpaPoints: 3.3 },
+  { label: 'B', minPercent: 80, maxPercent: 82.99, gpaPoints: 3.0 },
+  { label: 'B-', minPercent: 77, maxPercent: 79.99, gpaPoints: 2.7 },
+  { label: 'C+', minPercent: 73, maxPercent: 76.99, gpaPoints: 2.3 },
+  { label: 'C', minPercent: 70, maxPercent: 72.99, gpaPoints: 2.0 },
+  { label: 'D', minPercent: 60, maxPercent: 69.99, gpaPoints: 1.0 },
+  { label: 'F', minPercent: 0, maxPercent: 59.99, gpaPoints: 0 },
+];
+
+const demoGradeCategories = [
+  {
+    courseName: 'Intro to Computer Science',
+    name: 'Homework',
+    weight: 35,
+    items: [
+      {
+        assignmentTitle: 'Hello World Lab',
+        title: 'HW 1',
+        scoreEarned: 98,
+        scorePossible: 100,
+      },
+    ],
+  },
+  {
+    courseName: 'Intro to Computer Science',
+    name: 'Exams',
+    weight: 40,
+    items: [
+      {
+        assignmentTitle: 'Midterm Exam',
+        title: 'Midterm',
+        scoreEarned: 88,
+        scorePossible: 100,
+      },
+    ],
+  },
+  {
+    courseName: 'Calculus II',
+    name: 'Homework',
+    weight: 25,
+    items: [
+      {
+        assignmentTitle: 'Integration Worksheet',
+        title: 'Worksheet 1',
+        scoreEarned: 18,
+        scorePossible: 20,
+      },
+    ],
+  },
+  {
+    courseName: 'World History',
+    name: 'Essays',
+    weight: 50,
+    items: [
+      {
+        assignmentTitle: 'Essay: Industrial Revolution',
+        title: 'Essay 1',
+        scoreEarned: 92,
+        scorePossible: 100,
+      },
+    ],
+  },
+];
+
 // Seed the planner data for one user. Idempotent: wipe this user's existing
 // courses (assignments cascade), quests, and pet, then recreate from scratch.
 async function seedPlanner(user) {
@@ -163,14 +231,20 @@ async function seedPlanner(user) {
   await prisma.quest.deleteMany({ where: { userId: user.id } });
   await prisma.note.deleteMany({ where: { userId: user.id } });
   await prisma.pet.deleteMany({ where: { userId: user.id } });
+  await prisma.gradeScaleEntry.deleteMany({ where: { userId: user.id } });
+  await prisma.gradeProfile.deleteMany({ where: { userId: user.id } });
+
+  const courseIdsByName = new Map();
+  const assignmentIdsByCourseAndTitle = new Map();
 
   for (const c of demoCourses) {
-    await prisma.course.create({
+    const course = await prisma.course.create({
       data: {
         userId: user.id,
         name: c.name,
         color: c.color,
         term: c.term,
+        credits: 4,
         assignments: {
           create: c.assignments.map((a) => ({
             title: a.title,
@@ -181,7 +255,20 @@ async function seedPlanner(user) {
           })),
         },
       },
+      include: {
+        assignments: {
+          select: { id: true, title: true },
+        },
+      },
     });
+
+    courseIdsByName.set(c.name, course.id);
+    for (const assignment of course.assignments) {
+      assignmentIdsByCourseAndTitle.set(
+        `${c.name}::${assignment.title}`,
+        assignment.id
+      );
+    }
   }
 
   await prisma.quest.createMany({
@@ -219,6 +306,52 @@ async function seedPlanner(user) {
     });
   }
 
+  await prisma.gradeProfile.create({
+    data: {
+      userId: user.id,
+      currentGpa: 3.62,
+      completedCredits: 58,
+    },
+  });
+
+  await prisma.gradeScaleEntry.createMany({
+    data: demoGradeScale.map((entry, index) => ({
+      userId: user.id,
+      label: entry.label,
+      minPercent: entry.minPercent,
+      maxPercent: entry.maxPercent,
+      gpaPoints: entry.gpaPoints,
+      sortOrder: index,
+    })),
+  });
+
+  for (const category of demoGradeCategories) {
+    const courseId = courseIdsByName.get(category.courseName);
+    if (!courseId) continue;
+
+    const createdCategory = await prisma.gradeCategory.create({
+      data: {
+        courseId,
+        name: category.name,
+        weight: category.weight,
+      },
+    });
+
+    await prisma.gradeItem.createMany({
+      data: category.items.map((item) => ({
+        categoryId: createdCategory.id,
+        assignmentId:
+          assignmentIdsByCourseAndTitle.get(
+            `${category.courseName}::${item.assignmentTitle}`
+          ) ?? null,
+        title: item.title,
+        scoreEarned: item.scoreEarned,
+        scorePossible: item.scorePossible,
+        gradedAt: daysFromNow(-2),
+      })),
+    });
+  }
+
   const courseCount = demoCourses.length;
   const assignmentCount = demoCourses.reduce(
     (n, c) => n + c.assignments.length,
@@ -226,7 +359,7 @@ async function seedPlanner(user) {
   );
   console.log(
     `  ✓ planner  ${courseCount} courses, ${assignmentCount} assignments, ` +
-      `${demoQuests.length} quests, ${demoNotes.length} notes, 1 pet  for ${user.email}`
+      `${demoQuests.length} quests, ${demoNotes.length} notes, grade tracker, 1 pet  for ${user.email}`
   );
 }
 

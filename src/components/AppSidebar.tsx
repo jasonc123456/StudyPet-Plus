@@ -164,6 +164,25 @@ function GroupsIcon({ className }: { className?: string }) {
   );
 }
 
+function GradesIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M22 10L12 5 2 10l10 5 10-5z" />
+      <path d="M6 12.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.5" />
+      <path d="M22 10v6" />
+    </svg>
+  );
+}
+
 function SettingsIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -253,6 +272,7 @@ const NAV_LINKS = [
   { href: '/dashboard/quests', label: 'Quests', Icon: QuestsIcon },
   { href: '/dashboard/notes', label: 'Notes', Icon: NotesIcon },
   { href: '/dashboard/calendar', label: 'Calendar', Icon: CalendarIcon },
+  { href: '/dashboard/grades', label: 'Grades', Icon: GradesIcon },
   { href: '/dashboard/groups', label: 'Groups', Icon: GroupsIcon },
   { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
 ];

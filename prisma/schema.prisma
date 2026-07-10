@@ -63,6 +63,8 @@ model User {
   pet                   Pet?
   notes                 Note[]
   calendarSubscriptions CalendarSubscription[]
+  gradeProfile          GradeProfile?
+  gradeScaleEntries     GradeScaleEntry[]
   groupsCreated         StudyGroup[]         @relation("GroupCreator")
   groupMemberships      GroupMembership[]
   groupInvitesCreated   GroupInvite[]        @relation("GroupInviteCreator")
@@ -125,11 +127,13 @@ model Course {
   name      String
   color     String   @default("#6366f1") // hex tag shown in the UI (indigo default)
   term      String? // e.g. "Fall 2026"; optional
+  credits   Int      @default(3)
   createdAt DateTime @default(now())
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignments Assignment[]
   notes       Note[]
+  gradeCategories GradeCategory[]
 
   @@index([userId])
 }
@@ -146,6 +150,7 @@ model Assignment {
   createdAt   DateTime  @default(now())
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  gradeItems GradeItem[]
 
   @@index([courseId])
 }
@@ -366,4 +371,66 @@ model Note {
   @@index([userId])
   @@index([courseId])
   @@index([updatedAt])
+}
+
+model GradeProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  currentGpa       Float?
+  completedCredits Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GradeScaleEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  label      String
+  minPercent Float
+  maxPercent Float
+  gpaPoints  Float
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, sortOrder])
+}
+
+model GradeCategory {
+  id        String   @id @default(cuid())
+  courseId   String
+  name       String
+  weight     Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  items  GradeItem[]
+
+  @@unique([courseId, name])
+  @@index([courseId])
+}
+
+model GradeItem {
+  id            String    @id @default(cuid())
+  categoryId     String
+  assignmentId   String?
+  title          String
+  scoreEarned    Float
+  scorePossible  Float
+  notes          String?
+  gradedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category   GradeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  assignment Assignment?   @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId])
+  @@index([assignmentId])
 }
