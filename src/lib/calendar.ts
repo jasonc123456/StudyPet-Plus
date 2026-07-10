@@ -500,6 +500,56 @@ async function fetchSubscriptionEvents(
   }
 }
 
+/**
+ * Confirms a URL actually returns an ICS feed before we save it. Gives fast,
+ * Canvas-aware feedback for the common mistakes: pasting the Canvas page URL
+ * instead of the "Calendar Feed" link, a typo, or an expired feed token. The
+ * feed still re-syncs live on every calendar view — this is just an add-time
+ * sanity check, not the sync itself.
+ */
+export async function verifyIcsFeed(
+  icsUrl: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const response = await fetch(icsUrl, {
+      redirect: 'follow',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+      headers: { Accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8' },
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `The calendar link responded with ${response.status}. Double-check the URL and that the feed is still active.`,
+      };
+    }
+
+    const text = await response.text();
+    if (!text.includes('BEGIN:VCALENDAR')) {
+      return {
+        ok: false,
+        error:
+          'That link did not return a calendar feed. In Canvas, open Calendar → "Calendar Feed" and copy the .ics link (not the Canvas page URL).',
+      };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return {
+        ok: false,
+        error:
+          'The calendar link took too long to respond. Try again in a moment.',
+      };
+    }
+    return {
+      ok: false,
+      error: 'Could not reach that calendar link. Check the URL and try again.',
+    };
+  }
+}
+
 async function loadCalendarSubscriptions(userId: string) {
   try {
     return await prisma.calendarSubscription.findMany({
