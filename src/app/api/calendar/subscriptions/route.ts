@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { verifyIcsFeed } from '@/lib/calendar';
 import { prisma } from '@/lib/prisma';
 import {
   createCalendarSubscriptionSchema,
@@ -78,6 +79,11 @@ export async function POST(request: Request) {
 
   if (existing) {
     return jsonError('This ICS calendar is already connected', 409);
+  }
+
+  const feedCheck = await verifyIcsFeed(icsUrl);
+  if (!feedCheck.ok) {
+    return jsonError(feedCheck.error, 400);
   }
 
   let subscription;

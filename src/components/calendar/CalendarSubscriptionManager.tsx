@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { CalendarSubscriptionWithError } from '@/lib/calendar';
 
@@ -10,17 +10,31 @@ type CalendarSubscriptionManagerProps = {
 };
 
 const DEFAULT_COLOR = '#0ea5e9';
+const CANVAS_COLOR = '#e2483d';
 
 export function CalendarSubscriptionManager({
   subscriptions,
 }: CalendarSubscriptionManagerProps) {
   const router = useRouter();
+  const icsInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [icsUrl, setIcsUrl] = useState('');
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCanvasGuide, setShowCanvasGuide] = useState(false);
+
+  // Quick-fill the form for a Canvas feed: Canvas is just an ICS URL, so this
+  // pre-names it, sets the Canvas brand color, opens the guide, and drops the
+  // cursor in the URL field so the only thing left is pasting the link.
+  function prefillCanvas() {
+    setName('Canvas');
+    setColor(CANVAS_COLOR);
+    setShowCanvasGuide(true);
+    setError(null);
+    icsInputRef.current?.focus();
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,10 +103,60 @@ export function CalendarSubscriptionManager({
             Connected calendars
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Add an ICS feed and it will appear alongside assignments and quests.
+            Link your Canvas feed — or any ICS calendar — and it appears
+            alongside assignments and quests, staying in sync until you remove
+            it.
           </p>
         </div>
       </div>
+
+      {/* Canvas quick-connect: pre-fills the form below and reveals the guide. */}
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+        <span
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base font-bold text-white"
+          style={{ backgroundColor: CANVAS_COLOR }}
+          aria-hidden
+        >
+          C
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-800">Using Canvas?</p>
+          <p className="text-xs text-slate-500">
+            Import every course assignment from your Canvas calendar feed.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={prefillCanvas}
+          className="btn-secondary shrink-0 text-sm"
+        >
+          Connect Canvas
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowCanvasGuide((value) => !value)}
+          className="shrink-0 text-sm font-medium text-brand-600 hover:text-brand-700"
+          aria-expanded={showCanvasGuide}
+        >
+          {showCanvasGuide ? 'Hide steps' : 'Where do I find my link?'}
+        </button>
+      </div>
+
+      {showCanvasGuide && (
+        <ol className="mt-3 list-decimal space-y-1.5 rounded-2xl border border-slate-200 px-6 py-4 text-sm text-slate-600">
+          <li>
+            In Canvas, open <strong>Calendar</strong> from the left navigation.
+          </li>
+          <li>
+            Scroll to the bottom-right and click <strong>Calendar Feed</strong>.
+          </li>
+          <li>
+            Copy the <code>.ics</code> link it shows (it may start with{' '}
+            <code>webcal://</code> — that&rsquo;s fine, paste it as-is).
+          </li>
+          <li>Paste it into the ICS URL field below and click Add calendar.</li>
+        </ol>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-5 grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-3">
@@ -111,10 +175,12 @@ export function CalendarSubscriptionManager({
             ICS URL
           </label>
           <input
+            ref={icsInputRef}
             value={icsUrl}
             onChange={(event) => setIcsUrl(event.target.value)}
             className="theme-input"
             placeholder="https://example.com/calendar.ics"
+            inputMode="url"
           />
         </div>
         <div className="lg:col-span-1">

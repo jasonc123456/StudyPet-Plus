@@ -147,9 +147,30 @@ export const updateQuestSchema = updateQuestSchemaBase
 export type CreateQuestInput = z.infer<typeof createQuestSchema>;
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>;
 
+// Canvas (and Apple/Google) often hand out a `webcal://` feed link. It's a real
+// ICS URL, but Node's fetch only speaks http(s) — normalize it to https so the
+// same link the user copies from Canvas just works.
+const icsUrlSchema = z
+  .string()
+  .trim()
+  .min(1, 'ICS URL is required')
+  .max(2000)
+  .transform((value) => value.replace(/^webcal:\/\//i, 'https://'))
+  .refine(
+    (value) => {
+      try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Enter a valid ICS feed URL (https:// or webcal://)' }
+  );
+
 export const createCalendarSubscriptionSchema = z.object({
   name: z.string().trim().min(1, 'Calendar name is required').max(100),
-  icsUrl: z.string().trim().url('Valid ICS URL is required').max(2000),
+  icsUrl: icsUrlSchema,
   color: z
     .string()
     .trim()
