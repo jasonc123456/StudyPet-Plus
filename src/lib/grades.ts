@@ -198,11 +198,50 @@ export function summarizeGradeTracker<
 }
 
 export async function getGradeTrackerPageData(userId: string) {
+  const gradeProfileDelegate = (
+    prisma as typeof prisma & {
+      gradeProfile?: typeof prisma.gradeProfile;
+    }
+  ).gradeProfile;
+  const gradeScaleEntryDelegate = (
+    prisma as typeof prisma & {
+      gradeScaleEntry?: typeof prisma.gradeScaleEntry;
+    }
+  ).gradeScaleEntry;
+
+  const gradeTrackerReady = Boolean(
+    gradeProfileDelegate && gradeScaleEntryDelegate
+  );
+
+  if (!gradeTrackerReady) {
+    return {
+      profile: {
+        currentGpa: null,
+        completedCredits: 0,
+      },
+      scaleEntries: DEFAULT_GRADE_SCALE.map((entry, index) => ({
+        id: `default-${index}`,
+        ...entry,
+        sortOrder: index,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      })),
+      hasCustomScale: false,
+      courses: [],
+      summary: {
+        currentTermCredits: 0,
+        termGpa: null,
+        projectedCumulativeGpa: null,
+      },
+      migrationRequired: true,
+    };
+  }
+
   const [profile, savedScaleEntries, courses] = await Promise.all([
-    prisma.gradeProfile.findUnique({
+    gradeProfileDelegate.findUnique({
       where: { userId },
     }),
-    prisma.gradeScaleEntry.findMany({
+    gradeScaleEntryDelegate.findMany({
       where: { userId },
       orderBy: [
         { minPercent: 'desc' },
@@ -262,5 +301,6 @@ export async function getGradeTrackerPageData(userId: string) {
     hasCustomScale: savedScaleEntries.length > 0,
     courses: tracker.courses,
     summary: tracker.summary,
+    migrationRequired: false,
   };
 }

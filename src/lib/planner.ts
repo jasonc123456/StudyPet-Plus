@@ -69,3 +69,38 @@ export async function getOwnedGradeItem(itemId: string, userId: string) {
     },
   });
 }
+
+/** Returns the course planner if it belongs to the user, otherwise null. */
+export async function getOwnedCoursePlanner(plannerId: string, userId: string) {
+  return prisma.coursePlanner.findFirst({
+    where: {
+      id: plannerId,
+      userId,
+    },
+  });
+}
+
+/** Returns the planner section if it belongs to the user, otherwise null. */
+export async function getOwnedCoursePlannerSection(
+  sectionId: string,
+  userId: string
+) {
+  return prisma.coursePlannerSection.findFirst({
+    where: {
+      id: sectionId,
+      planner: { userId },
+    },
+  });
+}
+
+/** Returns the planned course if it belongs to the user, otherwise null. */
+export async function getOwnedPlannedCourse(courseId: string, userId: string) {
+  return prisma.plannedCourse.findFirst({
+    where: {
+      id: courseId,
+      section: {
+        planner: { userId },
+      },
+    },
+  });
+}
