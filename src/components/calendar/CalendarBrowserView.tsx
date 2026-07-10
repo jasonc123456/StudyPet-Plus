@@ -120,6 +120,24 @@ function formatEventTime(date: Date, allDay: boolean, timeZone?: string) {
   });
 }
 
+// Mirrors `formatEventTime`'s UTC-first strategy: bucketing an event's UTC
+// instant into a calendar day with local getters depends on the runtime's
+// zone, so the server (UTC) and a client west of UTC would sort the same
+// event into different days and render a different number of event nodes —
+// a structural hydration mismatch, not just a text one. Deriving the day key
+// from the same `timeZone` used for display keeps grouping and label in sync
+// on both the SSR pass and the first client paint.
+function toDayKeyInZone(date: Date, timeZone?: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
+}
+
 function formatEventRange(event: ParsedEvent, timeZone?: string) {
   if (event.allDay) return 'All day';
 
@@ -222,7 +240,7 @@ export function CalendarBrowserView({
 
   const eventsByDay = parsedEvents.reduce<Record<string, ParsedEvent[]>>(
     (acc, event) => {
-      const key = toDayKey(event.startsAtDate);
+      const key = toDayKeyInZone(event.startsAtDate, displayZone);
       acc[key] ??= [];
       acc[key].push(event);
       return acc;
