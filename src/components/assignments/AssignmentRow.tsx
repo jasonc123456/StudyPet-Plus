@@ -144,6 +144,14 @@ function useAssignmentRowState(assignment: AssignmentRowData) {
   };
 }
 
+// Active-segment styling per status. Inactive segments stay plain so only the
+// current status is visually filled; picking any other one is a single click.
+const STATUS_ACTIVE_CLASSES: Record<string, string> = {
+  todo: 'bg-slate-600 text-white shadow-sm',
+  in_progress: 'bg-amber-500 text-white shadow-sm',
+  done: 'bg-emerald-600 text-white shadow-sm',
+};
+
 function AssignmentStatusSelect({
   title,
   status,
@@ -156,19 +164,35 @@ function AssignmentStatusSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <select
+    <div
+      role="radiogroup"
       aria-label={`Change status for ${title}`}
-      value={status}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={savingStatus}
-      className="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+      className="inline-flex w-full items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50 p-0.5 sm:w-auto"
     >
-      {ASSIGNMENT_STATUSES.map((assignmentStatus) => (
-        <option key={assignmentStatus.value} value={assignmentStatus.value}>
-          {assignmentStatus.label}
-        </option>
-      ))}
-    </select>
+      {ASSIGNMENT_STATUSES.map((assignmentStatus) => {
+        const active = assignmentStatus.value === status;
+        return (
+          <button
+            key={assignmentStatus.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={savingStatus || active}
+            onClick={() => onChange(assignmentStatus.value)}
+            className={`flex-1 whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:flex-none ${
+              active
+                ? (STATUS_ACTIVE_CLASSES[assignmentStatus.value] ??
+                  'bg-slate-600 text-white shadow-sm')
+                : `text-slate-500 hover:text-slate-800 ${
+                    savingStatus ? 'cursor-wait opacity-60' : ''
+                  }`
+            }`}
+          >
+            {assignmentStatus.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
