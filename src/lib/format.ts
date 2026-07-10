@@ -31,16 +31,18 @@ export function formatDueDate(dueAt: Date | string | null | undefined): string {
   return date.toLocaleString('en-US', { ...DUE_DATE_OPTIONS, timeZone: 'UTC' });
 }
 
-// BROWSER-LOCAL formatting. No locale/timezone is pinned, so the JS runtime uses
-// the VIEWER's own timezone and locale (auto-detected: Asia/Taipei, a US zone,
-// etc.). Only safe to call on the client AFTER mount — <DueDate> swaps to this
+// USER-LOCAL formatting. Formats in the user's chosen time zone when one is
+// passed (their stored preference from onboarding / Settings); with no
+// `timeZone` the JS runtime falls back to the VIEWER's own auto-detected zone.
+// Only safe to call on the client AFTER mount — <DueDate> swaps to this
 // post-hydration so each user sees the due date in their own local time.
 export function formatDueDateLocal(
-  dueAt: Date | string | null | undefined
+  dueAt: Date | string | null | undefined,
+  timeZone?: string
 ): string {
   const date = toValidDate(dueAt);
   if (!date) return 'No due date';
-  return date.toLocaleString(undefined, DUE_DATE_OPTIONS);
+  return date.toLocaleString(undefined, { ...DUE_DATE_OPTIONS, timeZone });
 }
 
 export function statusLabel(value: string): string {

@@ -173,8 +173,16 @@ export async function GET(request: Request) {
   // Upsert so the demo works even on a fresh DB that hasn't been seeded.
   const user = await prisma.user.upsert({
     where: { email: DEMO_EMAIL },
-    update: {},
-    create: { email: DEMO_EMAIL, name: DEMO_NAME, emailVerified: new Date() },
+    // Ensure the demo user is always "onboarded" so it skips the first-run
+    // onboarding gate and lands straight on the dashboard.
+    update: { onboardedAt: new Date() },
+    create: {
+      email: DEMO_EMAIL,
+      name: DEMO_NAME,
+      emailVerified: new Date(),
+      timezone: 'America/Los_Angeles',
+      onboardedAt: new Date(),
+    },
   });
 
   await seedDemoPlanner(user.id);

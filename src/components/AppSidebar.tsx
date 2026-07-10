@@ -241,6 +241,7 @@ type AppChromeUser = {
   email?: string | null;
   image?: string | null;
   petName?: string | null;
+  timezone?: string | null;
 };
 
 function isNavActive(pathname: string, href: string) {
