@@ -4,9 +4,9 @@ import {
   QUEST_DIFFICULTIES,
 } from '@/lib/constants';
 
-// Shared date-display options. Two formatters below apply these in different
-// timezones — see the <DueDate> component (src/components/DueDate.tsx) for how
-// they work together to show per-user local time without an SSR mismatch.
+// Shared date-display options. formatDueDate/formatUpdatedAt apply these in UTC
+// for SSR; formatDueDateLocal/formatUpdatedAtLocal apply them in the user's zone
+// after mount — see <DueDate> and <UpdatedAt>.
 const DUE_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',
   day: 'numeric',
@@ -48,16 +48,20 @@ export function formatDueDateLocal(
 export function formatUpdatedAt(
   updatedAt: Date | string | null | undefined
 ): string {
-  if (!updatedAt) return 'Unknown';
-  const date = updatedAt instanceof Date ? updatedAt : new Date(updatedAt);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const date = toValidDate(updatedAt);
+  if (!date) return 'Unknown';
+  return date.toLocaleString('en-US', { ...DUE_DATE_OPTIONS, timeZone: 'UTC' });
+}
+
+// USER-LOCAL formatting for updated-at timestamps. Only safe after mount — see
+// <UpdatedAt> for the SSR-safe swap pattern (same as <DueDate>).
+export function formatUpdatedAtLocal(
+  updatedAt: Date | string | null | undefined,
+  timeZone?: string
+): string {
+  const date = toValidDate(updatedAt);
+  if (!date) return 'Unknown';
+  return date.toLocaleString(undefined, { ...DUE_DATE_OPTIONS, timeZone });
 }
 
 export function notePreview(content: string, maxLength = 120): string {
