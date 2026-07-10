@@ -23,6 +23,8 @@ export type CalendarEvent = {
   description: string | null;
   href: string | null;
   meta: string | null;
+  /** Set on assignment-backed events; addresses the status API. Null otherwise. */
+  courseId: string | null;
   // Feed provenance. Set on imported events and on the assignments auto-sync
   // created from them; together (subscriptionId, uid) address one feed event,
   // which is what the ignore + un-ignore actions post back to the API.
@@ -732,6 +734,7 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
         description: cleanIcsText(event.description) || null,
         href: null,
         meta: subscription.name,
+        courseId: null,
         uid: event.uid,
         subscriptionId: subscription.id,
         ignored: ignoredUids.has(event.uid),
@@ -1009,6 +1012,7 @@ export async function getCalendarPageData(
                     'Imported'
                   }`
                 : assignment.course.name,
+              courseId: assignment.courseId,
               uid: assignment.externalUid,
               subscriptionId: assignment.calendarSubscriptionId,
               ignored: false,
@@ -1038,6 +1042,7 @@ export async function getCalendarPageData(
               description: quest.description,
               href: `/dashboard/quests/${quest.id}/edit`,
               meta: `Quest · ${quest.xpReward} XP`,
+              courseId: null,
               uid: null,
               subscriptionId: null,
               ignored: false,
@@ -1062,6 +1067,7 @@ export async function getCalendarPageData(
               description: assignment.task.description,
               href: `/dashboard/groups/${assignment.task.groupId}?tab=tasks`,
               meta: `Group · ${assignment.task.group.name}`,
+              courseId: null,
               uid: null,
               subscriptionId: null,
               ignored: false,

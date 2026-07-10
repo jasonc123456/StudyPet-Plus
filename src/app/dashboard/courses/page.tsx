@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
@@ -7,6 +8,8 @@ import { PageHeader } from '@/components/courses/PageHeader';
 import { archiveDormantCoursesForUser } from '@/lib/course-archive';
 import { prisma } from '@/lib/prisma';
 
+const DUE_SOON_WINDOW_DAYS = 7;
+
 export default async function CoursesPage() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -15,18 +18,30 @@ export default async function CoursesPage() {
 
   await archiveDormantCoursesForUser(session.user.id);
 
-  const courses = await prisma.course.findMany({
-    where: { userId: session.user.id },
-    orderBy: [{ archivedAt: 'asc' }, { createdAt: 'desc' }],
-    include: { _count: { select: { assignments: true, notes: true } } },
-  });
+  const now = new Date();
+  const dueSoonCutoff = new Date(
+    now.getTime() + DUE_SOON_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  const [courses, dueSoonCount] = await Promise.all([
+    prisma.course.findMany({
+      where: { userId: session.user.id },
+      orderBy: [{ archivedAt: 'asc' }, { createdAt: 'desc' }],
+      include: { _count: { select: { assignments: true, notes: true } } },
+    }),
+    // What the student still has to do this week: unfinished tasks in courses
+    // they're actively taking. Overdue work is excluded — the window opens now.
+    prisma.assignment.count({
+      where: {
+        course: { userId: session.user.id, archivedAt: null },
+        status: { not: 'done' },
+        dueAt: { gte: now, lte: dueSoonCutoff },
+      },
+    }),
+  ]);
 
   const activeCourses = courses.filter((course) => !course.archivedAt);
   const archivedCourses = courses.filter((course) => course.archivedAt);
-  const totalTasks = activeCourses.reduce(
-    (sum, course) => sum + course._count.assignments,
-    0
-  );
 
   return (
     <div className="flex flex-col gap-7">
@@ -49,17 +64,20 @@ export default async function CoursesPage() {
                 {activeCourses.length}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <Link
+              href="/dashboard/tasks"
+              className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+            >
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Open workspace
+                Due soon
               </p>
               <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-                {totalTasks}
+                {dueSoonCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
-                tasks in active courses
+              <p className="mt-1 text-xs text-slate-500 group-hover:text-brand-600">
+                {dueSoonCount === 1 ? 'task' : 'tasks'} due in the next 7 days
               </p>
-            </div>
+            </Link>
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Archived

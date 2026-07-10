@@ -46,6 +46,14 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
   });
 
+  // Finished work sinks to the bottom — you open this page to see what's still
+  // owed, not what's already behind you. Array#sort is stable, so the due-date
+  // ordering from the query survives inside each group.
+  const sortedAssignments = [...assignments].sort(
+    (left, right) =>
+      Number(left.status === 'done') - Number(right.status === 'done')
+  );
+
   const hasFilters =
     searchParams.status || searchParams.type || searchParams.courseId;
 
@@ -74,7 +82,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       ) : (
         <>
           <div className="flex flex-col gap-3 md:hidden">
-            {assignments.map((assignment) => (
+            {sortedAssignments.map((assignment) => (
               <AssignmentMobileCard
                 key={assignment.id}
                 assignment={{
@@ -100,7 +108,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {assignments.map((assignment) => (
+                  {sortedAssignments.map((assignment) => (
                     <AssignmentRow
                       key={assignment.id}
                       assignment={{
