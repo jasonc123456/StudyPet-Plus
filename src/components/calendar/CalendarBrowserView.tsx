@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { useTimezone } from '@/components/TimezoneProvider';
+
 type CalendarBrowserEvent = {
   id: string;
   source: 'assignment' | 'quest' | 'group_task' | 'imported';
@@ -76,20 +78,16 @@ function formatDayHeading(dayKey: string) {
   });
 }
 
-function formatEventTime(date: Date, allDay = false) {
+// `timeZone` is passed explicitly so the first render is deterministic: the
+// server runs in UTC, so we format in UTC for SSR + the initial client paint
+// (avoiding a hydration mismatch), then swap to the user's zone after mount.
+function formatEventTime(date: Date, allDay: boolean, timeZone?: string) {
   if (allDay) return 'All day';
   return date.toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',
+    timeZone,
   });
-}
-
-function sameCalendarDay(left: Date, right: Date) {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
 }
 
 export function CalendarBrowserView({
@@ -102,7 +100,12 @@ export function CalendarBrowserView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const userTimeZone = useTimezone();
   const [clientTodayKey, setClientTodayKey] = useState(initialSelectedDate);
+  // Before mount we format in UTC to match the server; after mount we switch to
+  // the user's stored zone (or their browser's when none is set).
+  const [mounted, setMounted] = useState(false);
+  const displayZone = mounted ? userTimeZone : 'UTC';
 
   const queryString = searchParams.toString();
   const monthKey = searchParams.get('month') || initialMonth;
@@ -165,6 +168,8 @@ export function CalendarBrowserView({
   }
 
   useEffect(() => {
+    setMounted(true);
+
     const now = new Date();
     const localMonth = getMonthKey(now);
     const localDay = toDayKey(now);
@@ -191,7 +196,7 @@ export function CalendarBrowserView({
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               Planner items appear automatically with their due time in your
-              browser&apos;s local timezone.
+              timezone.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -281,9 +286,11 @@ export function CalendarBrowserView({
                         backgroundColor: `${event.color}18`,
                       }}
                     >
-                      {event.allDay
-                        ? 'All day'
-                        : formatEventTime(event.startsAtDate)}{' '}
+                      {formatEventTime(
+                        event.startsAtDate,
+                        event.allDay,
+                        displayZone
+                      )}{' '}
                       · {event.title}
                     </div>
                   ))}
@@ -333,9 +340,17 @@ export function CalendarBrowserView({
                     <p className="mt-1 text-sm text-slate-500">
                       {event.allDay
                         ? 'All day'
-                        : `${formatEventTime(event.startsAtDate)}${
+                        : `${formatEventTime(
+                            event.startsAtDate,
+                            false,
+                            displayZone
+                          )}${
                             event.endsAtDate
-                              ? ` - ${formatEventTime(event.endsAtDate)}`
+                              ? ` - ${formatEventTime(
+                                  event.endsAtDate,
+                                  false,
+                                  displayZone
+                                )}`
                               : ''
                           }`}
                       {event.meta ? ` · ${event.meta}` : ''}
