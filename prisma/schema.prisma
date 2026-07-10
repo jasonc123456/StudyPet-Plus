@@ -57,6 +57,10 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  // Calendar preference (Sprint 3, added mid-sprint). When true, /dashboard/calendar
+  // shows every dated task from the groups this user belongs to, not just the ones
+  // assigned to them. Off by default so the personal calendar stays quiet until asked.
+  showAllGroupTasksOnCalendar Boolean @default(false)
   createdAt     DateTime  @default(now())
 
   accounts Account[]

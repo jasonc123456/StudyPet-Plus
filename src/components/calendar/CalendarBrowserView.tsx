@@ -6,9 +6,19 @@ import { useEffect, useRef, useState } from 'react';
 
 import { CalendarEventStatusControl } from '@/components/calendar/CalendarEventStatusControl';
 import type { StatusTarget } from '@/components/calendar/CalendarEventStatusControl';
+import { CalendarStatusButtons } from '@/components/calendar/CalendarStatusButtons';
 import { EventDescription } from '@/components/calendar/EventDescription';
 import { EventStatusIcon } from '@/components/calendar/EventStatusIcon';
 import { useTimezone } from '@/components/TimezoneProvider';
+
+// Group tasks store status as an uppercase enum; the shared control matches
+// values case-insensitively, so these light up the same to-do/in-progress/done
+// pill the assignment control uses.
+const GROUP_TASK_STATUS_OPTIONS = [
+  { value: 'TODO', label: 'To do' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'DONE', label: 'Done' },
+] as const;
 
 type CalendarBrowserEvent = {
   id: string;
@@ -24,6 +34,7 @@ type CalendarBrowserEvent = {
   href: string | null;
   meta: string | null;
   courseId: string | null;
+  groupId: string | null;
   uid: string | null;
   subscriptionId: string | null;
   ignored: boolean;
@@ -43,6 +54,12 @@ type CalendarBrowserViewProps = {
   initialEvents: CalendarBrowserEvent[];
   /** Subscriptions with auto-sync on — these get the "not an assignment" control. */
   autoSyncSubscriptionIds: string[];
+  /**
+   * Persisted preference: when true the feed already includes every group task
+   * from the user's groups; when false only the ones assigned to them. Drives
+   * the toggle below, which round-trips through the API and re-fetches.
+   */
+  initialShowAllGroupTasks: boolean;
 };
 
 function toDayKey(date: Date) {
@@ -188,6 +205,7 @@ export function CalendarBrowserView({
   initialGridEnd,
   initialEvents,
   autoSyncSubscriptionIds,
+  initialShowAllGroupTasks,
 }: CalendarBrowserViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -202,6 +220,15 @@ export function CalendarBrowserView({
   const [syncing, setSyncing] = useState(false);
   const [pendingEventId, setPendingEventId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // The toggle is optimistic: flip the label immediately, persist the choice,
+  // then refresh so the server re-runs getCalendarPageData with the new scope.
+  const [showAllGroupTasks, setShowAllGroupTasks] = useState(
+    initialShowAllGroupTasks
+  );
+  const [groupTasksPending, setGroupTasksPending] = useState(false);
+  const [pendingStatusEventId, setPendingStatusEventId] = useState<
+    string | null
+  >(null);
   // One auto-sync attempt per mount; router.refresh() below must not retrigger it.
   const autoSyncAttempted = useRef(false);
 
@@ -271,9 +298,14 @@ export function CalendarBrowserView({
     return { courseId: event.courseId, assignmentId: event.sourceId };
   }
 
-  /** Quests and group tasks keep their own edit screens — no inline control. */
+  /** Assignments/feed events get the assignment status control; quests don't. */
   function hasStatusControl(event: ParsedEvent) {
     return event.source === 'assignment' || event.source === 'imported';
+  }
+
+  /** Group tasks get their own status control, writing to the group-task API. */
+  function hasGroupStatusControl(event: ParsedEvent) {
+    return event.source === 'group_task' && Boolean(event.groupId);
   }
 
   /** An event can be ignored when it came from a feed the user auto-syncs. */
@@ -310,6 +342,75 @@ export function CalendarBrowserView({
       setActionError('Network error — please try again');
     } finally {
       setPendingEventId(null);
+    }
+  }
+
+  async function toggleShowAllGroupTasks() {
+    const next = !showAllGroupTasks;
+    setShowAllGroupTasks(next);
+    setGroupTasksPending(true);
+    setActionError(null);
+
+    try {
+      const response = await fetch('/api/me/calendar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ showAllGroupTasks: next }),
+      });
+
+      if (!response.ok) {
+        setShowAllGroupTasks(!next);
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setActionError(data?.error ?? 'Unable to update this preference');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setShowAllGroupTasks(!next);
+      setActionError('Network error — please try again');
+    } finally {
+      setGroupTasksPending(false);
+    }
+  }
+
+  /**
+   * Write a group task's status straight from its agenda card, mirroring the
+   * assignment control but posting to the group-task API. The control shows for
+   * every group task; the API is the gate — it rejects a member who isn't the
+   * task's assignee, creator, or a group admin, and that error surfaces here.
+   */
+  async function updateGroupTaskStatus(event: ParsedEvent, nextStatus: string) {
+    if (!event.groupId || nextStatus === event.status) return;
+
+    setPendingStatusEventId(event.id);
+    setActionError(null);
+
+    try {
+      const response = await fetch(
+        `/api/groups/${event.groupId}/tasks/${event.sourceId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setActionError(data?.error ?? 'Failed to update status');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setActionError('Network error — please try again');
+    } finally {
+      setPendingStatusEventId(null);
     }
   }
 
@@ -404,6 +505,38 @@ export function CalendarBrowserView({
               Next
             </Link>
           </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-700">
+              Show all group tasks
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {showAllGroupTasks
+                ? 'Showing every dated task from the groups you belong to.'
+                : 'Showing only group tasks assigned to you.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showAllGroupTasks}
+            aria-label="Show all group tasks on the calendar"
+            onClick={toggleShowAllGroupTasks}
+            disabled={groupTasksPending}
+            className={[
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-wait disabled:opacity-60',
+              showAllGroupTasks ? 'bg-brand-600' : 'bg-slate-300',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                showAllGroupTasks ? 'translate-x-5' : 'translate-x-0.5',
+              ].join(' ')}
+            />
+          </button>
         </div>
 
         <div className="mt-5 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -590,13 +723,25 @@ export function CalendarBrowserView({
                   </div>
                 )}
 
-                {(hasStatusControl(event) || canIgnore(event)) && (
+                {(hasStatusControl(event) ||
+                  hasGroupStatusControl(event) ||
+                  canIgnore(event)) && (
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3">
                     {hasStatusControl(event) && (
                       <CalendarEventStatusControl
                         title={event.title}
                         status={event.status}
                         target={statusTarget(event)}
+                      />
+                    )}
+
+                    {hasGroupStatusControl(event) && (
+                      <CalendarStatusButtons
+                        options={GROUP_TASK_STATUS_OPTIONS}
+                        value={event.status ?? 'TODO'}
+                        onSelect={(next) => updateGroupTaskStatus(event, next)}
+                        ariaLabel={`Change status for ${event.title}`}
+                        saving={pendingStatusEventId === event.id}
                       />
                     )}
 
