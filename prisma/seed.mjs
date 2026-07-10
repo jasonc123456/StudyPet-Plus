@@ -224,9 +224,73 @@ const demoGradeCategories = [
   },
 ];
 
+const demoCoursePlanner = {
+  title: 'UCSC Long-Term Plan',
+  system: 'QUARTER',
+  sections: [
+    {
+      label: 'Fall 2026',
+      courses: [
+        {
+          title: 'Intro to Computer Science',
+          courseNumber: 'CSE115A',
+          units: 5,
+          professor: 'Prof. Nguyen',
+          lectureDays: 'Mon/Wed',
+          lectureTime: '2:00 PM - 3:45 PM',
+          lectureLocation: 'Engineering 2 Room 101',
+          isAlternate: false,
+        },
+        {
+          title: 'Discrete Mathematics',
+          courseNumber: 'MATH19A',
+          units: 5,
+          professor: 'Prof. Alvarez',
+          lectureDays: 'Tue/Thu',
+          lectureTime: '10:40 AM - 12:15 PM',
+          lectureLocation: 'Online',
+          isAlternate: true,
+          notes: 'Backup if first-choice schedule conflicts.',
+        },
+      ],
+    },
+    {
+      label: 'Winter 2027',
+      courses: [
+        {
+          title: 'Data Structures',
+          courseNumber: 'CSE101',
+          units: 5,
+          professor: 'Prof. Patel',
+          lectureDays: 'Mon/Wed/Fri',
+          lectureTime: '11:30 AM - 12:35 PM',
+          lectureLocation: 'Baskin 156',
+          isAlternate: false,
+        },
+      ],
+    },
+    {
+      label: 'Spring 2027',
+      courses: [
+        {
+          title: 'Computer Systems',
+          courseNumber: 'CSE120',
+          units: 5,
+          professor: 'Prof. Kim',
+          lectureDays: 'Tue/Thu',
+          lectureTime: '1:30 PM - 3:05 PM',
+          lectureLocation: 'Engineering 2 Room 192',
+          isAlternate: false,
+        },
+      ],
+    },
+  ],
+};
+
 // Seed the planner data for one user. Idempotent: wipe this user's existing
 // courses (assignments cascade), quests, and pet, then recreate from scratch.
 async function seedPlanner(user) {
+  await prisma.coursePlanner.deleteMany({ where: { userId: user.id } });
   await prisma.course.deleteMany({ where: { userId: user.id } });
   await prisma.quest.deleteMany({ where: { userId: user.id } });
   await prisma.note.deleteMany({ where: { userId: user.id } });
@@ -352,6 +416,23 @@ async function seedPlanner(user) {
     });
   }
 
+  await prisma.coursePlanner.create({
+    data: {
+      userId: user.id,
+      title: demoCoursePlanner.title,
+      system: demoCoursePlanner.system,
+      sections: {
+        create: demoCoursePlanner.sections.map((section, index) => ({
+          label: section.label,
+          sortOrder: index,
+          courses: {
+            create: section.courses,
+          },
+        })),
+      },
+    },
+  });
+
   const courseCount = demoCourses.length;
   const assignmentCount = demoCourses.reduce(
     (n, c) => n + c.assignments.length,
@@ -359,7 +440,7 @@ async function seedPlanner(user) {
   );
   console.log(
     `  ✓ planner  ${courseCount} courses, ${assignmentCount} assignments, ` +
-      `${demoQuests.length} quests, ${demoNotes.length} notes, grade tracker, 1 pet  for ${user.email}`
+      `${demoQuests.length} quests, ${demoNotes.length} notes, grade tracker, course planner, 1 pet  for ${user.email}`
   );
 }
 

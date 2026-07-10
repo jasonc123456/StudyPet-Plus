@@ -16,6 +16,7 @@ import {
 
 const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
 const profileImagePathRegex = /^\/profile-pics\/(?:[1-9]|10)\.png$/;
+const academicSystemValues = ['SEMESTER', 'QUARTER'] as const;
 
 /**
  * True when `tz` is a time zone the JS runtime can actually format with.
@@ -382,6 +383,75 @@ export type UpdateGradeCategoryInput = z.infer<
   typeof updateGradeCategorySchema
 >;
 export type CreateGradeItemInput = z.infer<typeof createGradeItemSchema>;
+
+const academicSystemSchema = z.enum(academicSystemValues);
+
+export const createCoursePlannerSchema = z.object({
+  title: z.string().trim().min(1, 'Planner name is required').max(100),
+  system: academicSystemSchema,
+});
+
+export const updateCoursePlannerSchema = createCoursePlannerSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export const createCoursePlannerSectionSchema = z.object({
+  label: z.string().trim().min(1, 'Section name is required').max(100),
+});
+
+export const updateCoursePlannerSectionSchema = createCoursePlannerSectionSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export const createPlannedCourseSchema = z.object({
+  title: z.string().trim().min(1, 'Class name is required').max(150),
+  courseNumber: z.string().trim().max(50).optional().nullable(),
+  units: z
+    .union([z.coerce.number(), z.null(), z.undefined(), z.literal('')])
+    .optional()
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') return null;
+      return Number(value);
+    })
+    .refine((value) => value === null || (value >= 0 && value <= 30), {
+      message: 'Units must be between 0 and 30',
+    }),
+  professor: z.string().trim().max(100).optional().nullable(),
+  lectureDays: z.string().trim().max(50).optional().nullable(),
+  lectureTime: z.string().trim().max(100).optional().nullable(),
+  lectureLocation: z.string().trim().max(150).optional().nullable(),
+  isAlternate: z.boolean().optional().default(false),
+  notes: z.string().trim().max(1000).optional().nullable(),
+});
+
+export const updatePlannedCourseSchema = createPlannedCourseSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export type CreateCoursePlannerInput = z.infer<
+  typeof createCoursePlannerSchema
+>;
+export type UpdateCoursePlannerInput = z.infer<
+  typeof updateCoursePlannerSchema
+>;
+export type CreateCoursePlannerSectionInput = z.infer<
+  typeof createCoursePlannerSectionSchema
+>;
+export type UpdateCoursePlannerSectionInput = z.infer<
+  typeof updateCoursePlannerSectionSchema
+>;
+export type CreatePlannedCourseInput = z.infer<
+  typeof createPlannedCourseSchema
+>;
+export type UpdatePlannedCourseInput = z.infer<
+  typeof updatePlannedCourseSchema
+>;
 
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),

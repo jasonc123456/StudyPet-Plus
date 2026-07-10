@@ -70,6 +70,7 @@ type GradeTrackerPageProps = {
     termGpa: number | null;
     projectedCumulativeGpa: number | null;
   };
+  migrationRequired?: boolean;
 };
 
 function numberInputClass() {
@@ -191,6 +192,16 @@ export function GradeTrackerPage(props: GradeTrackerPageProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      {props.migrationRequired ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Grade tracker tables are not available in your local database yet. Run{' '}
+          <code className="mx-1 rounded bg-white/70 px-1 py-0.5">
+            npx prisma migrate dev
+          </code>
+          and then refresh this page.
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="card p-5">
           <p className="text-xs font-medium uppercase tracking-widest text-neutral-400">
