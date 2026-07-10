@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
-import { saveNotePdf } from '@/lib/note-pdf';
+import { saveNotePdfUpload } from '@/lib/note-pdf';
 
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const saved = await saveNotePdf(file);
+    const saved = await saveNotePdfUpload(file, authResult.user.id);
     return jsonOk(saved, 201);
   } catch (error) {
     const message =

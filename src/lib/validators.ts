@@ -200,7 +200,7 @@ const optionalCourseIdSchema = z
     return val;
   });
 
-export const createNoteSchema = z.object({
+const noteSchemaFields = {
   title: z.string().trim().min(1, 'Title is required').max(200),
   content: z.string().max(50000).optional().default(''),
   courseId: optionalCourseIdSchema,
@@ -208,14 +208,44 @@ export const createNoteSchema = z.object({
   pdfUrl: z
     .string()
     .trim()
-    .startsWith('/note-pdfs/')
+    .startsWith('/api/notes/files/')
     .max(500)
     .optional()
     .nullable(),
-});
+  pdfToken: z.string().trim().length(64).optional().nullable(),
+};
 
-export const updateNoteSchema = createNoteSchema
-  .partial()
+type NotePdfShape = typeof noteSchemaFields;
+
+function addNotePdfConsistencyCheck(
+  data: { pdfName?: string | null; pdfUrl?: string | null },
+  ctx: z.RefinementCtx
+) {
+  const hasPdfName = Boolean(data.pdfName);
+  const hasPdfUrl = Boolean(data.pdfUrl);
+
+  if (hasPdfName !== hasPdfUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'PDF name and file reference must be saved together',
+      path: hasPdfName ? ['pdfUrl'] : ['pdfName'],
+    });
+  }
+}
+
+const createNoteSchemaBase = z.object(noteSchemaFields);
+const updateNoteSchemaBase = z.object(noteSchemaFields).partial();
+
+export const createNoteSchema = createNoteSchemaBase.superRefine(
+  (data, ctx) => {
+    addNotePdfConsistencyCheck(data, ctx);
+  }
+);
+
+export const updateNoteSchema = updateNoteSchemaBase
+  .superRefine((data, ctx) => {
+    addNotePdfConsistencyCheck(data, ctx);
+  })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field is required',
   });

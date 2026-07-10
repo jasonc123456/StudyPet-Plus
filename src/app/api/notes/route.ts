@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
 import { getOwnedCourse } from '@/lib/planner';
+import { finalizeNotePdfUpload } from '@/lib/note-pdf';
 import {
   buildNoteListWhere,
   noteListOrderBy,
@@ -53,12 +54,37 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { title, content, courseId, pdfName, pdfUrl } = parsed.data;
+  const { title, content, courseId, pdfName, pdfUrl, pdfToken } = parsed.data;
 
   if (courseId) {
     const course = await getOwnedCourse(courseId, authResult.user.id);
     if (!course) {
       return jsonError('Course not found', 404);
+    }
+  }
+
+  let finalizedPdfUrl: string | null = null;
+  if (pdfUrl || pdfName || pdfToken) {
+    if (!pdfUrl || !pdfName || !pdfToken) {
+      return jsonError(
+        'Uploaded PDF is incomplete. Please upload it again.',
+        400
+      );
+    }
+
+    try {
+      const finalized = await finalizeNotePdfUpload({
+        userId: authResult.user.id,
+        pdfUrl,
+        pdfToken,
+      });
+      finalizedPdfUrl = finalized.pdfUrl;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to finalize uploaded PDF';
+      return jsonError(message, 400);
     }
   }
 
@@ -69,7 +95,7 @@ export async function POST(request: Request) {
       content: content ?? '',
       courseId,
       pdfName: pdfName ?? null,
-      pdfUrl: pdfUrl ?? null,
+      pdfUrl: finalizedPdfUrl,
     },
     include: {
       course: { select: { id: true, name: true, color: true } },

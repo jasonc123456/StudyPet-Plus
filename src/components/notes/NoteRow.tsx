@@ -72,11 +72,10 @@ export function NoteRow({ note }: NoteRowProps) {
             {note.pdfUrl && note.pdfName ? (
               <a
                 href={note.pdfUrl}
-                target="_blank"
                 rel="noreferrer"
                 className="mt-2 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100"
               >
-                PDF: {note.pdfName}
+                Download PDF: {note.pdfName}
               </a>
             ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
