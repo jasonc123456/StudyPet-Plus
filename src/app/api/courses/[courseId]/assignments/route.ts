@@ -47,6 +47,13 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const { title, description, dueAt, status, type } = parsed.data;
 
+  if (course.archivedAt) {
+    await prisma.course.update({
+      where: { id: params.courseId },
+      data: { archivedAt: null, archiveReason: null },
+    });
+  }
+
   const assignment = await prisma.assignment.create({
     data: {
       courseId: params.courseId,

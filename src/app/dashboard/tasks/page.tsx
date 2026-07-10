@@ -27,14 +27,14 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   }
 
   const courses = await prisma.course.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, archivedAt: null },
     orderBy: { name: 'asc' },
     select: { id: true, name: true },
   });
 
   const assignments = await prisma.assignment.findMany({
     where: {
-      course: { userId: session.user.id },
+      course: { userId: session.user.id, archivedAt: null },
       ...(searchParams.status && { status: searchParams.status }),
       ...(searchParams.type && { type: searchParams.type }),
       ...(searchParams.courseId && { courseId: searchParams.courseId }),

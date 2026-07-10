@@ -122,13 +122,15 @@ model VerificationToken {
 
 // A class/subject the student is taking. Root of the planner hierarchy.
 model Course {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  color     String   @default("#6366f1") // hex tag shown in the UI (indigo default)
-  term      String? // e.g. "Fall 2026"; optional
-  credits   Int      @default(3)
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  color         String    @default("#6366f1") // hex tag shown in the UI (indigo default)
+  term          String? // e.g. "Fall 2026"; optional
+  credits       Int       @default(3)
+  archivedAt    DateTime?
+  archiveReason String?
+  createdAt     DateTime  @default(now())
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignments Assignment[]
@@ -136,6 +138,7 @@ model Course {
   gradeCategories GradeCategory[]
 
   @@index([userId])
+  @@index([userId, archivedAt])
 }
 
 // A graded item tied to a Course (homework, exam, project, …).

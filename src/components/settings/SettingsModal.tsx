@@ -119,7 +119,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
   const [textEditorOpen, setTextEditorOpen] = useState(false);
   const [profileName, setProfileName] = useState(user.name ?? 'Demo Student');
   const [profileEmail, setProfileEmail] = useState(
-    user.email ?? 'demo@studypetplus.corecrafted.net'
+    user.email ?? 'demo@studypetplus.app'
   );
   const [petName, setPetName] = useState(user.petName ?? 'StudyPet');
   const [timezone, setTimezone] = useState(
@@ -176,7 +176,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     setProfileError(null);
     setProfileSuccess(null);
     setProfileName(user.name ?? 'Demo Student');
-    setProfileEmail(user.email ?? 'demo@studypetplus.corecrafted.net');
+    setProfileEmail(user.email ?? 'demo@studypetplus.app');
     setPetName(user.petName ?? 'StudyPet');
     setTimezone(user.timezone ?? detectBrowserZone());
     setProfileImage(

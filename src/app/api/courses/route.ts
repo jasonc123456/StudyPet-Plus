@@ -7,7 +7,7 @@ export async function GET() {
   if (authResult instanceof Response) return authResult;
 
   const courses = await prisma.course.findMany({
-    where: { userId: authResult.user.id },
+    where: { userId: authResult.user.id, archivedAt: null },
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { assignments: true } } },
   });
