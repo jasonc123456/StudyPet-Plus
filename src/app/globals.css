@@ -55,6 +55,10 @@ body {
   color: var(--page-text);
 }
 
+* {
+  min-width: 0;
+}
+
 /* Custom component classes referenced across the app. Defining them in
    @layer components lets Tailwind utilities still override them when needed,
    and keeps the JSX readable (className="btn-primary" instead of 10 utils). */
@@ -165,6 +169,32 @@ body {
 
 .app-shell-main {
   background: var(--shell-surface-bg);
+}
+
+@media (max-width: 640px) {
+  .card,
+  .dashboard-panel {
+    border-radius: 0.875rem;
+  }
+
+  .dashboard-panel {
+    padding: 1rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    min-height: 2.75rem;
+  }
+
+  .app-shell-main {
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 768px) {
+  .theme-input {
+    padding: 0.7rem 0.85rem;
+  }
 }
 
 .app-sidebar {
