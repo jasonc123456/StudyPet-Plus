@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+import { CalendarEventStatusControl } from '@/components/calendar/CalendarEventStatusControl';
+import type { StatusTarget } from '@/components/calendar/CalendarEventStatusControl';
 import { EventDescription } from '@/components/calendar/EventDescription';
 import { EventStatusIcon } from '@/components/calendar/EventStatusIcon';
 import { useTimezone } from '@/components/TimezoneProvider';
@@ -21,6 +23,7 @@ type CalendarBrowserEvent = {
   description: string | null;
   href: string | null;
   meta: string | null;
+  courseId: string | null;
   uid: string | null;
   subscriptionId: string | null;
   ignored: boolean;
@@ -256,6 +259,21 @@ export function CalendarBrowserView({
     params.set('month', nextMonthKey);
     params.set('day', nextDayKey);
     return `${pathname}?${params.toString()}`;
+  }
+
+  /**
+   * Where a status change for this event is written, or null when there's no
+   * task row behind it — a feed event the user hasn't synced. The control still
+   * renders in that case, dimmed, to point at what would unlock it.
+   */
+  function statusTarget(event: ParsedEvent): StatusTarget | null {
+    if (event.source !== 'assignment' || !event.courseId) return null;
+    return { courseId: event.courseId, assignmentId: event.sourceId };
+  }
+
+  /** Quests and group tasks keep their own edit screens — no inline control. */
+  function hasStatusControl(event: ParsedEvent) {
+    return event.source === 'assignment' || event.source === 'imported';
   }
 
   /** An event can be ignored when it came from a feed the user auto-syncs. */
@@ -572,25 +590,37 @@ export function CalendarBrowserView({
                   </div>
                 )}
 
-                {canIgnore(event) && (
-                  <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleIgnore(event)}
-                      disabled={pendingEventId === event.id}
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      {pendingEventId === event.id
-                        ? 'Saving…'
-                        : event.ignored
-                          ? 'Track as assignment'
-                          : 'Not an assignment'}
-                    </button>
-                    <span className="text-xs text-slate-400">
-                      {event.ignored
-                        ? 'Skipped by auto-sync'
-                        : 'Hide from your assignments'}
-                    </span>
+                {(hasStatusControl(event) || canIgnore(event)) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3">
+                    {hasStatusControl(event) && (
+                      <CalendarEventStatusControl
+                        title={event.title}
+                        status={event.status}
+                        target={statusTarget(event)}
+                      />
+                    )}
+
+                    {canIgnore(event) && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleIgnore(event)}
+                          disabled={pendingEventId === event.id}
+                          className="text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {pendingEventId === event.id
+                            ? 'Saving…'
+                            : event.ignored
+                              ? 'Track as assignment'
+                              : 'Not an assignment'}
+                        </button>
+                        <span className="text-xs text-slate-400">
+                          {event.ignored
+                            ? 'Skipped by auto-sync'
+                            : 'Hide from your assignments'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </article>
