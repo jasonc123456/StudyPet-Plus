@@ -2,7 +2,7 @@
 
 AI Study Planner — flashcards, quizzes, weak-topic tracking, and a virtual study pet.
 
-**[Live site](https://studypetplus.corecrafted.net/)**
+**[Live site](https://studypetplus.app/)**
 
 ## Prerequisites
 

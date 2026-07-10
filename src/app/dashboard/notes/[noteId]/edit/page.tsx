@@ -24,7 +24,7 @@ export default async function EditNotePage({ params }: EditNotePageProps) {
       },
     }),
     prisma.course.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, archivedAt: null },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),

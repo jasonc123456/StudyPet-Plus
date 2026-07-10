@@ -79,10 +79,16 @@ async function resolveCourseId(
 
   const existing = await prisma.course.findFirst({
     where: { userId, name: { equals: name, mode: 'insensitive' } },
-    select: { id: true },
+    select: { id: true, archivedAt: true },
   });
 
   if (existing) {
+    if (existing.archivedAt) {
+      await prisma.course.update({
+        where: { id: existing.id },
+        data: { archivedAt: null, archiveReason: null },
+      });
+    }
     cache.set(cacheKey, existing.id);
     return existing.id;
   }

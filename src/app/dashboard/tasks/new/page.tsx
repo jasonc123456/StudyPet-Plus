@@ -12,7 +12,7 @@ export default async function NewGlobalTaskPage() {
   }
 
   const courses = await prisma.course.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, archivedAt: null },
     orderBy: { name: 'asc' },
     select: { id: true, name: true },
   });

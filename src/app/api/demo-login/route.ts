@@ -15,7 +15,7 @@ import { prisma } from '@/lib/prisma';
 // Always run on the server per request — never cache (it sets a cookie).
 export const dynamic = 'force-dynamic';
 
-const DEMO_EMAIL = 'demo@studypetplus.corecrafted.net';
+const DEMO_EMAIL = 'demo@studypetplus.app';
 const DEMO_NAME = 'Demo Student';
 const SESSION_DAYS = 30;
 

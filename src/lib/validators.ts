@@ -73,6 +73,14 @@ export const updateCourseSchema = z
 export type CreateCourseInput = z.infer<typeof createCourseSchema>;
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
 
+export const updateCourseArchiveSchema = z.object({
+  archived: z.boolean(),
+});
+
+export type UpdateCourseArchiveInput = z.infer<
+  typeof updateCourseArchiveSchema
+>;
+
 const assignmentStatusSchema = z.enum(
   ASSIGNMENT_STATUS_VALUES as [string, ...string[]]
 );

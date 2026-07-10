@@ -19,8 +19,8 @@ const prisma = new PrismaClient();
 
 // Demo users. Add/edit freely — emails must be unique.
 const demoUsers = [
-  { email: 'demo@studypetplus.corecrafted.net', name: 'Demo Student' },
-  { email: 'student@studypetplus.corecrafted.net', name: 'Sample Student' },
+  { email: 'demo@studypetplus.app', name: 'Demo Student' },
+  { email: 'student@studypetplus.app', name: 'Sample Student' },
 ];
 
 // How long the instant-login demo session stays valid.

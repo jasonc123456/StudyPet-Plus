@@ -211,7 +211,7 @@ export async function getGradeTrackerPageData(userId: string) {
       ],
     }),
     prisma.course.findMany({
-      where: { userId },
+      where: { userId, archivedAt: null },
       orderBy: { name: 'asc' },
       include: {
         assignments: {

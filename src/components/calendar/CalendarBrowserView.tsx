@@ -134,7 +134,9 @@ function toDayKeyInZone(date: Date, timeZone?: string) {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(date);
-  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const lookup = Object.fromEntries(
+    parts.map((part) => [part.type, part.value])
+  );
   return `${lookup.year}-${lookup.month}-${lookup.day}`;
 }
 

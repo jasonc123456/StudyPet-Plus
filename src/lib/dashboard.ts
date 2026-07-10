@@ -75,14 +75,14 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     petRow,
   ] = await Promise.all([
     prisma.course.findMany({
-      where: { userId },
+      where: { userId, archivedAt: null },
       orderBy: { createdAt: 'desc' },
       take: 6,
       select: { id: true, name: true, color: true, term: true },
     }),
     prisma.assignment.count({
       where: {
-        course: { userId },
+        course: { userId, archivedAt: null },
         status: { not: 'done' },
         dueAt: { gte: weekStart, lte: weekEnd },
       },
@@ -92,7 +92,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     }),
     prisma.assignment.findMany({
       where: {
-        course: { userId },
+        course: { userId, archivedAt: null },
         status: { not: 'done' },
       },
       select: {

@@ -38,7 +38,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
 
   const [courses, totalNoteCount, notes] = await Promise.all([
     prisma.course.findMany({
-      where: { userId },
+      where: { userId, archivedAt: null },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),
