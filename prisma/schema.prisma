@@ -139,6 +139,13 @@ model Course {
 }
 
 // A graded item tied to a Course (homework, exam, project, …).
+//
+// calendarSubscriptionId + externalUid are set only on rows created by the ICS
+// auto-sync (US: "auto sync calendar feed → assignments"). Together they are the
+// idempotency key: a re-sync upserts on (subscription, uid) so a feed can be
+// pulled repeatedly without duplicating rows. Both are null for hand-made
+// assignments, and Postgres treats NULLs as distinct, so the unique constraint
+// never blocks two manual assignments.
 model Assignment {
   id          String    @id @default(cuid())
   courseId    String
@@ -149,10 +156,16 @@ model Assignment {
   type        String    @default("homework") // homework | exam | project | reading | other
   createdAt   DateTime  @default(now())
 
+  calendarSubscriptionId String?
+  externalUid            String?
+
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  calendarSubscription CalendarSubscription? @relation(fields: [calendarSubscriptionId], references: [id], onDelete: SetNull)
   gradeItems GradeItem[]
 
+  @@unique([calendarSubscriptionId, externalUid])
   @@index([courseId])
+  @@index([calendarSubscriptionId])
 }
 
 // A lightweight study goal/task owned directly by the user (not course-bound).
@@ -197,13 +210,35 @@ model CalendarSubscription {
   name         String
   icsUrl       String
   color        String   @default("#0ea5e9")
+  // Opt-in: when true, feed events are materialized as Assignment rows so they
+  // show up on the assignments page. Off by default — the calendar still
+  // renders the feed read-only either way.
+  autoSync     Boolean  @default(false)
   createdAt    DateTime @default(now())
   lastSyncedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncedAssignments Assignment[]
+  ignoredEvents CalendarIgnoredEvent[]
 
   @@index([userId])
   @@unique([userId, icsUrl])
+}
+
+// A feed event the user has marked "not an assignment" (a Zoom link, a lecture,
+// an exam they don't want tracked). Auto-sync skips these UIDs forever; the
+// event still renders on the calendar, just greyed out and un-ignorable.
+model CalendarIgnoredEvent {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  uid            String
+  title          String
+  createdAt      DateTime @default(now())
+
+  subscription CalendarSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, uid])
+  @@index([subscriptionId])
 }
 
 model StudyGroup {

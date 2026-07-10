@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
 import { verifyIcsFeed } from '@/lib/calendar';
+import { syncUserCalendars } from '@/lib/calendar-sync';
 import { prisma } from '@/lib/prisma';
 import {
   createCalendarSubscriptionSchema,
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { name, icsUrl, color } = parsed.data;
+  const { name, icsUrl, color, autoSync = false } = parsed.data;
 
   let existing;
   try {
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
         name,
         icsUrl,
         color,
+        autoSync,
       },
     });
   } catch (error) {
@@ -104,6 +106,12 @@ export async function POST(request: Request) {
       );
     }
     throw error;
+  }
+
+  // Connected with auto-sync already on: pull it now so the assignments page
+  // isn't empty until the user next opens the calendar.
+  if (autoSync) {
+    await syncUserCalendars(authResult.user.id, { force: true });
   }
 
   return jsonOk(subscription, 201);
