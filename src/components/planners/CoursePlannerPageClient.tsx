@@ -57,6 +57,9 @@ export function CoursePlannerPageClient({
   const [sectionLabels, setSectionLabels] = useState<Record<string, string>>(
     {}
   );
+  const [sectionComposerOpen, setSectionComposerOpen] = useState<
+    Record<string, boolean>
+  >({});
   const [courseForms, setCourseForms] = useState<
     Record<
       string,
@@ -153,6 +156,13 @@ export function CoursePlannerPageClient({
         ...getCourseForm(sectionId),
         ...updates,
       },
+    }));
+  }
+
+  function setComposerOpen(sectionId: string, open: boolean) {
+    setSectionComposerOpen((current) => ({
+      ...current,
+      [sectionId]: open,
     }));
   }
 
@@ -378,6 +388,8 @@ export function CoursePlannerPageClient({
                 ) : (
                   selectedPlanner.sections.map((section) => {
                     const courseForm = getCourseForm(section.id);
+                    const composerOpen =
+                      sectionComposerOpen[section.id] ?? false;
                     const primaryCourses = section.courses.filter(
                       (course) => !course.isAlternate
                     );
@@ -420,147 +432,178 @@ export function CoursePlannerPageClient({
                           </button>
                         </div>
 
-                        <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                          <input
-                            type="text"
-                            value={courseForm.title}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                title: e.target.value,
-                              })
-                            }
-                            placeholder="Class name (e.g. Data Structures)"
-                            className={inputClass}
-                          />
-                          <input
-                            type="text"
-                            value={courseForm.courseNumber}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                courseNumber: e.target.value,
-                              })
-                            }
-                            placeholder="Course number (e.g. CSE115A)"
-                            className={inputClass}
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            max="30"
-                            step="0.5"
-                            value={courseForm.units}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                units: e.target.value,
-                              })
-                            }
-                            placeholder="Units"
-                            className={inputClass}
-                          />
-                          <input
-                            type="text"
-                            value={courseForm.professor}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                professor: e.target.value,
-                              })
-                            }
-                            placeholder="Professor"
-                            className={inputClass}
-                          />
-                          <input
-                            type="text"
-                            value={courseForm.lectureDays}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                lectureDays: e.target.value,
-                              })
-                            }
-                            placeholder="Lecture days (e.g. Mon/Wed)"
-                            className={inputClass}
-                          />
-                          <input
-                            type="text"
-                            value={courseForm.lectureTime}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                lectureTime: e.target.value,
-                              })
-                            }
-                            placeholder="Lecture time (e.g. 2:00 PM - 3:15 PM)"
-                            className={inputClass}
-                          />
-                          <input
-                            type="text"
-                            value={courseForm.lectureLocation}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                lectureLocation: e.target.value,
-                              })
-                            }
-                            placeholder="Lecture location or Online"
-                            className={`lg:col-span-2 ${inputClass}`}
-                          />
-                          <input
-                            type="text"
-                            value={courseForm.notes}
-                            onChange={(e) =>
-                              updateCourseForm(section.id, {
-                                notes: e.target.value,
-                              })
-                            }
-                            placeholder="Optional notes"
-                            className={inputClass}
-                          />
-                          <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
-                            <input
-                              type="checkbox"
-                              checked={courseForm.isAlternate}
-                              onChange={(e) =>
-                                updateCourseForm(section.id, {
-                                  isAlternate: e.target.checked,
-                                })
-                              }
-                              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                            />
-                            Add as backup / alternate class
-                          </label>
-                        </div>
-
-                        <div className="mt-4">
+                        <div className="mt-5">
                           <button
                             type="button"
-                            disabled={isPending}
-                            onClick={() =>
-                              runAction(async () => {
-                                await submitJson(
-                                  `/api/course-planner-sections/${section.id}/courses`,
-                                  'POST',
-                                  courseForm
-                                );
-                                setCourseForms((current) => ({
-                                  ...current,
-                                  [section.id]: {
-                                    title: '',
-                                    courseNumber: '',
-                                    units: '',
-                                    professor: '',
-                                    lectureDays: '',
-                                    lectureTime: '',
-                                    lectureLocation: '',
-                                    isAlternate: false,
-                                    notes: '',
-                                  },
-                                }));
-                              })
-                            }
+                            disabled={isPending || composerOpen}
+                            onClick={() => setComposerOpen(section.id, true)}
                             className="btn-primary"
                           >
-                            Add class to {section.label}
+                            Add class
                           </button>
                         </div>
 
-                        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        {composerOpen ? (
+                          <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                              <input
+                                type="text"
+                                value={courseForm.title}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    title: e.target.value,
+                                  })
+                                }
+                                placeholder="Class name (e.g. Data Structures)"
+                                className={inputClass}
+                              />
+                              <input
+                                type="text"
+                                value={courseForm.courseNumber}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    courseNumber: e.target.value,
+                                  })
+                                }
+                                placeholder="Course number (e.g. CSE115A)"
+                                className={inputClass}
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                max="30"
+                                step="0.5"
+                                value={courseForm.units}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    units: e.target.value,
+                                  })
+                                }
+                                placeholder="Units"
+                                className={inputClass}
+                              />
+                              <input
+                                type="text"
+                                value={courseForm.professor}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    professor: e.target.value,
+                                  })
+                                }
+                                placeholder="Professor"
+                                className={inputClass}
+                              />
+                              <input
+                                type="text"
+                                value={courseForm.lectureDays}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    lectureDays: e.target.value,
+                                  })
+                                }
+                                placeholder="Lecture days (e.g. Mon/Wed)"
+                                className={inputClass}
+                              />
+                              <input
+                                type="text"
+                                value={courseForm.lectureTime}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    lectureTime: e.target.value,
+                                  })
+                                }
+                                placeholder="Lecture time (e.g. 2:00 PM - 3:15 PM)"
+                                className={inputClass}
+                              />
+                              <input
+                                type="text"
+                                value={courseForm.lectureLocation}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    lectureLocation: e.target.value,
+                                  })
+                                }
+                                placeholder="Lecture location or Online"
+                                className={`lg:col-span-2 ${inputClass}`}
+                              />
+                              <input
+                                type="text"
+                                value={courseForm.notes}
+                                onChange={(e) =>
+                                  updateCourseForm(section.id, {
+                                    notes: e.target.value,
+                                  })
+                                }
+                                placeholder="Optional notes"
+                                className={inputClass}
+                              />
+                              <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={courseForm.isAlternate}
+                                  onChange={(e) =>
+                                    updateCourseForm(section.id, {
+                                      isAlternate: e.target.checked,
+                                    })
+                                  }
+                                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                />
+                                Add as backup / alternate class
+                              </label>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-3">
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() =>
+                                  runAction(async () => {
+                                    await submitJson(
+                                      `/api/course-planner-sections/${section.id}/courses`,
+                                      'POST',
+                                      courseForm
+                                    );
+                                    setCourseForms((current) => ({
+                                      ...current,
+                                      [section.id]: {
+                                        title: '',
+                                        courseNumber: '',
+                                        units: '',
+                                        professor: '',
+                                        lectureDays: '',
+                                        lectureTime: '',
+                                        lectureLocation: '',
+                                        isAlternate: false,
+                                        notes: '',
+                                      },
+                                    }));
+                                    setComposerOpen(section.id, false);
+                                  })
+                                }
+                                className="btn-primary"
+                              >
+                                Add class to {section.label}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() =>
+                                  setComposerOpen(section.id, false)
+                                }
+                                className="btn-secondary"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div
+                          className={[
+                            'mt-6 grid grid-cols-1 gap-4',
+                            backupCourses.length > 0 ? 'xl:grid-cols-2' : '',
+                          ].join(' ')}
+                        >
                           <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                             <div className="flex items-center justify-between">
                               <h4 className="text-sm font-semibold uppercase tracking-widest text-slate-500">
@@ -595,22 +638,18 @@ export function CoursePlannerPageClient({
                             </div>
                           </div>
 
-                          <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-semibold uppercase tracking-widest text-amber-700">
-                                Backup classes
-                              </h4>
-                              <span className="text-xs text-amber-600">
-                                {backupCourses.length}
-                              </span>
-                            </div>
-                            <div className="mt-3 space-y-3">
-                              {backupCourses.length === 0 ? (
-                                <p className="text-sm text-amber-700/80">
-                                  No alternate classes yet.
-                                </p>
-                              ) : (
-                                backupCourses.map((course) => (
+                          {backupCourses.length > 0 ? (
+                            <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-semibold uppercase tracking-widest text-amber-700">
+                                  Backup classes
+                                </h4>
+                                <span className="text-xs text-amber-600">
+                                  {backupCourses.length}
+                                </span>
+                              </div>
+                              <div className="mt-3 space-y-3">
+                                {backupCourses.map((course) => (
                                   <PlannerCourseCard
                                     key={course.id}
                                     course={course}
@@ -625,10 +664,10 @@ export function CoursePlannerPageClient({
                                     isPending={isPending}
                                     tone="backup"
                                   />
-                                ))
-                              )}
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          ) : null}
                         </div>
                       </div>
                     );
