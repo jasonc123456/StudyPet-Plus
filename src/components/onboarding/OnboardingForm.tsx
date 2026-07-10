@@ -7,7 +7,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const PROFILE_IMAGE_OPTIONS = [
   '/profile-pics/1.png',
@@ -72,14 +72,29 @@ export function OnboardingForm({
   defaultImage: string;
 }) {
   const router = useRouter();
-  const browserZone = useMemo(detectBrowserZone, []);
+
+  // Server renders in UTC; the real browser zone is only known on the client.
+  // Start from a deterministic 'UTC' so the SSR markup and first client render
+  // match, then swap to the detected zone after mount to avoid a hydration
+  // mismatch on the <select>. `zoneTouched` keeps the post-mount detection from
+  // clobbering an explicit user choice (fast pickers).
+  const [browserZone, setBrowserZone] = useState('UTC');
+  const [timezone, setTimezone] = useState('UTC');
+  const [zoneTouched, setZoneTouched] = useState(false);
   const zones = useMemo(() => supportedZones(browserZone), [browserZone]);
 
   const [name, setName] = useState(defaultName);
-  const [timezone, setTimezone] = useState(browserZone);
   const [image, setImage] = useState(defaultImage);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const detected = detectBrowserZone();
+    setBrowserZone(detected);
+    setTimezone((current) => (zoneTouched ? current : detected));
+    // Only runs on mount; zoneTouched guard handles the race with user input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -154,7 +169,10 @@ export function OnboardingForm({
             <select
               id="onboarding-timezone"
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => {
+                setZoneTouched(true);
+                setTimezone(e.target.value);
+              }}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-400"
             >
               {zones.map((zone) => (
