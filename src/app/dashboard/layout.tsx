@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { AppSidebar, AppTopBar } from '@/components/AppSidebar';
+import { TimezoneProvider } from '@/components/TimezoneProvider';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -30,6 +31,8 @@ export default async function DashboardLayout({
       name: true,
       email: true,
       image: true,
+      timezone: true,
+      onboardedAt: true,
       pet: {
         select: {
           name: true,
@@ -38,24 +41,33 @@ export default async function DashboardLayout({
     },
   });
 
+  // First-run gate: send users who haven't finished onboarding to pick a name,
+  // time zone, and avatar before they reach the app.
+  if (!userProfile?.onboardedAt) {
+    redirect('/onboarding');
+  }
+
   const user = {
     name: userProfile?.name ?? session.user.name,
     email: userProfile?.email ?? session.user.email,
     image: userProfile?.image ?? session.user.image,
     petName: userProfile?.pet?.name ?? 'StudyPet',
+    timezone: userProfile?.timezone ?? null,
   };
 
   return (
-    <div className="app-shell flex h-screen overflow-hidden">
-      <AppSidebar user={user} />
+    <TimezoneProvider timezone={user.timezone}>
+      <div className="app-shell flex h-screen overflow-hidden">
+        <AppSidebar user={user} />
 
-      <div className="app-shell-content flex min-w-0 flex-1 flex-col overflow-hidden">
-        <AppTopBar user={user} />
+        <div className="app-shell-content flex min-w-0 flex-1 flex-col overflow-hidden">
+          <AppTopBar user={user} />
 
-        <main className="app-shell-main flex-1 overflow-y-auto">
-          <div className="px-4 py-6 sm:px-6 sm:py-8">{children}</div>
-        </main>
+          <main className="app-shell-main flex-1 overflow-y-auto">
+            <div className="px-4 py-6 sm:px-6 sm:py-8">{children}</div>
+          </main>
+        </div>
       </div>
-    </div>
+    </TimezoneProvider>
   );
 }

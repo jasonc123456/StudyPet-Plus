@@ -194,8 +194,21 @@ async function main() {
   for (const u of demoUsers) {
     const user = await prisma.user.upsert({
       where: { email: u.email },
-      update: { name: u.name, emailVerified: new Date() },
-      create: { email: u.email, name: u.name, emailVerified: new Date() },
+      // Seeded users are pre-onboarded (timezone + onboardedAt set) so demos
+      // skip the first-run onboarding gate.
+      update: {
+        name: u.name,
+        emailVerified: new Date(),
+        timezone: 'America/Los_Angeles',
+        onboardedAt: new Date(),
+      },
+      create: {
+        email: u.email,
+        name: u.name,
+        emailVerified: new Date(),
+        timezone: 'America/Los_Angeles',
+        onboardedAt: new Date(),
+      },
     });
     users.push(user);
     console.log(`  ✓ user  ${user.email}  (${user.id})`);

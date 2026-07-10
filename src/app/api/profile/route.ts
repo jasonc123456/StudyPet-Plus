@@ -20,7 +20,7 @@ export async function PUT(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { name, email, petName, image } = parsed.data;
+  const { name, email, petName, image, timezone } = parsed.data;
 
   const emailOwner = await prisma.user.findFirst({
     where: {
@@ -37,8 +37,14 @@ export async function PUT(request: Request) {
   const [user, pet] = await prisma.$transaction([
     prisma.user.update({
       where: { id: authResult.user.id },
-      data: { name, email, image },
-      select: { id: true, name: true, email: true, image: true },
+      data: { name, email, image, timezone },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        timezone: true,
+      },
     }),
     prisma.pet.upsert({
       where: { userId: authResult.user.id },

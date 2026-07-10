@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { useTimezone } from '@/components/TimezoneProvider';
 import { formatDueDate, formatDueDateLocal } from '@/lib/format';
 
 type DueDateProps = {
@@ -23,13 +24,15 @@ type DueDateProps = {
 };
 
 export function DueDate({ dueAt, className }: DueDateProps) {
+  // The user's stored zone (falls back to the browser's own when unset).
+  const timeZone = useTimezone();
   // Initial value is the deterministic UTC render (matches the server output).
   const [text, setText] = useState(() => formatDueDate(dueAt));
 
   useEffect(() => {
-    // Post-hydration: re-render in the viewer's own timezone + locale.
-    setText(formatDueDateLocal(dueAt));
-  }, [dueAt]);
+    // Post-hydration: re-render in the user's chosen timezone + their locale.
+    setText(formatDueDateLocal(dueAt, timeZone));
+  }, [dueAt, timeZone]);
 
   const iso =
     dueAt instanceof Date

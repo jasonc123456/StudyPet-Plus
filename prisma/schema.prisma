@@ -43,6 +43,12 @@ enum GroupTaskStatus {
 model User {
   id            String    @id @default(cuid())
   name          String?
+  // IANA time zone id (e.g. "America/Los_Angeles"). Defaulted from the browser
+  // at first-run onboarding; drives per-user date display. Null until onboarded.
+  timezone      String?
+  // Set when the user completes first-run onboarding (name + timezone + avatar).
+  // Null => the dashboard redirects them to /onboarding.
+  onboardedAt   DateTime?
   email         String    @unique
   emailVerified DateTime?
   image         String?

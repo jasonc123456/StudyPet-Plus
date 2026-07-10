@@ -23,6 +23,42 @@ const PROFILE_IMAGE_OPTIONS = [
   '/profile-pics/10.png',
 ] as const;
 
+const FALLBACK_ZONES = [
+  'America/Los_Angeles',
+  'America/Denver',
+  'America/Chicago',
+  'America/New_York',
+  'UTC',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Kolkata',
+  'Asia/Shanghai',
+  'Asia/Taipei',
+  'Asia/Tokyo',
+  'Australia/Sydney',
+];
+
+function detectBrowserZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+// Full IANA list when the runtime supports it, otherwise a small fallback. The
+// current zone is force-included so it's always selectable.
+function timeZoneOptions(current: string) {
+  const supportedValuesOf = (
+    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf;
+  const zones =
+    typeof supportedValuesOf === 'function'
+      ? supportedValuesOf('timeZone')
+      : FALLBACK_ZONES;
+  return zones.includes(current) ? zones : [current, ...zones];
+}
+
 type SettingsModalProps = {
   open: boolean;
   onClose: () => void;
@@ -31,6 +67,7 @@ type SettingsModalProps = {
     email?: string | null;
     image?: string | null;
     petName?: string | null;
+    timezone?: string | null;
   };
 };
 
@@ -85,6 +122,9 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     user.email ?? 'demo@studypetplus.corecrafted.net'
   );
   const [petName, setPetName] = useState(user.petName ?? 'StudyPet');
+  const [timezone, setTimezone] = useState(
+    user.timezone ?? detectBrowserZone()
+  );
   const [profileImage, setProfileImage] = useState(
     user.image &&
       PROFILE_IMAGE_OPTIONS.includes(
@@ -138,6 +178,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
     setProfileName(user.name ?? 'Demo Student');
     setProfileEmail(user.email ?? 'demo@studypetplus.corecrafted.net');
     setPetName(user.petName ?? 'StudyPet');
+    setTimezone(user.timezone ?? detectBrowserZone());
     setProfileImage(
       user.image &&
         PROFILE_IMAGE_OPTIONS.includes(
@@ -146,7 +187,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
         ? user.image
         : DEFAULT_PROFILE_IMAGE
     );
-  }, [open, user.email, user.image, user.name, user.petName]);
+  }, [open, user.email, user.image, user.name, user.petName, user.timezone]);
 
   useEffect(() => {
     if (!open) return;
@@ -241,6 +282,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
           email: profileEmail.trim(),
           petName: petName.trim(),
           image: profileImage,
+          timezone,
         }),
       });
 
@@ -402,6 +444,25 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                           onChange={(e) => setPetName(e.target.value)}
                           className="theme-input"
                         />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-2 block text-sm font-semibold">
+                          Time zone
+                        </label>
+                        <select
+                          value={timezone}
+                          onChange={(e) => setTimezone(e.target.value)}
+                          className="theme-input"
+                        >
+                          {timeZoneOptions(timezone).map((zone) => (
+                            <option key={zone} value={zone}>
+                              {zone.replace(/_/g, ' ')}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="theme-muted mt-1.5 text-xs">
+                          Due dates and calendar times display in this zone.
+                        </p>
                       </div>
                       {profileError && (
                         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2">

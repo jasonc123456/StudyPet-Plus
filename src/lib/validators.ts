@@ -17,6 +17,28 @@ import {
 const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
 const profileImagePathRegex = /^\/profile-pics\/(?:[1-9]|10)\.png$/;
 
+/**
+ * True when `tz` is a time zone the JS runtime can actually format with.
+ * Cheaper and more forward-proof than hardcoding an IANA list — the browser
+ * only ever sends us zones from Intl.supportedValuesOf, and this rejects junk.
+ */
+export function isValidTimeZone(tz: string): boolean {
+  if (!tz) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const timezoneSchema = z
+  .string()
+  .trim()
+  .min(1, 'Time zone is required')
+  .max(64)
+  .refine(isValidTimeZone, { message: 'Select a valid time zone' });
+
 const colorSchema = z
   .string()
   .refine(
@@ -157,9 +179,23 @@ export const updateProfileSchema = z.object({
     .string()
     .trim()
     .regex(profileImagePathRegex, 'Select one of the default profile pictures'),
+  timezone: timezoneSchema,
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+// First-run onboarding: name + time zone + avatar. Other profile details
+// (email, pet name, theme) are completed later in Settings.
+export const onboardingSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  timezone: timezoneSchema,
+  image: z
+    .string()
+    .trim()
+    .regex(profileImagePathRegex, 'Select one of the default profile pictures'),
+});
+
+export type OnboardingInput = z.infer<typeof onboardingSchema>;
 
 /** First human-readable message from a Zod safeParse failure. */
 export function zodFirstError(
