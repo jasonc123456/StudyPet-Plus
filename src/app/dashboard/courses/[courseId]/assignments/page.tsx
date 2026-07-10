@@ -9,6 +9,8 @@ import {
 } from '@/components/assignments/AssignmentRow';
 import { ColorSwatch } from '@/components/courses/ColorSwatch';
 import { PageHeader } from '@/components/courses/PageHeader';
+import { NoteEmptyState } from '@/components/notes/NoteEmptyState';
+import { NoteRow } from '@/components/notes/NoteRow';
 import { ResponsiveDataTable } from '@/components/ResponsiveDataTable';
 import { prisma } from '@/lib/prisma';
 
@@ -33,6 +35,12 @@ export default async function CourseAssignmentsPage({
           { createdAt: 'desc' },
         ],
       },
+      notes: {
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          course: { select: { id: true, name: true, color: true } },
+        },
+      },
     },
   });
 
@@ -41,6 +49,8 @@ export default async function CourseAssignmentsPage({
   }
 
   const baseHref = `/dashboard/courses/${course.id}/assignments`;
+  const notesHref = `/dashboard/notes?courseId=${course.id}`;
+  const newNoteHref = `/dashboard/notes/new?courseId=${course.id}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,6 +109,33 @@ export default async function CourseAssignmentsPage({
           </div>
         </>
       )}
+
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Notes</h2>
+          {course.notes.length > 0 && (
+            <Link
+              href={notesHref}
+              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+            >
+              View all
+            </Link>
+          )}
+        </div>
+
+        {course.notes.length === 0 ? (
+          <NoteEmptyState
+            message={`No notes for ${course.name} yet.`}
+            actionHref={newNoteHref}
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {course.notes.map((note) => (
+              <NoteRow key={note.id} note={note} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -31,3 +31,13 @@ export async function getOwnedQuest(questId: string, userId: string) {
     },
   });
 }
+
+/** Returns the note if it belongs to the user, otherwise null. */
+export async function getOwnedNote(noteId: string, userId: string) {
+  return prisma.note.findFirst({
+    where: {
+      id: noteId,
+      userId,
+    },
+  });
+}

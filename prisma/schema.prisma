@@ -61,6 +61,7 @@ model User {
   courses               Course[]
   quests                Quest[]
   pet                   Pet?
+  notes                 Note[]
   calendarSubscriptions CalendarSubscription[]
   groupsCreated         StudyGroup[]         @relation("GroupCreator")
   groupMemberships      GroupMembership[]
@@ -128,6 +129,7 @@ model Course {
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignments Assignment[]
+  notes       Note[]
 
   @@index([userId])
 }
@@ -338,4 +340,28 @@ model GroupTaskAssignee {
 
   @@unique([taskId, userId])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 3 (US-3.1) — Notes.
+//
+// User-owned study notes, optionally linked to a Course. Note.content is the
+// source text future AI flashcard/quiz generation (US-3.2+) will read from.
+// ---------------------------------------------------------------------------
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String? // null = uncategorized note
+  title     String
+  content   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([updatedAt])
 }

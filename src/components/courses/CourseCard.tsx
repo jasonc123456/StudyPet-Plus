@@ -72,6 +72,12 @@ export function CourseCard({ course }: CourseCardProps) {
               <p className="mt-0.5 text-sm text-slate-500">{course.term}</p>
             )}
             <p className="mt-2 text-xs text-slate-400">{assignmentLabel}</p>
+            <Link
+              href={`/dashboard/notes?courseId=${course.id}`}
+              className="mt-1 inline-block text-xs font-medium text-brand-600 hover:text-brand-700"
+            >
+              View notes
+            </Link>
           </div>
         </div>
 
