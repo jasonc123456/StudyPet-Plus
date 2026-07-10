@@ -13,7 +13,11 @@
 //   - recurring events (RRULE), which are lectures/sections, not deliverables
 //   - UIDs in CalendarIgnoredEvent, which the user marked "not an assignment"
 
-import { fetchIcsEvents, type ParsedIcsEvent } from '@/lib/calendar';
+import {
+  endOfDayInZone,
+  fetchIcsEvents,
+  type ParsedIcsEvent,
+} from '@/lib/calendar';
 import {
   cleanIcsText,
   guessAssignmentType,
@@ -50,60 +54,6 @@ function addDays(date: Date, amount: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
-}
-
-/** How far `timeZone` sits from UTC at the given instant, in milliseconds. */
-function zoneOffsetMs(instantMs: number, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-    .formatToParts(new Date(instantMs))
-    .reduce<Record<string, string>>((acc, part) => {
-      acc[part.type] = part.value;
-      return acc;
-    }, {});
-
-  const wallClock = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    // Intl renders midnight as hour 24 in some locales/zones.
-    Number(parts.hour) % 24,
-    Number(parts.minute),
-    Number(parts.second)
-  );
-
-  return wallClock - instantMs;
-}
-
-/**
- * Turn an all-day feed date into the instant it actually means.
- *
- * Canvas emits assignment due dates as `DTSTART;VALUE=DATE:20260630` — a bare
- * calendar date with no zone, and no trace of the 11:59pm Canvas shows in its
- * own UI. Read literally that becomes midnight UTC, which a Pacific student sees
- * as "Jun 29, 5:00 PM": a day early, at a time nobody set.
- *
- * The feed declares no zone, so we take the student's: the date means the end of
- * that day where they are. `timeZone` null (never onboarded) leaves it at the
- * UTC end of day, which is still the right calendar date everywhere east of the
- * Atlantic and never earlier than the raw value.
- */
-function endOfDayInZone(dateAtUtcMidnight: Date, timeZone: string | null) {
-  const endOfUtcDay = dateAtUtcMidnight.getTime() + 23 * 3600_000 + 59 * 60_000;
-  if (!timeZone) return new Date(endOfUtcDay);
-
-  // Guess, then correct by the offset in force at the guess. A second pass would
-  // only matter for a DST jump landing inside 23:59–00:00, which no zone uses.
-  const guess = endOfUtcDay;
-  return new Date(guess - zoneOffsetMs(guess, timeZone));
 }
 
 /**
