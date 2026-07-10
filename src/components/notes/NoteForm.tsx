@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { wordCount } from '@/lib/format';
 
@@ -28,6 +28,8 @@ type NoteFormProps =
         title: string;
         content: string;
         courseId: string | null;
+        pdfName: string | null;
+        pdfUrl: string | null;
       };
       courses: CourseOption[];
       initialCourseId?: never;
@@ -54,7 +56,15 @@ export function NoteForm(props: NoteFormProps) {
       ? (props.initialValues.courseId ?? '')
       : (props.initialCourseId ?? '')
   );
+  const [pdfName, setPdfName] = useState(
+    isEdit ? (props.initialValues.pdfName ?? null) : null
+  );
+  const [pdfUrl, setPdfUrl] = useState(
+    isEdit ? (props.initialValues.pdfUrl ?? null) : null
+  );
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     title?: string;
     content?: string;
@@ -93,6 +103,8 @@ export function NoteForm(props: NoteFormProps) {
       title: title.trim(),
       content,
       courseId: courseId || null,
+      pdfName,
+      pdfUrl,
     };
 
     try {
@@ -129,6 +141,64 @@ export function NoteForm(props: NoteFormProps) {
       setError('Network error — please try again');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePdfChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setError(null);
+    setUploadingPdf(true);
+
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+
+      const res = await fetch('/api/notes/pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const raw = await res.text();
+        let message = 'Failed to upload PDF';
+
+        try {
+          const data = JSON.parse(raw) as { error?: string };
+          message = data.error ?? message;
+        } catch {
+          if (raw.trim()) {
+            message = raw.trim().slice(0, 200);
+          }
+        }
+
+        setError(message);
+        return;
+      }
+
+      const data = (await res.json()) as {
+        pdfName: string;
+        pdfUrl: string;
+      };
+
+      setPdfName(data.pdfName);
+      setPdfUrl(data.pdfUrl);
+    } catch {
+      setError('Network error — please try again');
+    } finally {
+      e.target.value = '';
+      setUploadingPdf(false);
+    }
+  }
+
+  function clearPdf() {
+    setPdfName(null);
+    setPdfUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   }
 
@@ -243,6 +313,48 @@ export function NoteForm(props: NoteFormProps) {
             Saved note content is the source for future flashcard/quiz
             generation (US-3.2+).
           </p>
+        </div>
+
+        <div>
+          <label
+            htmlFor="note-pdf"
+            className="mb-1.5 block text-sm font-medium text-slate-700"
+          >
+            PDF attachment{' '}
+            <span className="font-normal text-slate-400">(optional)</span>
+          </label>
+          <input
+            ref={fileInputRef}
+            id="note-pdf"
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handlePdfChange}
+            disabled={uploadingPdf || saving}
+            className={inputClass}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>Attach one PDF up to 10 MB.</span>
+            {uploadingPdf ? <span>Uploading…</span> : null}
+          </div>
+          {pdfUrl && pdfName ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-brand-600 hover:text-brand-700"
+              >
+                {pdfName}
+              </a>
+              <button
+                type="button"
+                onClick={clearPdf}
+                className="text-xs font-semibold text-red-600 hover:text-red-700"
+              >
+                Remove PDF
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {error && (
