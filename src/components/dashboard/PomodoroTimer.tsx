@@ -114,7 +114,7 @@ export function PomodoroTimer() {
           >
             Custom minutes
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               id="pomodoro-minutes"
               type="number"
@@ -127,7 +127,7 @@ export function PomodoroTimer() {
             <button
               type="button"
               onClick={applyCustomTime}
-              className="btn-secondary shrink-0 text-sm"
+              className="btn-secondary shrink-0 text-sm sm:min-w-[5rem]"
             >
               Set
             </button>

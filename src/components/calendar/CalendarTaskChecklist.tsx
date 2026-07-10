@@ -2,9 +2,14 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { formatCalendarDate, formatCalendarTime } from '@/lib/calendar-format';
+import {
+  formatCalendarDate,
+  formatCalendarDateUTC,
+  formatCalendarTime,
+  formatCalendarTimeUTC,
+} from '@/lib/calendar-format';
 
 type CalendarTaskChecklistItem = {
   id: string;
@@ -23,11 +28,33 @@ type CalendarTaskChecklistProps = {
   tasks: CalendarTaskChecklistItem[];
 };
 
+function ChecklistDateTime({
+  dueAt,
+  mounted,
+}: {
+  dueAt: Date | string;
+  mounted: boolean;
+}) {
+  const date = new Date(dueAt);
+
+  return (
+    <span suppressHydrationWarning>
+      {mounted ? formatCalendarDate(date) : formatCalendarDateUTC(date)} at{' '}
+      {mounted ? formatCalendarTime(date) : formatCalendarTimeUTC(date)}
+    </span>
+  );
+}
+
 export function CalendarTaskChecklist({ tasks }: CalendarTaskChecklistProps) {
   const router = useRouter();
   const [items, setItems] = useState(tasks);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   async function markDone(taskId: string) {
     const task = items.find((item) => item.id === taskId);
@@ -71,7 +98,7 @@ export function CalendarTaskChecklist({ tasks }: CalendarTaskChecklistProps) {
 
   return (
     <section className="card p-5">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
             Calendar tasks
@@ -106,14 +133,14 @@ export function CalendarTaskChecklist({ tasks }: CalendarTaskChecklistProps) {
             return (
               <label
                 key={task.id}
-                className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 transition hover:border-brand-200"
+                className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-3 transition hover:border-brand-200 sm:flex-row sm:items-start"
               >
                 <input
                   type="checkbox"
                   checked={false}
                   onChange={() => markDone(task.id)}
                   disabled={savingId === task.id}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -125,14 +152,13 @@ export function CalendarTaskChecklist({ tasks }: CalendarTaskChecklistProps) {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">
-                    {formatCalendarDate(dueDate)} at{' '}
-                    {formatCalendarTime(dueDate)}
+                    <ChecklistDateTime dueAt={dueDate} mounted={mounted} />
                     {task.meta ? ` · ${task.meta}` : ''}
                   </p>
                 </div>
                 <Link
                   href={task.href}
-                  className="shrink-0 text-sm font-medium text-brand-600 hover:text-brand-700"
+                  className="shrink-0 self-start text-sm font-medium text-brand-600 hover:text-brand-700 sm:self-auto"
                   onClick={(event) => event.stopPropagation()}
                 >
                   Open
