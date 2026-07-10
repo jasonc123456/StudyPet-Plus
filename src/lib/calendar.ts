@@ -1,3 +1,6 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
 import { Prisma } from '@prisma/client';
 
 import { cleanIcsText } from '@/lib/calendar-text';
@@ -81,6 +84,194 @@ export type ParsedIcsEvent = {
 
 const ICAL_DAY_KEYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const;
 const DEFAULT_IMPORTED_COLOR = '#0ea5e9';
+
+// A feed is third-party bytes fetched over the network, so everything below
+// treats it as hostile input. The safeguards guard against denial-of-service,
+// not correctness: a malformed or malicious feed must fail or truncate, never
+// hang the process or exhaust its memory.
+
+/** Cap on candidate occurrences one RRULE may generate (see expandRecurringEvent). */
+const MAX_RECURRENCE_STEPS = 1000;
+/** Cap on VEVENTs parsed from one feed. A real Canvas term is a few hundred. */
+const MAX_FEED_EVENTS = 5000;
+/** Cap on feed download size. A large Canvas feed is well under 1 MB. */
+const MAX_ICS_BYTES = 5 * 1024 * 1024;
+
+/** A recurrence field parsed to a positive integer, or null if absent/garbage. */
+function positiveIntOrNull(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const value = Math.floor(Number(raw));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * True for any address the server must never fetch: loopback, private (RFC 1918
+ * / CGNAT), link-local — which includes the cloud metadata endpoint
+ * 169.254.169.254 — multicast, and the IPv6 equivalents. Anything unparseable is
+ * refused too. This is the allow/deny core of the SSRF guard below.
+ */
+function isPrivateAddress(address: string): boolean {
+  const kind = isIP(address);
+
+  if (kind === 4) {
+    const parts = address.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n))) {
+      return true;
+    }
+    const [a, b] = parts;
+    if (a === 0 || a === 10 || a === 127) return true; // this-host, private, loopback
+    if (a === 169 && b === 254) return true; // link-local incl. cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true; // private
+    if (a === 192 && b === 168) return true; // private
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+
+  if (kind === 6) {
+    const addr = address.toLowerCase();
+    if (addr === '::1' || addr === '::') return true; // loopback / unspecified
+    if (addr.startsWith('fe80')) return true; // link-local
+    if (addr.startsWith('fc') || addr.startsWith('fd')) return true; // unique-local
+    const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr);
+    if (mapped) return isPrivateAddress(mapped[1]); // IPv4-mapped
+    return false;
+  }
+
+  return true; // not a valid IP literal — refuse
+}
+
+/**
+ * Guards the one place this app fetches a user-controlled URL. The ICS link is
+ * pasted by the student, so without this a "feed" of http://169.254.169.254/…
+ * or http://127.0.0.1:5432 would make the server issue requests to internal
+ * resources on the attacker's behalf (SSRF). We resolve the host and refuse any
+ * private/loopback/link-local address.
+ *
+ * Residual gap: a public host that redirects to — or later re-resolves to — an
+ * internal address can still slip through (redirect following, DNS rebinding).
+ * Closing that needs a pinned-IP dispatcher; tracked in the sprint plan.
+ */
+async function assertPublicHttpUrl(rawUrl: string): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error('Invalid calendar URL');
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Calendar URL must use http or https');
+  }
+
+  const host = url.hostname.replace(/^\[|\]$/g, ''); // strip IPv6 brackets
+  if (isIP(host)) {
+    if (isPrivateAddress(host)) throw new Error('Calendar URL is not allowed');
+    return;
+  }
+
+  let records: Array<{ address: string }>;
+  try {
+    records = await lookup(host, { all: true });
+  } catch {
+    throw new Error('Could not resolve the calendar host');
+  }
+
+  if (
+    records.length === 0 ||
+    records.some((record) => isPrivateAddress(record.address))
+  ) {
+    throw new Error('Calendar URL is not allowed');
+  }
+}
+
+/**
+ * Read a response body as text, aborting past MAX_ICS_BYTES so a feed that
+ * streams gigabytes (or lies in Content-Length) can't exhaust server memory.
+ */
+async function readCappedText(response: Response): Promise<string> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_ICS_BYTES) {
+    throw new Error('Calendar feed is too large');
+  }
+
+  const body = response.body;
+  if (!body) return response.text();
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_ICS_BYTES) {
+      await reader.cancel();
+      throw new Error('Calendar feed is too large');
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/** How far `timeZone` sits from UTC at the given instant, in milliseconds. */
+function zoneOffsetMs(instantMs: number, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+    .formatToParts(new Date(instantMs))
+    .reduce<Record<string, string>>((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+  const wallClock = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    // Intl renders midnight as hour 24 in some locales/zones.
+    Number(parts.hour) % 24,
+    Number(parts.minute),
+    Number(parts.second)
+  );
+
+  return wallClock - instantMs;
+}
+
+/**
+ * Turn an all-day feed date (which parseIcsTimestamp anchored to UTC midnight)
+ * into the instant it actually means: the end of that calendar day in `timeZone`.
+ *
+ * Canvas publishes assignment deadlines as a bare `VALUE=DATE` — no time, no zone
+ * — yet shows 11:59pm in its own UI. This reproduces that, so a Pacific student
+ * sees "Jun 30, 11:59 PM" rather than the raw midnight-UTC value ("Jun 29, 5:00
+ * PM"). A null zone (user never onboarded) leaves it at the UTC end of day.
+ *
+ * Shared by the auto-sync engine (which stores it as the task's dueAt) and the
+ * read-only calendar (which shows the same time for a feed event that isn't
+ * synced), so a due date reads identically whether or not it became a task.
+ */
+export function endOfDayInZone(
+  dateAtUtcMidnight: Date,
+  timeZone: string | null
+) {
+  const endOfUtcDay = dateAtUtcMidnight.getTime() + 23 * 3600_000 + 59 * 60_000;
+  if (!timeZone) return new Date(endOfUtcDay);
+
+  // Guess, then correct by the offset in force at the guess. A second pass would
+  // only matter for a DST jump landing inside 23:59–00:00, which no zone uses.
+  const guess = endOfUtcDay;
+  return new Date(guess - zoneOffsetMs(guess, timeZone));
+}
 
 /** True when a calendar table hasn't been migrated in yet (dev DBs lag deploys). */
 function isMissingCalendarSubscriptionTable(error: unknown) {
@@ -309,8 +500,12 @@ function expandRecurringEvent(
   const rule = parseRRule(event.rrule);
   if (!rule?.FREQ) return [event];
 
-  const interval = Math.max(1, Number(rule.INTERVAL ?? '1'));
-  const countLimit = rule.COUNT ? Number(rule.COUNT) : null;
+  // Sanitize the numbers a hostile feed controls. `INTERVAL=abc` would parse to
+  // NaN, `addDays(cursor, NaN)` yields an Invalid Date, and every `cursor > …`
+  // comparison against it is false — so the stepping loops below would never
+  // advance and never terminate. Fall back to a step of 1 / no explicit count.
+  const interval = positiveIntOrNull(rule.INTERVAL) ?? 1;
+  const countLimit = positiveIntOrNull(rule.COUNT);
   const untilInfo = rule.UNTIL
     ? parseIcsTimestamp(rule.UNTIL, {})
     : { date: null, allDay: false };
@@ -320,6 +515,12 @@ function expandRecurringEvent(
   let generated = 0;
 
   const pushOccurrence = (start: Date) => {
+    // Absolute brake, independent of INTERVAL/COUNT/UNTIL: once an event has
+    // produced this many candidates it stops, so no crafted rule can loop
+    // forever. Bounds `generated`, which every stepping loop breaks on.
+    if (generated >= MAX_RECURRENCE_STEPS) {
+      return false;
+    }
     if (countLimit !== null && generated >= countLimit) {
       return false;
     }
@@ -432,7 +633,11 @@ function parseIcsEvents(icsText: string) {
         ? parseIcsTimestamp(current.DTEND.value, current.DTEND.params)
         : { date: null, allDay: startsAtInfo.allDay };
 
-      if (startsAtInfo.date && current.SUMMARY?.value) {
+      if (
+        startsAtInfo.date &&
+        current.SUMMARY?.value &&
+        events.length < MAX_FEED_EVENTS
+      ) {
         events.push({
           uid:
             current.UID?.value ??
@@ -467,6 +672,8 @@ function parseIcsEvents(icsText: string) {
 export async function fetchIcsEvents(
   icsUrl: string
 ): Promise<ParsedIcsEvent[]> {
+  await assertPublicHttpUrl(icsUrl);
+
   const response = await fetch(icsUrl, {
     next: { revalidate: 300 },
     headers: {
@@ -478,7 +685,7 @@ export async function fetchIcsEvents(
     throw new Error(`Calendar responded with ${response.status}`);
   }
 
-  return parseIcsEvents(await response.text());
+  return parseIcsEvents(await readCappedText(response));
 }
 
 type SubscriptionForFetch = {
@@ -496,7 +703,8 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
   subscription: T,
   rangeStart: Date,
   rangeEnd: Date,
-  ignoredUids: Set<string>
+  ignoredUids: Set<string>,
+  timeZone: string | null
 ) {
   try {
     const parsedEvents = await fetchIcsEvents(subscription.icsUrl);
@@ -510,9 +718,15 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
         source: 'imported',
         sourceId: subscription.id,
         title: cleanIcsText(event.summary) || event.summary,
-        startsAt: event.startsAt,
-        endsAt: event.endsAt,
-        allDay: event.allDay,
+        // An all-day feed date means "due at the end of that day". Resolve it to
+        // the same 11:59pm-in-your-zone instant auto-sync stores, and render it
+        // with a time — so a Canvas deadline reads "11:59 PM" whether or not it's
+        // synced, instead of a bare "All day" that also sat a day early.
+        startsAt: event.allDay
+          ? endOfDayInZone(event.startsAt, timeZone)
+          : event.startsAt,
+        endsAt: event.allDay ? null : event.endsAt,
+        allDay: false,
         status: null,
         color: subscription.color || DEFAULT_IMPORTED_COLOR,
         description: cleanIcsText(event.description) || null,
@@ -551,6 +765,16 @@ export async function verifyIcsFeed(
   icsUrl: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    await assertPublicHttpUrl(icsUrl);
+  } catch {
+    return {
+      ok: false,
+      error:
+        'That calendar link points to a private or unreachable address. Paste a public https:// feed URL (in Canvas: Calendar → "Calendar Feed").',
+    };
+  }
+
+  try {
     const response = await fetch(icsUrl, {
       redirect: 'follow',
       cache: 'no-store',
@@ -565,7 +789,7 @@ export async function verifyIcsFeed(
       };
     }
 
-    const text = await response.text();
+    const text = await readCappedText(response);
     if (!text.includes('BEGIN:VCALENDAR')) {
       return {
         ok: false,
@@ -693,46 +917,60 @@ export async function getCalendarPageData(
   const selectedDate = parseDayParam(dayParam, month);
   const { gridStart, gridEnd } = getCalendarGridRange(month);
 
-  const [assignments, quests, assignedGroupTasks, subscriptions, ignoredUids] =
-    await Promise.all([
-      prisma.assignment.findMany({
-        where: {
-          course: { userId },
-          dueAt: { gte: gridStart, lte: gridEnd },
-        },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          dueAt: true,
-          status: true,
-          courseId: true,
-          calendarSubscriptionId: true,
-          externalUid: true,
-          course: { select: { name: true, color: true } },
-        },
-        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-      }),
-      prisma.quest.findMany({
-        where: {
-          userId,
-          dueAt: { gte: gridStart, lte: gridEnd },
-        },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          dueAt: true,
-          status: true,
-          estimatedMinutes: true,
-          xpReward: true,
-        },
-        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-      }),
-      loadAssignedGroupTasks(userId, gridStart, gridEnd),
-      loadCalendarSubscriptions(userId),
-      loadIgnoredEventUids(userId),
-    ]);
+  const [
+    assignments,
+    quests,
+    assignedGroupTasks,
+    subscriptions,
+    ignoredUids,
+    userRecord,
+  ] = await Promise.all([
+    prisma.assignment.findMany({
+      where: {
+        course: { userId },
+        dueAt: { gte: gridStart, lte: gridEnd },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        status: true,
+        courseId: true,
+        calendarSubscriptionId: true,
+        externalUid: true,
+        course: { select: { name: true, color: true } },
+      },
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    }),
+    prisma.quest.findMany({
+      where: {
+        userId,
+        dueAt: { gte: gridStart, lte: gridEnd },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        status: true,
+        estimatedMinutes: true,
+        xpReward: true,
+      },
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    }),
+    loadAssignedGroupTasks(userId, gridStart, gridEnd),
+    loadCalendarSubscriptions(userId),
+    loadIgnoredEventUids(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    }),
+  ]);
+
+  // Feeds carry no timezone, so an all-day due date only means something relative
+  // to the student. Theirs anchors the 11:59pm the imported events render at.
+  const timeZone = userRecord?.timezone ?? null;
 
   const subscriptionNames = new Map(
     subscriptions.map((subscription) => [subscription.id, subscription.name])
@@ -840,7 +1078,8 @@ export async function getCalendarPageData(
         subscription,
         gridStart,
         gridEnd,
-        ignoredUids.get(subscription.id) ?? new Set()
+        ignoredUids.get(subscription.id) ?? new Set(),
+        timeZone
       )
     )
   );
