@@ -39,6 +39,8 @@ type NoteFormProps =
 
 const TITLE_MAX = 200;
 const CONTENT_MAX = 50000;
+const NOTE_PDF_SECURITY_MESSAGE =
+  'PDFs are stored as attachments only and are not automatically parsed or sent to AI tools.';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
@@ -62,6 +64,7 @@ export function NoteForm(props: NoteFormProps) {
   const [pdfUrl, setPdfUrl] = useState(
     isEdit ? (props.initialValues.pdfUrl ?? null) : null
   );
+  const [pdfToken, setPdfToken] = useState<string | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -105,6 +108,7 @@ export function NoteForm(props: NoteFormProps) {
       courseId: courseId || null,
       pdfName,
       pdfUrl,
+      pdfToken,
     };
 
     try {
@@ -182,10 +186,12 @@ export function NoteForm(props: NoteFormProps) {
       const data = (await res.json()) as {
         pdfName: string;
         pdfUrl: string;
+        pdfToken: string;
       };
 
       setPdfName(data.pdfName);
       setPdfUrl(data.pdfUrl);
+      setPdfToken(data.pdfToken);
     } catch {
       setError('Network error — please try again');
     } finally {
@@ -197,6 +203,7 @@ export function NoteForm(props: NoteFormProps) {
   function clearPdf() {
     setPdfName(null);
     setPdfUrl(null);
+    setPdfToken(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -336,15 +343,17 @@ export function NoteForm(props: NoteFormProps) {
             <span>Attach one PDF up to 10 MB.</span>
             {uploadingPdf ? <span>Uploading…</span> : null}
           </div>
+          <p className="mt-1.5 text-xs text-slate-400">
+            {NOTE_PDF_SECURITY_MESSAGE}
+          </p>
           {pdfUrl && pdfName ? (
             <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
               <a
                 href={pdfUrl}
-                target="_blank"
                 rel="noreferrer"
                 className="font-medium text-brand-600 hover:text-brand-700"
               >
-                {pdfName}
+                Download PDF: {pdfName}
               </a>
               <button
                 type="button"
