@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
 import { getOwnedCourse } from '@/lib/planner';
+import {
+  buildNoteListWhere,
+  noteListOrderBy,
+  parseNoteSort,
+} from '@/lib/notes-query';
 import { prisma } from '@/lib/prisma';
 import { createNoteSchema, zodFirstError } from '@/lib/validators';
 
@@ -10,9 +15,11 @@ export async function GET(request: Request) {
   if (authResult instanceof NextResponse) return authResult;
 
   const { searchParams } = new URL(request.url);
-  const courseId = searchParams.get('courseId');
+  const courseId = searchParams.get('courseId') ?? undefined;
+  const q = searchParams.get('q') ?? undefined;
+  const sort = parseNoteSort(searchParams.get('sort') ?? undefined);
 
-  if (courseId) {
+  if (courseId && courseId !== 'none') {
     const course = await getOwnedCourse(courseId, authResult.user.id);
     if (!course) {
       return jsonError('Course not found', 404);
@@ -20,14 +27,11 @@ export async function GET(request: Request) {
   }
 
   const notes = await prisma.note.findMany({
-    where: {
-      userId: authResult.user.id,
-      ...(courseId && { courseId }),
-    },
+    where: buildNoteListWhere(authResult.user.id, { courseId, q }),
     include: {
       course: { select: { id: true, name: true, color: true } },
     },
-    orderBy: { updatedAt: 'desc' },
+    orderBy: noteListOrderBy(sort),
   });
 
   return jsonOk(notes);

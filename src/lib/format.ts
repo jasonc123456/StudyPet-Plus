@@ -67,6 +67,12 @@ export function notePreview(content: string, maxLength = 120): string {
   return `${singleLine.slice(0, maxLength)}…`;
 }
 
+export function wordCount(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
 export function statusLabel(value: string): string {
   return ASSIGNMENT_STATUSES.find((s) => s.value === value)?.label ?? value;
 }
