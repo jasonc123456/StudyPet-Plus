@@ -45,6 +45,28 @@ export function formatDueDateLocal(
   return date.toLocaleString(undefined, { ...DUE_DATE_OPTIONS, timeZone });
 }
 
+export function formatUpdatedAt(
+  updatedAt: Date | string | null | undefined
+): string {
+  if (!updatedAt) return 'Unknown';
+  const date = updatedAt instanceof Date ? updatedAt : new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function notePreview(content: string, maxLength = 120): string {
+  const singleLine = content.replace(/\s+/g, ' ').trim();
+  if (!singleLine) return 'No content yet';
+  if (singleLine.length <= maxLength) return singleLine;
+  return `${singleLine.slice(0, maxLength)}…`;
+}
+
 export function statusLabel(value: string): string {
   return ASSIGNMENT_STATUSES.find((s) => s.value === value)?.label ?? value;
 }

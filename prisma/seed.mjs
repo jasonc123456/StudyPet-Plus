@@ -134,11 +134,34 @@ const demoPet = {
   lastStudyDate: daysFromNow(0),
 };
 
+// Demo notes tied to seeded courses (source text for future AI generation).
+const demoNotes = [
+  {
+    courseName: 'Intro to Computer Science',
+    title: 'Week 3: Variables & Types',
+    content:
+      'Variables store data. Primitive types include int, float, bool, and string. Use meaningful names and declare types explicitly in statically typed languages.',
+  },
+  {
+    courseName: 'Calculus II',
+    title: 'Integration techniques',
+    content:
+      'U-substitution reverses the chain rule. Integration by parts: ∫u dv = uv − ∫v du. Practice identifying which technique fits each integral.',
+  },
+  {
+    courseName: null,
+    title: 'General study tips',
+    content:
+      'Review notes within 24 hours of lecture. Break study sessions into 25-minute blocks with short breaks.',
+  },
+];
+
 // Seed the planner data for one user. Idempotent: wipe this user's existing
 // courses (assignments cascade), quests, and pet, then recreate from scratch.
 async function seedPlanner(user) {
   await prisma.course.deleteMany({ where: { userId: user.id } });
   await prisma.quest.deleteMany({ where: { userId: user.id } });
+  await prisma.note.deleteMany({ where: { userId: user.id } });
   await prisma.pet.deleteMany({ where: { userId: user.id } });
 
   for (const c of demoCourses) {
@@ -176,6 +199,26 @@ async function seedPlanner(user) {
 
   await prisma.pet.create({ data: { userId: user.id, ...demoPet } });
 
+  for (const note of demoNotes) {
+    let courseId = null;
+    if (note.courseName) {
+      const course = await prisma.course.findFirst({
+        where: { userId: user.id, name: note.courseName },
+        select: { id: true },
+      });
+      courseId = course?.id ?? null;
+    }
+
+    await prisma.note.create({
+      data: {
+        userId: user.id,
+        courseId,
+        title: note.title,
+        content: note.content,
+      },
+    });
+  }
+
   const courseCount = demoCourses.length;
   const assignmentCount = demoCourses.reduce(
     (n, c) => n + c.assignments.length,
@@ -183,7 +226,7 @@ async function seedPlanner(user) {
   );
   console.log(
     `  ✓ planner  ${courseCount} courses, ${assignmentCount} assignments, ` +
-      `${demoQuests.length} quests, 1 pet  for ${user.email}`
+      `${demoQuests.length} quests, ${demoNotes.length} notes, 1 pet  for ${user.email}`
   );
 }
 

@@ -192,6 +192,29 @@ export type UpdateCalendarSubscriptionInput = z.infer<
   typeof updateCalendarSubscriptionSchema
 >;
 
+const optionalCourseIdSchema = z
+  .union([z.string().trim().min(1), z.null(), z.literal('')])
+  .optional()
+  .transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return val;
+  });
+
+export const createNoteSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  content: z.string().max(50000).optional().default(''),
+  courseId: optionalCourseIdSchema,
+});
+
+export const updateNoteSchema = createNoteSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export type CreateNoteInput = z.infer<typeof createNoteSchema>;
+export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
+
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
   email: z.string().trim().email('Valid email is required').max(255),
