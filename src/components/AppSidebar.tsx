@@ -264,11 +264,7 @@ function CloseIcon({ className }: { className?: string }) {
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { href: '/dashboard/courses', label: 'Courses', Icon: CoursesIcon },
-  {
-    href: '/dashboard/assignments',
-    label: 'Assignments',
-    Icon: AssignmentsIcon,
-  },
+  { href: '/dashboard/tasks', label: 'Tasks', Icon: AssignmentsIcon },
   { href: '/dashboard/quests', label: 'Quests', Icon: QuestsIcon },
   { href: '/dashboard/notes', label: 'Notes', Icon: NotesIcon },
   { href: '/dashboard/calendar', label: 'Calendar', Icon: CalendarIcon },

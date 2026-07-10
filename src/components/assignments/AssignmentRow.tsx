@@ -226,7 +226,7 @@ function AssignmentDeleteDialog({
   return (
     <ConfirmDialog
       open={open}
-      title="Delete assignment?"
+      title="Delete task?"
       message={`"${title}" will be permanently removed.`}
       loading={loading}
       onConfirm={onConfirm}

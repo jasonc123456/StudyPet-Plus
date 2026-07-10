@@ -5,7 +5,7 @@ import { AssignmentForm } from '@/components/assignments/AssignmentForm';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { prisma } from '@/lib/prisma';
 
-export default async function NewGlobalAssignmentPage() {
+export default async function NewGlobalTaskPage() {
   const session = await auth();
   if (!session?.user?.id) {
     redirect('/login');
@@ -21,11 +21,11 @@ export default async function NewGlobalAssignmentPage() {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          title="New assignment"
-          description="Create an assignment for one of your courses."
+          title="New task"
+          description="Create a task for one of your courses."
         />
         <div className="card p-6 text-center text-sm text-slate-500">
-          You need at least one course before adding assignments.{' '}
+          You need at least one course before adding tasks.{' '}
           <a
             href="/dashboard/courses/new"
             className="text-brand-600 hover:underline"
@@ -40,15 +40,15 @@ export default async function NewGlobalAssignmentPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="New assignment"
-        description="Create an assignment and assign it to a course."
+        title="New task"
+        description="Create a task and assign it to a course."
       />
 
       <AssignmentForm
         mode="create"
         courses={courses}
-        cancelHref="/dashboard/assignments"
-        successHref="/dashboard/assignments"
+        cancelHref="/dashboard/tasks"
+        successHref="/dashboard/tasks"
       />
     </div>
   );

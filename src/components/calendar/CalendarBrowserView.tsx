@@ -63,12 +63,29 @@ function parseMonthKey(monthKey: string) {
   return new Date(year, (month || 1) - 1, 1, 12);
 }
 
+/**
+ * The server picks the grid's first Sunday and last Saturday in UTC and sends
+ * them as instants. Reading those instants back with local getters would drag
+ * every cell into the previous day for any viewer west of UTC — Jun 28 00:00Z is
+ * still Jun 27 in Los Angeles — which slides the whole month one column right
+ * and files Fridays under Saturday. So take the calendar date out of the ISO
+ * string and rebuild it at local noon, far from either DST edge.
+ */
+function localDateFromUtcParts(iso: string) {
+  const instant = new Date(iso);
+  return new Date(
+    instant.getUTCFullYear(),
+    instant.getUTCMonth(),
+    instant.getUTCDate(),
+    12
+  );
+}
+
 function buildGridDays(startIso: string, endIso: string) {
-  const start = new Date(startIso);
-  const end = new Date(endIso);
+  const end = localDateFromUtcParts(endIso);
   const days: Date[] = [];
 
-  for (const cursor = new Date(start); cursor <= end;) {
+  for (const cursor = localDateFromUtcParts(startIso); cursor <= end;) {
     days.push(new Date(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }

@@ -292,11 +292,11 @@ export function CalendarSubscriptionManager({
           />
           <span className="text-sm">
             <span className="font-semibold text-slate-800">
-              Auto-sync to my assignments
+              Auto-sync to my tasks
             </span>
             <span className="mt-0.5 block text-xs text-slate-500">
-              Turn each calendar event into a trackable assignment, filed under
-              a course matching its code. Meetings and exams can be excluded one
+              Turn each calendar event into a trackable task, filed under a
+              course matching its code. Meetings and exams can be excluded one
               by one from the calendar.
             </span>
           </span>
@@ -342,7 +342,7 @@ export function CalendarSubscriptionManager({
 
                 {subscription.autoSync && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    {subscription.syncedCount} assignment
+                    {subscription.syncedCount} task
                     {subscription.syncedCount === 1 ? '' : 's'} synced
                     {subscription.ignoredCount > 0 &&
                       ` · ${subscription.ignoredCount} ignored`}
@@ -377,9 +377,7 @@ export function CalendarSubscriptionManager({
                     className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:cursor-wait"
                   />
                   <span className="text-xs font-semibold text-slate-600">
-                    {togglingId === subscription.id
-                      ? 'Saving…'
-                      : 'Sync assignments'}
+                    {togglingId === subscription.id ? 'Saving…' : 'Sync tasks'}
                   </span>
                 </label>
 

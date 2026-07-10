@@ -15,8 +15,8 @@ export function UpcomingAssignments({ assignments }: UpcomingAssignmentsProps) {
   return (
     <section>
       <DashboardSectionHeader
-        title="Upcoming assignments"
-        href={assignments.length > 0 ? '/dashboard/assignments' : undefined}
+        title="Upcoming tasks"
+        href={assignments.length > 0 ? '/dashboard/tasks' : undefined}
       />
 
       {assignments.length === 0 ? (
@@ -25,13 +25,13 @@ export function UpcomingAssignments({ assignments }: UpcomingAssignmentsProps) {
             📝
           </span>
           <p className="mt-4 text-sm font-normal text-slate-500">
-            No open assignments. You&apos;re all caught up!
+            No open tasks. You&apos;re all caught up!
           </p>
           <Link
-            href="/dashboard/assignments/new"
+            href="/dashboard/tasks/new"
             className="btn-primary mt-5 inline-flex text-sm"
           >
-            Add assignment
+            Add task
           </Link>
         </DashboardPanel>
       ) : (
