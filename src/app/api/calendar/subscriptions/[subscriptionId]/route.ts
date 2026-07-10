@@ -28,9 +28,11 @@ type RouteContext = {
 /**
  * Update a connection — in practice, the auto-sync toggle.
  *
- * Turning autoSync on runs an immediate forced sync, so the assignments page is
+ * Turning autoSync on runs an immediate forced sync, so the tasks page is
  * already populated when the user navigates there. Turning it off removes the
- * rows the sync created, keeping any the student already started.
+ * untouched rows the sync created, keeping — and keeping linked — any the
+ * student already started, so switching it back on updates them in place rather
+ * than importing a second copy.
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const authResult = await requireUser();

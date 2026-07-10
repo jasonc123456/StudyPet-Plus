@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/courses/PageHeader';
 import { ResponsiveDataTable } from '@/components/ResponsiveDataTable';
 import { prisma } from '@/lib/prisma';
 
-type AssignmentsPageProps = {
+type TasksPageProps = {
   searchParams: {
     status?: string;
     type?: string;
@@ -20,9 +20,7 @@ type AssignmentsPageProps = {
   };
 };
 
-export default async function AssignmentsPage({
-  searchParams,
-}: AssignmentsPageProps) {
+export default async function TasksPage({ searchParams }: TasksPageProps) {
   const session = await auth();
   if (!session?.user?.id) {
     redirect('/login');
@@ -54,9 +52,9 @@ export default async function AssignmentsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Assignments"
-        description="All assignments across your courses."
-        action={{ label: 'Add assignment', href: '/dashboard/assignments/new' }}
+        title="Tasks"
+        description="All tasks across your courses."
+        action={{ label: 'Add task', href: '/dashboard/tasks/new' }}
       />
 
       <Suspense fallback={null}>
@@ -67,10 +65,11 @@ export default async function AssignmentsPage({
         <AssignmentEmptyState
           message={
             hasFilters
-              ? 'No assignments match your filters.'
-              : 'No assignments yet. Add one to start tracking deadlines.'
+              ? 'No tasks match your filters.'
+              : 'No tasks yet. Add one to start tracking deadlines.'
           }
-          actionHref="/dashboard/assignments/new"
+          actionLabel="Add task"
+          actionHref="/dashboard/tasks/new"
         />
       ) : (
         <>

@@ -183,7 +183,10 @@ function parseIcsTimestamp(
     const year = Number(rawValue.slice(0, 4));
     const month = Number(rawValue.slice(4, 6)) - 1;
     const day = Number(rawValue.slice(6, 8));
-    return { date: new Date(year, month, day), allDay: true };
+    // Anchor to UTC midnight, not the server's midnight: a VALUE=DATE carries no
+    // zone, so the instant must not depend on where the process happens to run.
+    // Consumers that know the viewer's zone (calendar-sync) re-anchor from here.
+    return { date: new Date(Date.UTC(year, month, day)), allDay: true };
   }
 
   const utcMatch = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(

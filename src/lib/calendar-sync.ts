@@ -5,6 +5,10 @@
 // same rows instead of duplicating them. The user's own edits to `status` are
 // never overwritten; the feed owns title/description/dueAt.
 //
+// That key is the whole safety net, so nothing here ever clears it. A row that
+// lost its subscription link anyway (the FK is SetNull, so deleting a feed does
+// it) is re-adopted by externalUid on the next sync rather than re-imported.
+//
 // Two things are deliberately skipped:
 //   - recurring events (RRULE), which are lectures/sections, not deliverables
 //   - UIDs in CalendarIgnoredEvent, which the user marked "not an assignment"
@@ -29,6 +33,8 @@ export type SubscriptionSyncResult = {
   name: string;
   created: number;
   updated: number;
+  /** Previously-imported rows that lost their feed link and were re-attached. */
+  adopted: number;
   removed: number;
   skipped: boolean;
   error: string | null;
@@ -44,6 +50,60 @@ function addDays(date: Date, amount: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
+}
+
+/** How far `timeZone` sits from UTC at the given instant, in milliseconds. */
+function zoneOffsetMs(instantMs: number, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+    .formatToParts(new Date(instantMs))
+    .reduce<Record<string, string>>((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+  const wallClock = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    // Intl renders midnight as hour 24 in some locales/zones.
+    Number(parts.hour) % 24,
+    Number(parts.minute),
+    Number(parts.second)
+  );
+
+  return wallClock - instantMs;
+}
+
+/**
+ * Turn an all-day feed date into the instant it actually means.
+ *
+ * Canvas emits assignment due dates as `DTSTART;VALUE=DATE:20260630` — a bare
+ * calendar date with no zone, and no trace of the 11:59pm Canvas shows in its
+ * own UI. Read literally that becomes midnight UTC, which a Pacific student sees
+ * as "Jun 29, 5:00 PM": a day early, at a time nobody set.
+ *
+ * The feed declares no zone, so we take the student's: the date means the end of
+ * that day where they are. `timeZone` null (never onboarded) leaves it at the
+ * UTC end of day, which is still the right calendar date everywhere east of the
+ * Atlantic and never earlier than the raw value.
+ */
+function endOfDayInZone(dateAtUtcMidnight: Date, timeZone: string | null) {
+  const endOfUtcDay = dateAtUtcMidnight.getTime() + 23 * 3600_000 + 59 * 60_000;
+  if (!timeZone) return new Date(endOfUtcDay);
+
+  // Guess, then correct by the offset in force at the guess. A second pass would
+  // only matter for a DST jump landing inside 23:59–00:00, which no zone uses.
+  const guess = endOfUtcDay;
+  return new Date(guess - zoneOffsetMs(guess, timeZone));
 }
 
 /**
@@ -87,7 +147,7 @@ async function resolveCourseId(
 }
 
 /** Assignment fields the feed owns. Status and course stay under user control. */
-function assignmentFieldsFor(event: ParsedIcsEvent) {
+function assignmentFieldsFor(event: ParsedIcsEvent, timeZone: string | null) {
   const { title } = parseCourseCode(
     cleanIcsText(event.summary) || event.summary
   );
@@ -96,7 +156,9 @@ function assignmentFieldsFor(event: ParsedIcsEvent) {
   return {
     title,
     description: description || null,
-    dueAt: event.startsAt,
+    dueAt: event.allDay
+      ? endOfDayInZone(event.startsAt, timeZone)
+      : event.startsAt,
   };
 }
 
@@ -109,6 +171,7 @@ async function syncSubscription(
     color: string;
     lastSyncedAt: Date | null;
   },
+  timeZone: string | null,
   force: boolean
 ): Promise<SubscriptionSyncResult> {
   const base = {
@@ -116,6 +179,7 @@ async function syncSubscription(
     name: subscription.name,
     created: 0,
     updated: 0,
+    adopted: 0,
     removed: 0,
     skipped: false,
     error: null as string | null,
@@ -143,7 +207,11 @@ async function syncSubscription(
   const windowStart = addDays(now, -WINDOW_DAYS_PAST);
   const windowEnd = addDays(now, WINDOW_DAYS_FUTURE);
 
-  const [ignored, existingRows] = await Promise.all([
+  // Every UID the feed still knows about, window or not — deletions below key off
+  // this, so an assignment outside the window is never mistaken for "removed".
+  const feedUids = new Set(feedEvents.map((event) => event.uid));
+
+  const [ignored, existingRows, orphanRows] = await Promise.all([
     prisma.calendarIgnoredEvent.findMany({
       where: { subscriptionId: subscription.id },
       select: { uid: true },
@@ -151,6 +219,17 @@ async function syncSubscription(
     prisma.assignment.findMany({
       where: { calendarSubscriptionId: subscription.id },
       select: { id: true, externalUid: true, status: true, dueAt: true },
+    }),
+    // Rows this feed created before the subscription was deleted: the FK is
+    // `onDelete: SetNull`, so they kept their externalUid but lost the link.
+    // Re-adding the feed adopts them instead of creating a second copy.
+    prisma.assignment.findMany({
+      where: {
+        course: { userId: subscription.userId },
+        calendarSubscriptionId: null,
+        externalUid: { in: [...feedUids] },
+      },
+      select: { id: true, externalUid: true },
     }),
   ]);
 
@@ -160,10 +239,11 @@ async function syncSubscription(
       row.externalUid ? [[row.externalUid, row]] : []
     )
   );
-
-  // Every UID the feed still knows about, window or not — deletions below key off
-  // this, so an assignment outside the window is never mistaken for "removed".
-  const feedUids = new Set(feedEvents.map((event) => event.uid));
+  const orphanByUid = new Map(
+    orphanRows.flatMap((row) =>
+      row.externalUid ? [[row.externalUid, row]] : []
+    )
+  );
 
   const syncable = feedEvents.filter(
     (event) =>
@@ -176,9 +256,10 @@ async function syncSubscription(
   const courseCache = new Map<string, string>();
   let created = 0;
   let updated = 0;
+  let adopted = 0;
 
   for (const event of syncable) {
-    const fields = assignmentFieldsFor(event);
+    const fields = assignmentFieldsFor(event, timeZone);
     const existing = existingByUid.get(event.uid);
 
     if (existing) {
@@ -187,6 +268,18 @@ async function syncSubscription(
         data: fields,
       });
       updated += 1;
+      continue;
+    }
+
+    // Same event, previously imported, since orphaned. Re-link rather than
+    // create — the student's status and course choice survive untouched.
+    const orphan = orphanByUid.get(event.uid);
+    if (orphan) {
+      await prisma.assignment.update({
+        where: { id: orphan.id },
+        data: { ...fields, calendarSubscriptionId: subscription.id },
+      });
+      adopted += 1;
       continue;
     }
 
@@ -235,7 +328,7 @@ async function syncSubscription(
     data: { lastSyncedAt: new Date() },
   });
 
-  return { ...base, created, updated, removed: staleIds.length };
+  return { ...base, created, updated, adopted, removed: staleIds.length };
 }
 
 /**
@@ -247,28 +340,39 @@ export async function syncUserCalendars(
   userId: string,
   { force = false }: { force?: boolean } = {}
 ): Promise<CalendarSyncResult> {
-  const subscriptions = await prisma.calendarSubscription.findMany({
-    where: { userId, autoSync: true },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-      icsUrl: true,
-      color: true,
-      lastSyncedAt: true,
-    },
-  });
+  // The feeds Canvas publishes carry no timezone at all, so an all-day due date
+  // is only meaningful relative to the student. Theirs is the zone we use.
+  const [user, subscriptions] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    }),
+    prisma.calendarSubscription.findMany({
+      where: { userId, autoSync: true },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        icsUrl: true,
+        color: true,
+        lastSyncedAt: true,
+      },
+    }),
+  ]);
 
   // Sequential: feeds share the course cache's create-then-read pattern only
   // within a run, but two feeds racing on the same course code would still
   // double-create. Feeds per user are few; correctness beats the parallelism.
   const results: SubscriptionSyncResult[] = [];
   for (const subscription of subscriptions) {
-    results.push(await syncSubscription(subscription, force));
+    results.push(
+      await syncSubscription(subscription, user?.timezone ?? null, force)
+    );
   }
 
   const changed = results.reduce(
-    (total, result) => total + result.created + result.updated + result.removed,
+    (total, result) =>
+      total + result.created + result.updated + result.adopted + result.removed,
     0
   );
 
@@ -333,17 +437,17 @@ export async function unignoreCalendarEvent(
 }
 
 /**
- * Turning auto-sync off removes the rows it created, so the assignments page
- * returns to exactly what the student entered by hand. Started/finished work is
- * kept and simply unlinked from the feed.
+ * Turning auto-sync off drops the rows the feed created that the student never
+ * touched, so the task list returns to what they entered by hand. Anything they
+ * started or finished stays — and stays *linked*.
+ *
+ * Keeping the link is what makes off→on safe to repeat: the next sync finds the
+ * row by (subscriptionId, externalUid) and updates it. Clearing the link, as an
+ * earlier version did, left the row unidentifiable, so re-enabling auto-sync
+ * imported a second copy of work the student had already completed.
  */
 export async function detachSubscriptionAssignments(subscriptionId: string) {
   await prisma.assignment.deleteMany({
     where: { calendarSubscriptionId: subscriptionId, status: 'todo' },
-  });
-
-  await prisma.assignment.updateMany({
-    where: { calendarSubscriptionId: subscriptionId },
-    data: { calendarSubscriptionId: null, externalUid: null },
   });
 }

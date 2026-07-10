@@ -25,7 +25,7 @@ export function AssignmentFilters({ courses }: AssignmentFiltersProps) {
     } else {
       params.delete(key);
     }
-    router.push(`/dashboard/assignments?${params.toString()}`);
+    router.push(`/dashboard/tasks?${params.toString()}`);
   }
 
   const selectClass =

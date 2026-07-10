@@ -85,10 +85,10 @@ export default async function DashboardPage() {
             {stats.dueThisWeek}
           </p>
           <Link
-            href="/dashboard/assignments"
+            href="/dashboard/tasks"
             className="mt-3 inline-block text-xs font-medium text-brand-600 transition hover:text-brand-700"
           >
-            View assignments
+            View tasks
           </Link>
         </DashboardPanel>
       </div>

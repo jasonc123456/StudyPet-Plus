@@ -108,8 +108,8 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  // Connected with auto-sync already on: pull it now so the assignments page
-  // isn't empty until the user next opens the calendar.
+  // Connected with auto-sync already on: pull it now so the tasks page isn't
+  // empty until the user next opens the calendar.
   if (autoSync) {
     await syncUserCalendars(authResult.user.id, { force: true });
   }
