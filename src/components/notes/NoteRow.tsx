@@ -88,6 +88,7 @@ export function NoteRow({ note }: NoteRowProps) {
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
+              aria-label={`Delete note: ${note.title}`}
               className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
             >
               Delete
