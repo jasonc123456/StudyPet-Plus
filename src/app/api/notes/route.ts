@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { title, content, courseId } = parsed.data;
+  const { title, content, courseId, pdfName, pdfUrl } = parsed.data;
 
   if (courseId) {
     const course = await getOwnedCourse(courseId, authResult.user.id);
@@ -68,6 +68,8 @@ export async function POST(request: Request) {
       title,
       content: content ?? '',
       courseId,
+      pdfName: pdfName ?? null,
+      pdfUrl: pdfUrl ?? null,
     },
     include: {
       course: { select: { id: true, name: true, color: true } },

@@ -12,6 +12,8 @@ export type NoteRowData = {
   id: string;
   title: string;
   content: string;
+  pdfName: string | null;
+  pdfUrl: string | null;
   updatedAt: Date | string;
   course: { id: string; name: string; color: string } | null;
 };
@@ -66,6 +68,16 @@ export function NoteRow({ note }: NoteRowProps) {
             <p className="mt-1 line-clamp-2 text-sm text-slate-500">
               {notePreview(note.content)}
             </p>
+            {note.pdfUrl && note.pdfName ? (
+              <a
+                href={note.pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100"
+              >
+                PDF: {note.pdfName}
+              </a>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
               <span>Updated {formatUpdatedAt(note.updatedAt)}</span>
               {note.course ? (

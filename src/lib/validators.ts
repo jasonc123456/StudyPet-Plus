@@ -204,6 +204,14 @@ export const createNoteSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(200),
   content: z.string().max(50000).optional().default(''),
   courseId: optionalCourseIdSchema,
+  pdfName: z.string().trim().min(1).max(255).optional().nullable(),
+  pdfUrl: z
+    .string()
+    .trim()
+    .startsWith('/note-pdfs/')
+    .max(500)
+    .optional()
+    .nullable(),
 });
 
 export const updateNoteSchema = createNoteSchema

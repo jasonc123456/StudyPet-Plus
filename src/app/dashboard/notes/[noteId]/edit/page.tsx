@@ -58,6 +58,8 @@ export default async function EditNotePage({ params }: EditNotePageProps) {
           title: note.title,
           content: note.content,
           courseId: note.courseId,
+          pdfName: note.pdfName,
+          pdfUrl: note.pdfUrl,
         }}
         cancelHref={listHref}
         successHref={listHref}

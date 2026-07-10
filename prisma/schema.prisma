@@ -355,6 +355,8 @@ model Note {
   courseId  String? // null = uncategorized note
   title     String
   content   String   @default("")
+  pdfName   String?
+  pdfUrl    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

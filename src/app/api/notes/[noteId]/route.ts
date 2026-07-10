@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { deleteNotePdf } from '@/lib/note-pdf';
 import { getOwnedCourse, getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import { updateNoteSchema, zodFirstError } from '@/lib/validators';
@@ -51,7 +52,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { title, content, courseId } = parsed.data;
+  const { title, content, courseId, pdfName, pdfUrl } = parsed.data;
 
   if (courseId) {
     const course = await getOwnedCourse(courseId, authResult.user.id);
@@ -66,11 +67,17 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       ...(title !== undefined && { title }),
       ...(content !== undefined && { content }),
       ...(courseId !== undefined && { courseId }),
+      ...(pdfName !== undefined && { pdfName }),
+      ...(pdfUrl !== undefined && { pdfUrl }),
     },
     include: {
       course: { select: { id: true, name: true, color: true } },
     },
   });
+
+  if (pdfUrl !== undefined && existing.pdfUrl && existing.pdfUrl !== pdfUrl) {
+    await deleteNotePdf(existing.pdfUrl);
+  }
 
   return jsonOk(note);
 }
@@ -85,6 +92,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   }
 
   await prisma.note.delete({ where: { id: params.noteId } });
+  await deleteNotePdf(existing.pdfUrl);
 
   return jsonOk({ success: true });
 }
