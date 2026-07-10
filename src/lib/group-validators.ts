@@ -4,7 +4,14 @@ const dueAtSchema = z
   .union([z.string(), z.date(), z.null()])
   .optional()
   .transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
+    // Keep "field absent" (undefined) distinct from "clear it" (explicit null).
+    // Collapsing undefined → null here meant a partial update that only touched
+    // status still carried dueAt: null, and the PATCH route's
+    // `dueAt !== undefined` guard then wiped the task's due date on every status
+    // change — dropping it off the calendar. On create, undefined is what Prisma
+    // wants for "no due date" anyway, so both paths stay correct.
+    if (val === undefined) return undefined;
+    if (val === null || val === '') return null;
     const date = val instanceof Date ? val : new Date(val);
     return Number.isNaN(date.getTime()) ? null : date;
   });

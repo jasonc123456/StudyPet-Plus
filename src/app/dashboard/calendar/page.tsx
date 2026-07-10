@@ -51,6 +51,7 @@ export default async function CalendarPage({
         autoSyncSubscriptionIds={data.subscriptions
           .filter((subscription) => subscription.autoSync)
           .map((subscription) => subscription.id)}
+        initialShowAllGroupTasks={data.showAllGroupTasks}
       />
 
       <CalendarSubscriptionManager subscriptions={data.subscriptions} />

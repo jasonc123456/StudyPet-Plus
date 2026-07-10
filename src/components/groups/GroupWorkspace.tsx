@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { CalendarStatusButtons } from '@/components/calendar/CalendarStatusButtons';
+import { EventStatusIcon } from '@/components/calendar/EventStatusIcon';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 
 type GroupWorkspaceProps = {
@@ -103,6 +105,14 @@ const TAB_OPTIONS = [
   { value: 'invites', label: 'Invites' },
 ] as const;
 
+// Group tasks store status as an uppercase enum; the labels mirror the personal
+// calendar's to-do / in-progress / done control.
+const GROUP_TASK_STATUS_OPTIONS = [
+  { value: 'TODO', label: 'To do' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'DONE', label: 'Done' },
+] as const;
+
 function formatDateTimeUTC(value: string | null) {
   if (!value) return 'No due date';
   return new Date(value).toLocaleString('en-US', {
@@ -167,6 +177,22 @@ function getDayKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// A 'YYYY-MM-DD' day key rebuilt at local noon so the weekday/month/day label is
+// stable across the SSR (UTC) and client passes — no time is shown, so only the
+// fixed calendar-date components are read.
+function formatDayKeyHeading(dayKey: string) {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1, 12).toLocaleDateString(
+    undefined,
+    {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }
+  );
 }
 
 function monthTitleUTC(date: Date) {
@@ -335,6 +361,10 @@ export function GroupWorkspace({
   });
   const [latestInviteLink, setLatestInviteLink] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState(() => getDayKey(new Date()));
+  const [taskStatusPending, setTaskStatusPending] = useState<string | null>(
+    null
+  );
   const isAdmin =
     group.currentUserRole === 'OWNER' || group.currentUserRole === 'ADMIN';
   const isOwner = group.currentUserRole === 'OWNER';
@@ -360,6 +390,14 @@ export function GroupWorkspace({
     },
     {}
   );
+  const todayKey = getDayKey(new Date());
+  const selectedDayTasks = (tasksByDay[selectedDay] ?? [])
+    .slice()
+    .sort(
+      (left, right) =>
+        new Date(left.dueAt as string).getTime() -
+        new Date(right.dueAt as string).getTime()
+    );
 
   function syncQuery(nextTab: string, nextChannelId?: string | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -376,6 +414,8 @@ export function GroupWorkspace({
 
   useEffect(() => {
     setMounted(true);
+    // Re-anchor to the viewer's local "today" once mounted; SSR runs in UTC.
+    setSelectedDay(getDayKey(new Date()));
   }, []);
 
   useEffect(() => {
@@ -613,6 +653,7 @@ export function GroupWorkspace({
 
   async function updateTaskStatus(taskId: string, status: string) {
     setWorkspaceError(null);
+    setTaskStatusPending(taskId);
 
     try {
       const response = await fetch(`/api/groups/${group.id}/tasks/${taskId}`, {
@@ -638,6 +679,8 @@ export function GroupWorkspace({
       );
     } catch {
       setWorkspaceError('Network error while updating the task');
+    } finally {
+      setTaskStatusPending(null);
     }
   }
 
@@ -1347,19 +1390,19 @@ export function GroupWorkspace({
       )}
 
       {selectedTab === 'calendar' && (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(340px,1fr)]">
           <DashboardPanel>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">
                   Group calendar
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Only group tasks appear here. Personal assignments and quests
-                  stay out of this calendar.
+                  Only group tasks appear here. Pick a day to review it and set
+                  each task&apos;s status.
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -1377,7 +1420,10 @@ export function GroupWorkspace({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCalendarMonth(new Date())}
+                  onClick={() => {
+                    setCalendarMonth(new Date());
+                    setSelectedDay(getDayKey(new Date()));
+                  }}
                   className="btn-secondary text-sm"
                 >
                   Today
@@ -1420,23 +1466,44 @@ export function GroupWorkspace({
               {calendarDays.map((day) => {
                 const dayKey = getDayKey(day);
                 const dayTasks = tasksByDay[dayKey] || [];
+                const isCurrentMonth =
+                  day.getMonth() === calendarMonth.getMonth();
+                const isSelected = dayKey === selectedDay;
+                const isToday = dayKey === todayKey;
 
                 return (
-                  <div
+                  <button
                     key={dayKey}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDay(dayKey);
+                      if (!isCurrentMonth) {
+                        setCalendarMonth(
+                          new Date(day.getFullYear(), day.getMonth(), 1)
+                        );
+                      }
+                    }}
                     className={[
-                      'min-h-28 rounded-2xl border p-3',
-                      day.getMonth() === calendarMonth.getMonth()
-                        ? 'border-slate-200 bg-white'
-                        : 'border-slate-100 bg-slate-50 opacity-60',
+                      'min-h-28 rounded-2xl border p-3 text-left transition',
+                      isSelected
+                        ? 'border-brand-300 bg-brand-50'
+                        : 'border-slate-200 bg-white hover:border-brand-200',
+                      !isCurrentMonth ? 'opacity-55' : '',
                     ].join(' ')}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span
+                        className={[
+                          'text-sm font-semibold',
+                          isToday
+                            ? 'rounded-full bg-brand-600 px-2 py-0.5 text-white'
+                            : 'text-slate-700',
+                        ].join(' ')}
+                      >
                         {day.getDate()}
                       </span>
                       {dayTasks.length > 0 && (
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] font-medium text-slate-400">
                           {dayTasks.length}
                         </span>
                       )}
@@ -1445,14 +1512,22 @@ export function GroupWorkspace({
                       {dayTasks.slice(0, 3).map((task) => (
                         <div
                           key={task.id}
-                          className="rounded-xl bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-700"
+                          className="flex items-center gap-1.5 rounded-lg bg-brand-50 py-1 pl-2 pr-1.5 text-[11px] font-medium text-brand-700"
                         >
-                          <DateLabel
-                            value={task.dueAt}
-                            mode="time"
-                            mounted={mounted}
-                          />{' '}
-                          · {task.title}
+                          <span className="min-w-0 flex-1 truncate">
+                            <span className="tabular-nums text-brand-600/70">
+                              <DateLabel
+                                value={task.dueAt}
+                                mode="time"
+                                mounted={mounted}
+                              />
+                            </span>{' '}
+                            {task.title}
+                          </span>
+                          <EventStatusIcon
+                            status={task.status}
+                            className="h-3 w-3"
+                          />
                         </div>
                       ))}
                       {dayTasks.length > 3 && (
@@ -1461,7 +1536,7 @@ export function GroupWorkspace({
                         </p>
                       )}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -1469,43 +1544,77 @@ export function GroupWorkspace({
 
           <DashboardPanel>
             <h2 className="text-lg font-semibold text-slate-900">
-              Upcoming group tasks
+              <span suppressHydrationWarning>
+                {formatDayKeyHeading(selectedDay)}
+              </span>
             </h2>
-            <div className="mt-4 space-y-3">
-              {dueTasks.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  No dated group tasks yet.
-                </p>
-              ) : (
-                dueTasks.slice(0, 10).map((task) => (
-                  <div
+            <p className="mt-1 text-sm text-slate-500">
+              Group tasks due this day. Set a status straight from here.
+            </p>
+
+            {selectedDayTasks.length === 0 ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                No group tasks due on this day.
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {selectedDayTasks.map((task) => (
+                  <article
                     key={task.id}
-                    className="rounded-2xl border border-slate-200 px-4 py-3"
+                    className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white pl-5 pr-4 py-4 transition hover:border-slate-300"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium text-slate-900">{task.title}</p>
-                      <span className="text-xs uppercase tracking-wide text-slate-400">
-                        {task.status.replaceAll('_', ' ')}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-500">
-                      <DateLabel
-                        value={task.dueAt}
-                        mode="dateTime"
-                        mounted={mounted}
+                    <span
+                      className="absolute inset-y-0 left-0 w-1.5 bg-brand-500"
+                      aria-hidden
+                    />
+                    <div className="flex items-start gap-2">
+                      <EventStatusIcon
+                        status={task.status}
+                        className="mt-0.5"
                       />
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {task.assignees.length === 0
-                        ? 'No assignees'
-                        : task.assignees
-                            .map((assignee) => displayName(assignee.user))
-                            .join(', ')}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900">
+                          {task.title}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          <span className="tabular-nums">
+                            <DateLabel
+                              value={task.dueAt}
+                              mode="time"
+                              mounted={mounted}
+                            />
+                          </span>
+                          {task.channel ? ` · # ${task.channel.name}` : ''}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {task.assignees.length === 0
+                            ? 'No assignees'
+                            : task.assignees
+                                .map((assignee) => displayName(assignee.user))
+                                .join(', ')}
+                        </p>
+                      </div>
+                    </div>
+
+                    {task.description && (
+                      <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm leading-relaxed text-slate-600">
+                        {task.description}
+                      </p>
+                    )}
+
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                      <CalendarStatusButtons
+                        options={GROUP_TASK_STATUS_OPTIONS}
+                        value={task.status}
+                        onSelect={(next) => updateTaskStatus(task.id, next)}
+                        ariaLabel={`Change status for ${task.title}`}
+                        saving={taskStatusPending === task.id}
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </DashboardPanel>
         </div>
       )}

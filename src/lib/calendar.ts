@@ -25,6 +25,8 @@ export type CalendarEvent = {
   meta: string | null;
   /** Set on assignment-backed events; addresses the status API. Null otherwise. */
   courseId: string | null;
+  /** Set on group-task events; addresses the group-task status API. Null otherwise. */
+  groupId: string | null;
   // Feed provenance. Set on imported events and on the assignments auto-sync
   // created from them; together (subscriptionId, uid) address one feed event,
   // which is what the ignore + un-ignore actions post back to the API.
@@ -72,6 +74,12 @@ export type CalendarPageData = {
   eventsByDay: Record<string, CalendarEvent[]>;
   selectedDayEvents: CalendarEvent[];
   subscriptions: CalendarSubscriptionWithError[];
+  /**
+   * The user's persisted preference: when true the group-task events above are
+   * every dated task across their groups, not just the ones assigned to them.
+   * Drives the "Show all group tasks" toggle's initial state.
+   */
+  showAllGroupTasks: boolean;
 };
 
 export type ParsedIcsEvent = {
@@ -735,6 +743,7 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
         href: null,
         meta: subscription.name,
         courseId: null,
+        groupId: null,
         uid: event.uid,
         subscriptionId: subscription.id,
         ignored: ignoredUids.has(event.uid),
@@ -911,6 +920,46 @@ async function loadAssignedGroupTasks(
   }
 }
 
+/**
+ * Every dated group task the user can see — i.e. from any group they belong to —
+ * regardless of whether it's assigned to them. Backs the "Show all group tasks"
+ * calendar toggle. The row shape is normalized to `{ task }` so it drops into the
+ * same mapping `loadAssignedGroupTasks` feeds, and de-duplication (a user is
+ * always a member of their own groups) is a non-issue because we query tasks, not
+ * assignments — each task appears once.
+ */
+async function loadAllGroupTasks(
+  userId: string,
+  gridStart: Date,
+  gridEnd: Date
+) {
+  try {
+    const tasks = await prisma.groupTask.findMany({
+      where: {
+        group: { memberships: { some: { userId } } },
+        dueAt: { gte: gridStart, lte: gridEnd },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        status: true,
+        groupId: true,
+        group: { select: { name: true } },
+      },
+      orderBy: [{ dueAt: 'asc' }],
+    });
+
+    return tasks.map((task) => ({ task }));
+  } catch (error) {
+    if (isMissingGroupTables(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function getCalendarPageData(
   userId: string,
   monthParam?: string,
@@ -920,60 +969,61 @@ export async function getCalendarPageData(
   const selectedDate = parseDayParam(dayParam, month);
   const { gridStart, gridEnd } = getCalendarGridRange(month);
 
-  const [
-    assignments,
-    quests,
-    assignedGroupTasks,
-    subscriptions,
-    ignoredUids,
-    userRecord,
-  ] = await Promise.all([
-    prisma.assignment.findMany({
-      where: {
-        course: { userId },
-        dueAt: { gte: gridStart, lte: gridEnd },
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        dueAt: true,
-        status: true,
-        courseId: true,
-        calendarSubscriptionId: true,
-        externalUid: true,
-        course: { select: { name: true, color: true } },
-      },
-      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-    }),
-    prisma.quest.findMany({
-      where: {
-        userId,
-        dueAt: { gte: gridStart, lte: gridEnd },
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        dueAt: true,
-        status: true,
-        estimatedMinutes: true,
-        xpReward: true,
-      },
-      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-    }),
-    loadAssignedGroupTasks(userId, gridStart, gridEnd),
-    loadCalendarSubscriptions(userId),
-    loadIgnoredEventUids(userId),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { timezone: true },
-    }),
-  ]);
+  // Read the preference first: it decides whether the group-task query below is
+  // "assigned to me" or "everything in my groups". One extra round-trip, but it
+  // keeps the heavier task query from over-fetching when the toggle is off.
+  const preferences = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true, showAllGroupTasksOnCalendar: true },
+  });
+  const showAllGroupTasks = preferences?.showAllGroupTasksOnCalendar ?? false;
+
+  const [assignments, quests, groupTasks, subscriptions, ignoredUids] =
+    await Promise.all([
+      prisma.assignment.findMany({
+        where: {
+          course: { userId },
+          dueAt: { gte: gridStart, lte: gridEnd },
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueAt: true,
+          status: true,
+          courseId: true,
+          calendarSubscriptionId: true,
+          externalUid: true,
+          course: { select: { name: true, color: true } },
+        },
+        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+      }),
+      prisma.quest.findMany({
+        where: {
+          userId,
+          dueAt: { gte: gridStart, lte: gridEnd },
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueAt: true,
+          status: true,
+          estimatedMinutes: true,
+          xpReward: true,
+        },
+        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+      }),
+      showAllGroupTasks
+        ? loadAllGroupTasks(userId, gridStart, gridEnd)
+        : loadAssignedGroupTasks(userId, gridStart, gridEnd),
+      loadCalendarSubscriptions(userId),
+      loadIgnoredEventUids(userId),
+    ]);
 
   // Feeds carry no timezone, so an all-day due date only means something relative
   // to the student. Theirs anchors the 11:59pm the imported events render at.
-  const timeZone = userRecord?.timezone ?? null;
+  const timeZone = preferences?.timezone ?? null;
 
   const subscriptionNames = new Map(
     subscriptions.map((subscription) => [subscription.id, subscription.name])
@@ -1013,6 +1063,7 @@ export async function getCalendarPageData(
                   }`
                 : assignment.course.name,
               courseId: assignment.courseId,
+              groupId: null,
               uid: assignment.externalUid,
               subscriptionId: assignment.calendarSubscriptionId,
               ignored: false,
@@ -1043,6 +1094,7 @@ export async function getCalendarPageData(
               href: `/dashboard/quests/${quest.id}/edit`,
               meta: `Quest · ${quest.xpReward} XP`,
               courseId: null,
+              groupId: null,
               uid: null,
               subscriptionId: null,
               ignored: false,
@@ -1051,7 +1103,7 @@ export async function getCalendarPageData(
           ]
         : []
     ),
-    ...assignedGroupTasks.flatMap((assignment) =>
+    ...groupTasks.flatMap((assignment) =>
       assignment.task.dueAt
         ? [
             {
@@ -1068,6 +1120,7 @@ export async function getCalendarPageData(
               href: `/dashboard/groups/${assignment.task.groupId}?tab=tasks`,
               meta: `Group · ${assignment.task.group.name}`,
               courseId: null,
+              groupId: assignment.task.groupId,
               uid: null,
               subscriptionId: null,
               ignored: false,
@@ -1127,6 +1180,7 @@ export async function getCalendarPageData(
     eventsByDay,
     selectedDayEvents,
     subscriptions: syncedSubscriptions,
+    showAllGroupTasks,
   };
 }
 
