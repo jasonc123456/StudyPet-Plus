@@ -13,3 +13,6 @@ next-env.d.ts
 # misc
 *.log
 .DS_Store
+
+# public
+/public
