@@ -65,6 +65,7 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  emailChangeRequests EmailChangeRequest[]
 
   // Sprint 2 — planner + gamification relations.
   courses               Course[]
@@ -119,6 +120,27 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// A pending "change my email address" request. Created when a signed-in user
+// asks to switch their account email in Settings; the switch is NOT applied
+// until they click the link mailed to the NEW address (proving they control
+// that inbox). Without this step a typo'd address would silently take over the
+// account and lock the user out on their next magic-link sign-in.
+//
+// tokenHash stores a SHA-256 of the random token that goes in the email link —
+// never the raw token — so a database read can't be replayed as a valid link.
+model EmailChangeRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  newEmail  String
+  tokenHash String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

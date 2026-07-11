@@ -286,15 +286,30 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
         }),
       });
 
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        emailChangePending?: boolean;
+        pendingEmail?: string;
+      } | null;
+
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
         setProfileError(data?.error ?? 'Failed to save profile');
         return;
       }
 
-      setProfileSuccess('Profile updated');
+      if (data?.emailChangePending) {
+        // The email itself is NOT changed yet — the user must click the link we
+        // mailed to the new address. Reset the field to the still-current email
+        // so the form doesn't imply the switch already happened.
+        setProfileEmail(user.email ?? 'demo@studypetplus.app');
+        setProfileSuccess(
+          `Profile saved. To finish changing your email, open the confirmation link we sent to ${
+            data.pendingEmail ?? 'your new address'
+          }.`
+        );
+      } else {
+        setProfileSuccess('Profile updated');
+      }
       router.refresh();
     } catch {
       setProfileError('Network error — please try again');
@@ -434,6 +449,10 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                           onChange={(e) => setProfileEmail(e.target.value)}
                           className="theme-input"
                         />
+                        <p className="theme-muted mt-1.5 text-xs">
+                          Changing this sends a confirmation link to the new
+                          address. Your email updates only after you open it.
+                        </p>
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-semibold">
