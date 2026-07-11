@@ -80,12 +80,12 @@ export default async function EmailChangeConfirmPage({
               Confirm your new email
             </h1>
             <p className="text-sm text-slate-500">
-              Change your StudyPet+ account email to{' '}
+              You are about to change your StudyPet+ account email to{' '}
               <strong className="text-slate-700">{state.newEmail}</strong>?
               Click{' '}
               <strong className="text-slate-700">Confirm email change</strong>{' '}
-              below to finish — your old address will stop working once the
-              change is confirmed.
+              below to finish — your old email address will stop working once
+              the change is confirmed.
             </p>
             <form method="post" action="/api/profile/email/verify">
               <input type="hidden" name="token" value={token} />
