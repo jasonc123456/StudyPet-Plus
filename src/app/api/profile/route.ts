@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
 import { sendEmailChangeVerification } from '@/lib/email';
 import {
-  buildEmailChangeVerifyUrl,
+  buildEmailChangeConfirmUrl,
   createEmailChangeToken,
   EMAIL_CHANGE_TTL_MS,
 } from '@/lib/email-change';
@@ -116,7 +116,7 @@ export async function PUT(request: Request) {
   try {
     await sendEmailChangeVerification({
       to: requestedEmail,
-      url: buildEmailChangeVerifyUrl(token),
+      url: buildEmailChangeConfirmUrl(token),
       currentEmail: currentUser.email,
     });
   } catch {
