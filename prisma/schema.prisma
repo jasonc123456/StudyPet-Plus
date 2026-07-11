@@ -72,6 +72,7 @@ model User {
   quests                Quest[]
   pet                   Pet?
   notes                 Note[]
+  flashcards            Flashcard[]
   calendarSubscriptions CalendarSubscription[]
   gradeProfile          GradeProfile?
   gradeScaleEntries     GradeScaleEntry[]
@@ -167,6 +168,7 @@ model Course {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignments Assignment[]
   notes       Note[]
+  flashcards  Flashcard[]
   gradeCategories GradeCategory[]
 
   @@index([userId])
@@ -435,12 +437,41 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  flashcards Flashcard[]
 
   @@index([userId])
   @@index([courseId])
   @@index([updatedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 3 (US-3.3) — Flashcards.
+//
+// AI-generated topic-tagged cards persisted from a Note's content. `front` /
+// `back` match the US-3.2 AI contract; `courseId` is copied from the parent
+// Note at generation time (null when the note is uncategorized).
+// ---------------------------------------------------------------------------
+
+model Flashcard {
+  id        String   @id @default(cuid())
+  userId    String
+  noteId    String
+  courseId  String? // copied from Note at generation; null if uncategorized
+  topic     String
+  front     String // question side
+  back      String // answer side
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note   Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([noteId])
+  @@index([courseId])
+  @@index([topic])
 }
 
 model CoursePlanner {
