@@ -4,10 +4,7 @@
 // bulk-inserts them. Append-only: regenerating the same note adds more rows.
 
 import { generateFlashcards } from '@/lib/ai';
-import {
-  flashcardResponseSchema,
-  type AiProviderName,
-} from '@/lib/ai/types';
+import { flashcardResponseSchema, type AiProviderName } from '@/lib/ai/types';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import type { Flashcard as FlashcardRow } from '@prisma/client';
