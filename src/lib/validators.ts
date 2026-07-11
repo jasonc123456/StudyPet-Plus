@@ -291,6 +291,16 @@ export const updateNoteSchema = updateNoteSchemaBase
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 
+/** Body for POST /api/flashcards/generate (US-3.3). */
+export const generateFlashcardsRequestSchema = z.object({
+  noteId: z.string().cuid(),
+  count: z.coerce.number().int().min(1).max(20).optional(),
+});
+
+export type GenerateFlashcardsRequestInput = z.infer<
+  typeof generateFlashcardsRequestSchema
+>;
+
 const nonNegativeNumberSchema = z.coerce.number().min(0);
 
 export const updateGradeProfileSchema = z.object({
