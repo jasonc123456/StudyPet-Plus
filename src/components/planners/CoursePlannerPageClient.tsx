@@ -257,10 +257,17 @@ export function CoursePlannerPageClient({
               {plannerSummary.map((planner) => {
                 const active = planner.id === selectedPlannerId;
                 return (
-                  <button
+                  <div
                     key={planner.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedPlannerId(planner.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedPlannerId(planner.id);
+                      }
+                    }}
                     className={[
                       'w-full rounded-2xl border p-4 text-left transition',
                       active
@@ -314,7 +321,7 @@ export function CoursePlannerPageClient({
                         {planner.alternateCount} backup
                       </span>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
