@@ -2,7 +2,7 @@ import { createHmac, randomUUID } from 'crypto';
 import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 
-const NOTE_PDF_DIR = path.join(process.cwd(), '.uploads', 'note-pdfs');
+const NOTE_PDF_DIR = path.join(process.cwd(), 'public', 'note-pdfs');
 const NOTE_PDF_TMP_DIR = path.join(NOTE_PDF_DIR, 'tmp');
 const NOTE_PDF_FILE_PREFIX = 'file-';
 const NOTE_PDF_TMP_PREFIX = 'upload-';
