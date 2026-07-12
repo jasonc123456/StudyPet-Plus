@@ -99,3 +99,19 @@ export async function generateAndSaveFlashcards(
 
   return { flashcards, provider };
 }
+
+/** All flashcards for a note owned by the user, newest first. */
+export async function listFlashcardsForNote(
+  noteId: string,
+  userId: string
+): Promise<FlashcardRow[]> {
+  const note = await getOwnedNote(noteId, userId);
+  if (!note) {
+    return [];
+  }
+
+  return prisma.flashcard.findMany({
+    where: { noteId, userId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+  });
+}

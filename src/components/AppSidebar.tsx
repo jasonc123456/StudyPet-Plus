@@ -298,7 +298,7 @@ const NAV_LINKS = [
   },
   { href: '/dashboard/grades', label: 'Grades', Icon: GradesIcon },
   { href: '/dashboard/groups', label: 'Groups', Icon: GroupsIcon },
-  { href: '/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
+  { href: '/dashboard/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
 ];
 
 type AppChromeUser = {
