@@ -39,6 +39,9 @@ Edit `.env` and set at least:
 | `EMAIL_SERVER_USER`     | SMTP username                                      |
 | `EMAIL_SERVER_PASSWORD` | SMTP password                                      |
 | `EMAIL_FROM`            | From address on outgoing emails                    |
+| `GEMINI_API_KEY`        | Google Gemini key for real flashcard/quiz AI       |
+| `DEEPSEEK_API_KEY`      | Optional DeepSeek fallback if Gemini fails         |
+| `AI_DEMO_MODE`          | `true` = canned demo cards only (skip real AI)     |
 
 Never commit real secrets. `.env` is gitignored.
 
@@ -143,6 +146,7 @@ Set real values in `.env`:
 - `NEXTAUTH_SECRET` — `openssl rand -base64 32`
 - `NEXTAUTH_URL` — the **public** URL (e.g. `https://your-domain`); must match what users hit through nginx, or magic-link callbacks break.
 - `EMAIL_SERVER_*` / `EMAIL_FROM` — SMTP for magic links.
+- `GEMINI_API_KEY` (or `DEEPSEEK_API_KEY`) — required for real flashcard/quiz generation from notes. Leave `AI_DEMO_MODE` unset/`false`.
 - `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` — credentials for the bundled database (defaults: `studypet` / `studypet` / `studypet`).
 
 `DATABASE_URL` is built automatically by Compose from the `POSTGRES_*` values and
