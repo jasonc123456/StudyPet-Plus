@@ -1,9 +1,34 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { prisma } from '@/lib/prisma';
+
+type NoteWithCardCount = {
+  id: string;
+  title: string;
+  course: { id: string; name: string; color: string } | null;
+  _count: { flashcards: number };
+};
+
+type RecentFlashcard = {
+  id: string;
+  topic: string;
+  front: string;
+  back: string;
+  note: { id: string; title: string };
+};
+
+function isMissingFlashcardTable(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2021' &&
+    typeof error.message === 'string' &&
+    error.message.includes('Flashcard')
+  );
+}
 
 export default async function DashboardFlashcardsPage() {
   const session = await auth();
@@ -13,33 +38,49 @@ export default async function DashboardFlashcardsPage() {
 
   const userId = session.user.id;
 
-  const [notesWithCards, recentCards] = await Promise.all([
-    prisma.note.findMany({
-      where: {
-        userId,
-        flashcards: { some: {} },
-      },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        course: { select: { id: true, name: true, color: true } },
-        _count: { select: { flashcards: true } },
-      },
-    }),
-    prisma.flashcard.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 24,
-      select: {
-        id: true,
-        topic: true,
-        front: true,
-        back: true,
-        note: { select: { id: true, title: true } },
-      },
-    }),
-  ]);
+  let notesWithCards: NoteWithCardCount[] = [];
+  let recentCards: RecentFlashcard[] = [];
+  let schemaError: string | null = null;
+
+  try {
+    // Keep these queries as-is; do not remove or rewrite them.
+    [notesWithCards, recentCards] = await Promise.all([
+      prisma.note.findMany({
+        where: {
+          userId,
+          flashcards: { some: {} },
+        },
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          course: { select: { id: true, name: true, color: true } },
+          _count: { select: { flashcards: true } },
+        },
+      }),
+      prisma.flashcard.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 24,
+        select: {
+          id: true,
+          topic: true,
+          front: true,
+          back: true,
+          note: { select: { id: true, title: true } },
+        },
+      }),
+    ]);
+  } catch (error) {
+    if (isMissingFlashcardTable(error)) {
+      // Temporary ops signal — not a permanent substitute for migrate deploy.
+      schemaError =
+        'The Flashcard table is missing from the database. A pending Prisma migration needs to be applied on this environment (`npx prisma migrate deploy` with DATABASE_URL set).';
+      console.error('Flashcards page schema mismatch (P2021):', error);
+    } else {
+      throw error;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -49,7 +90,20 @@ export default async function DashboardFlashcardsPage() {
         action={{ label: 'Go to notes', href: '/dashboard/notes' }}
       />
 
-      {notesWithCards.length === 0 ? (
+      {schemaError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-950"
+        >
+          <p className="font-semibold">Database schema out of date</p>
+          <p className="mt-1">{schemaError}</p>
+          <p className="mt-2 text-amber-900/80">
+            After migrate deploy succeeds, reload this page. Do not use{' '}
+            <code className="rounded bg-amber-100 px-1">prisma db push</code> on
+            the shared database.
+          </p>
+        </div>
+      ) : notesWithCards.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
           <p className="text-sm font-medium text-slate-800">
             No flashcards yet
