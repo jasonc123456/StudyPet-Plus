@@ -36,6 +36,13 @@ services:
       # Force the DB host to the compose service name, overriding any localhost
       # DATABASE_URL inherited from .env (which targets local dev).
       DATABASE_URL: postgresql://${POSTGRES_USER:-studypet}:${POSTGRES_PASSWORD:-studypet}@postgres:5432/${POSTGRES_DB:-studypet}?schema=public
+      # Explicit AI passthrough so flashcard/quiz generation sees keys at runtime
+      # even if env_file loading differs across compose versions.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      AI_DEMO_MODE: ${AI_DEMO_MODE:-false}
     depends_on:
       postgres:
         condition: service_healthy

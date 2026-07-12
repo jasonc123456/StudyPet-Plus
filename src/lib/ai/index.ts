@@ -11,7 +11,7 @@
 // AI_DEMO_MODE=true. With no API key and demo off, generation fails clearly
 // so callers know to configure GEMINI_API_KEY or DEEPSEEK_API_KEY.
 
-import { isDemoModeForced } from '@/lib/ai/config';
+import { getAiRuntimeStatus } from '@/lib/ai/config';
 import {
   AiProviderError,
   hasConfiguredProvider,
@@ -81,16 +81,29 @@ export async function generateFlashcards(
     throw new Error('generateFlashcards: sourceText is empty');
   }
 
-  if (isDemoModeForced()) {
+  const status = getAiRuntimeStatus();
+
+  if (status.demoMode) {
+    console.warn(
+      '[ai] generateFlashcards using demo material (AI_DEMO_MODE=true)'
+    );
     return { items: demoFlashcards(count, input.topicHint), provider: 'demo' };
   }
 
   if (!hasConfiguredProvider()) {
+    console.error('[ai] generateFlashcards missing API keys', status);
     throw new AiProviderError(
       'gemini',
       'no AI providers are configured — set GEMINI_API_KEY or DEEPSEEK_API_KEY'
     );
   }
+
+  console.info('[ai] generateFlashcards calling provider', {
+    geminiConfigured: status.geminiConfigured,
+    deepseekConfigured: status.deepseekConfigured,
+    geminiModel: status.geminiModel,
+    count,
+  });
 
   const run = await runWithFallback(
     flashcardPrompt(source, count, input.topicHint),
@@ -99,6 +112,10 @@ export async function generateFlashcards(
 
   // Safe: runWithFallback only returns values that passed this same schema.
   const { cards } = flashcardResponseSchema.parse(run.value);
+  console.info('[ai] generateFlashcards ok', {
+    provider: run.provider,
+    cards: cards.length,
+  });
   return { items: cards.slice(0, count), provider: run.provider };
 }
 
@@ -141,11 +158,15 @@ export async function generateQuiz(
     throw new Error('generateQuiz: sourceText is empty');
   }
 
-  if (isDemoModeForced()) {
+  const status = getAiRuntimeStatus();
+
+  if (status.demoMode) {
+    console.warn('[ai] generateQuiz using demo material (AI_DEMO_MODE=true)');
     return { items: demoQuiz(count, input.topicHint), provider: 'demo' };
   }
 
   if (!hasConfiguredProvider()) {
+    console.error('[ai] generateQuiz missing API keys', status);
     throw new AiProviderError(
       'gemini',
       'no AI providers are configured — set GEMINI_API_KEY or DEEPSEEK_API_KEY'
