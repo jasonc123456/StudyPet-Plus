@@ -3,7 +3,9 @@ import { notFound, redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PageHeader } from '@/components/courses/PageHeader';
+import { GenerateFlashcardsButton } from '@/components/notes/GenerateFlashcardsButton';
 import { NoteForm } from '@/components/notes/NoteForm';
+import { listFlashcardsForNote } from '@/lib/flashcards';
 import { prisma } from '@/lib/prisma';
 
 type EditNotePageProps = {
@@ -16,7 +18,7 @@ export default async function EditNotePage({ params }: EditNotePageProps) {
     redirect('/login');
   }
 
-  const [note, courses] = await Promise.all([
+  const [note, courses, flashcards] = await Promise.all([
     prisma.note.findFirst({
       where: {
         id: params.noteId,
@@ -28,6 +30,7 @@ export default async function EditNotePage({ params }: EditNotePageProps) {
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),
+    listFlashcardsForNote(params.noteId, session.user.id),
   ]);
 
   if (!note) {
@@ -63,6 +66,17 @@ export default async function EditNotePage({ params }: EditNotePageProps) {
         }}
         cancelHref={listHref}
         successHref={listHref}
+      />
+
+      <GenerateFlashcardsButton
+        noteId={note.id}
+        hasContent={Boolean(note.content.trim())}
+        initialFlashcards={flashcards.map((card) => ({
+          id: card.id,
+          topic: card.topic,
+          front: card.front,
+          back: card.back,
+        }))}
       />
     </div>
   );
