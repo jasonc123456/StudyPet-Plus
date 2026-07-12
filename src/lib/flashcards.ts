@@ -115,3 +115,126 @@ export async function listFlashcardsForNote(
     orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
   });
 }
+
+function titleFromPastedContent(content: string, explicit?: string): string {
+  const trimmed = explicit?.trim();
+  if (trimmed) return trimmed.slice(0, 200);
+
+  const firstLine =
+    content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? 'Flashcard notes';
+
+  return firstLine.slice(0, 200);
+}
+
+/** Create a Note from pasted text, then generate flashcards for it. */
+export async function createNoteAndGenerateFlashcards(input: {
+  userId: string;
+  content: string;
+  title?: string;
+  count?: number;
+}): Promise<GenerateAndSaveFlashcardsResult & { noteId: string }> {
+  const content = input.content.trim();
+  if (!content) {
+    throw new FlashcardServiceError(
+      'EMPTY_CONTENT',
+      'Paste some notes before generating flashcards'
+    );
+  }
+
+  const note = await prisma.note.create({
+    data: {
+      userId: input.userId,
+      title: titleFromPastedContent(content, input.title),
+      content,
+    },
+  });
+
+  const result = await generateAndSaveFlashcards({
+    noteId: note.id,
+    userId: input.userId,
+    count: input.count,
+  });
+
+  return { ...result, noteId: note.id };
+}
+
+export async function createOwnedFlashcard(input: {
+  userId: string;
+  noteId: string;
+  topic: string;
+  front: string;
+  back: string;
+}): Promise<FlashcardRow> {
+  const note = await getOwnedNote(input.noteId, input.userId);
+  if (!note) {
+    throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
+  }
+
+  return prisma.flashcard.create({
+    data: {
+      userId: input.userId,
+      noteId: note.id,
+      courseId: note.courseId,
+      topic: input.topic,
+      front: input.front,
+      back: input.back,
+    },
+  });
+}
+
+export async function updateOwnedFlashcard(input: {
+  userId: string;
+  id: string;
+  topic: string;
+  front: string;
+  back: string;
+}): Promise<FlashcardRow> {
+  const existing = await prisma.flashcard.findFirst({
+    where: { id: input.id, userId: input.userId },
+  });
+  if (!existing) {
+    throw new FlashcardServiceError('NOT_FOUND', 'Flashcard not found');
+  }
+
+  return prisma.flashcard.update({
+    where: { id: existing.id },
+    data: {
+      topic: input.topic,
+      front: input.front,
+      back: input.back,
+    },
+  });
+}
+
+export async function deleteOwnedFlashcard(
+  id: string,
+  userId: string
+): Promise<void> {
+  const existing = await prisma.flashcard.findFirst({
+    where: { id, userId },
+  });
+  if (!existing) {
+    throw new FlashcardServiceError('NOT_FOUND', 'Flashcard not found');
+  }
+
+  await prisma.flashcard.delete({ where: { id: existing.id } });
+}
+
+/** Deletes all flashcards for a note; keeps the Note row. */
+export async function deleteOwnedFlashcardSet(
+  noteId: string,
+  userId: string
+): Promise<number> {
+  const note = await getOwnedNote(noteId, userId);
+  if (!note) {
+    throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
+  }
+
+  const result = await prisma.flashcard.deleteMany({
+    where: { noteId, userId },
+  });
+  return result.count;
+}
