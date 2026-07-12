@@ -301,6 +301,41 @@ export type GenerateFlashcardsRequestInput = z.infer<
   typeof generateFlashcardsRequestSchema
 >;
 
+const flashcardFieldSchema = {
+  topic: z.string().trim().min(1, 'Topic is required').max(80),
+  front: z.string().trim().min(1, 'Front/question is required').max(500),
+  back: z.string().trim().min(1, 'Back/answer is required').max(1000),
+};
+
+/** Paste notes on /dashboard/flashcards then generate. */
+export const createFlashcardsFromPasteSchema = z.object({
+  title: z.string().trim().max(200).optional(),
+  content: z
+    .string()
+    .trim()
+    .min(1, 'Paste some notes before generating flashcards')
+    .max(50000),
+  count: z.coerce.number().int().min(1).max(20).optional().default(10),
+});
+
+export type CreateFlashcardsFromPasteInput = z.infer<
+  typeof createFlashcardsFromPasteSchema
+>;
+
+export const createFlashcardSchema = z.object({
+  noteId: z.string().cuid(),
+  ...flashcardFieldSchema,
+});
+
+export type CreateFlashcardInput = z.infer<typeof createFlashcardSchema>;
+
+export const updateFlashcardSchema = z.object({
+  id: z.string().cuid(),
+  ...flashcardFieldSchema,
+});
+
+export type UpdateFlashcardInput = z.infer<typeof updateFlashcardSchema>;
+
 const nonNegativeNumberSchema = z.coerce.number().min(0);
 
 export const updateGradeProfileSchema = z.object({

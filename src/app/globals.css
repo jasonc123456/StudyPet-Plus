@@ -355,7 +355,7 @@ body {
   animation: pet-pop 0.25s ease-out;
 }
 
-/* 3D flip helpers for the flashcard demo (Tailwind v3 has no rotate-y util). */
+/* 3D flip helpers for flashcards (Tailwind v3 has no rotate-y util). */
 .perspective {
   perspective: 1000px;
 }
@@ -368,6 +368,13 @@ body {
 }
 .rotate-y-180 {
   transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flashcard-flip {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 /* --- Login page playful helpers --- */
