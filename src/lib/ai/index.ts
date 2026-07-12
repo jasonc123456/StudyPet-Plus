@@ -1,17 +1,12 @@
 // Public AI generation API (US-3.2).
 //
-// This is the interface US-3.3 (flashcards) and US-3.4 (quizzes) consume:
-//
 //   const { items, provider } = await generateFlashcards({ sourceText });
 //   const { items, provider } = await generateQuiz({ sourceText });
 //
-// Callers get schema-validated, ready-to-persist data and never touch a model
-// directly. Under the hood this asks the provider chain (Gemini → DeepSeek) for
-// a JSON object and validates it. Canned demo material is returned only when
-// AI_DEMO_MODE=true. With no API key and demo off, generation fails clearly
-// so callers know to configure GEMINI_API_KEY or DEEPSEEK_API_KEY.
+// Gemini is primary whenever GEMINI_API_KEY is set and AI_DEMO_MODE !== "true".
+// DeepSeek is fallback only. Demo cards are returned ONLY when AI_DEMO_MODE === "true".
 
-import { getAiRuntimeStatus } from '@/lib/ai/config';
+import { AI_NOT_CONFIGURED_MESSAGE, getAiRuntimeStatus } from '@/lib/ai/config';
 import {
   AiProviderError,
   hasConfiguredProvider,
@@ -31,7 +26,6 @@ import {
 const DEFAULT_COUNT = 8;
 const MIN_COUNT = 1;
 const MAX_COUNT = 20;
-// Keep prompts (and cost) bounded — the source text is truncated to this.
 const MAX_SOURCE_CHARS = 12_000;
 
 function clampCount(count: number | undefined): number {
@@ -41,6 +35,29 @@ function clampCount(count: number | undefined): number {
 
 function prepareSource(text: string): string {
   return text.trim().slice(0, MAX_SOURCE_CHARS);
+}
+
+/** Collapse equivalent cards (same front+back, case/whitespace-insensitive). */
+export function dedupeFlashcards(cards: Flashcard[]): Flashcard[] {
+  const seen = new Set<string>();
+  const unique: Flashcard[] = [];
+  for (const card of cards) {
+    const key = `${card.front.trim().toLowerCase()}::${card.back.trim().toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push({
+      topic: card.topic.trim(),
+      front: card.front.trim(),
+      back: card.back.trim(),
+    });
+  }
+  return unique;
+}
+
+function providerDisplayName(provider: 'gemini' | 'deepseek' | 'demo'): string {
+  if (provider === 'gemini') return 'Gemini';
+  if (provider === 'deepseek') return 'DeepSeek';
+  return 'demo';
 }
 
 // ---------------------------------------------------------------------------
@@ -53,20 +70,26 @@ function flashcardPrompt(
   topicHint?: string
 ): JsonPrompt {
   const hint = topicHint?.trim()
-    ? ` The overall subject is "${topicHint.trim()}".`
+    ? ` The course/subject context is "${topicHint.trim()}" — use it only for topic tags when it fits the notes.`
     : '';
   return {
     system:
       "You are a study assistant that turns a student's notes into concise, " +
-      'accurate flashcards. Only use facts present in the provided notes; never ' +
-      'invent material. Respond with JSON only.',
+      'accurate flashcards for exam review. Rules:\n' +
+      '1. Use ONLY facts explicitly present in the provided NOTES.\n' +
+      '2. Never invent facts, definitions, or examples that are not in the notes.\n' +
+      '3. Do NOT create generic study-skill cards (spaced repetition, active recall, ' +
+      'how flashcards work, meta-learning tips, or how to configure AI).\n' +
+      '4. Each card must test a specific concept, term, formula, or fact from the notes.\n' +
+      '5. Respond with JSON only — no markdown fences or commentary.',
     user:
-      `Create ${count} flashcards from the notes below.${hint}\n\n` +
-      'Return a JSON object of the exact shape:\n' +
+      `Create exactly ${count} flashcards from the NOTES below.${hint}\n\n` +
+      'Return a JSON object of this exact shape:\n' +
       '{ "cards": [ { "topic": string, "front": string, "back": string } ] }\n' +
-      '- "topic": a short subject/section tag (a few words).\n' +
-      '- "front": a question or prompt.\n' +
-      '- "back": the concise answer.\n\n' +
+      '- "topic": a short subject/section tag grounded in the notes (a few words).\n' +
+      '- "front": a clear question or prompt about the notes.\n' +
+      '- "back": a concise answer drawn only from the notes.\n' +
+      '- Prefer variety across distinct facts in the notes; avoid near-duplicate cards.\n\n' +
       `NOTES:\n"""\n${source}\n"""`,
   };
 }
@@ -82,41 +105,53 @@ export async function generateFlashcards(
   }
 
   const status = getAiRuntimeStatus();
+  console.info('[ai] generateFlashcards start', {
+    geminiConfigured: status.geminiConfigured,
+    deepseekConfigured: status.deepseekConfigured,
+    demoMode: status.demoMode,
+    count,
+  });
 
+  // Demo ONLY when AI_DEMO_MODE === "true" — never as a silent fallback.
   if (status.demoMode) {
-    console.warn(
-      '[ai] generateFlashcards using demo material (AI_DEMO_MODE=true)'
-    );
+    console.warn('[ai] generateFlashcards selected provider=demo');
     return { items: demoFlashcards(count, input.topicHint), provider: 'demo' };
   }
 
   if (!hasConfiguredProvider()) {
-    console.error('[ai] generateFlashcards missing API keys', status);
-    throw new AiProviderError(
-      'gemini',
-      'no AI providers are configured — set GEMINI_API_KEY or DEEPSEEK_API_KEY'
-    );
+    console.error('[ai] generateFlashcards missing API keys', {
+      geminiConfigured: status.geminiConfigured,
+      deepseekConfigured: status.deepseekConfigured,
+      demoMode: status.demoMode,
+    });
+    throw new AiProviderError('gemini', AI_NOT_CONFIGURED_MESSAGE);
   }
-
-  console.info('[ai] generateFlashcards calling provider', {
-    geminiConfigured: status.geminiConfigured,
-    deepseekConfigured: status.deepseekConfigured,
-    geminiModel: status.geminiModel,
-    count,
-  });
 
   const run = await runWithFallback(
     flashcardPrompt(source, count, input.topicHint),
     (value) => flashcardResponseSchema.safeParse(value).success
   );
 
-  // Safe: runWithFallback only returns values that passed this same schema.
-  const { cards } = flashcardResponseSchema.parse(run.value);
+  const parsed = flashcardResponseSchema.parse(run.value);
+  const cards = dedupeFlashcards(parsed.cards).slice(0, count);
+
+  if (cards.length === 0) {
+    throw new AiProviderError(
+      run.provider,
+      'provider returned no usable flashcards after validation'
+    );
+  }
+
   console.info('[ai] generateFlashcards ok', {
+    geminiConfigured: status.geminiConfigured,
+    deepseekConfigured: status.deepseekConfigured,
+    demoMode: status.demoMode,
     provider: run.provider,
+    providerLabel: providerDisplayName(run.provider),
     cards: cards.length,
   });
-  return { items: cards.slice(0, count), provider: run.provider };
+
+  return { items: cards, provider: run.provider };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,13 +164,14 @@ function quizPrompt(
   topicHint?: string
 ): JsonPrompt {
   const hint = topicHint?.trim()
-    ? ` The overall subject is "${topicHint.trim()}".`
+    ? ` The course/subject context is "${topicHint.trim()}".`
     : '';
   return {
     system:
       'You are a study assistant that writes fair multiple-choice quiz ' +
       "questions from a student's notes. Only use facts present in the notes; " +
-      'never invent material. Respond with JSON only.',
+      'never invent material. Do not ask meta questions about study skills or AI. ' +
+      'Respond with JSON only.',
     user:
       `Write ${count} multiple-choice questions from the notes below.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
@@ -159,18 +195,25 @@ export async function generateQuiz(
   }
 
   const status = getAiRuntimeStatus();
+  console.info('[ai] generateQuiz start', {
+    geminiConfigured: status.geminiConfigured,
+    deepseekConfigured: status.deepseekConfigured,
+    demoMode: status.demoMode,
+    count,
+  });
 
   if (status.demoMode) {
-    console.warn('[ai] generateQuiz using demo material (AI_DEMO_MODE=true)');
+    console.warn('[ai] generateQuiz selected provider=demo');
     return { items: demoQuiz(count, input.topicHint), provider: 'demo' };
   }
 
   if (!hasConfiguredProvider()) {
-    console.error('[ai] generateQuiz missing API keys', status);
-    throw new AiProviderError(
-      'gemini',
-      'no AI providers are configured — set GEMINI_API_KEY or DEEPSEEK_API_KEY'
-    );
+    console.error('[ai] generateQuiz missing API keys', {
+      geminiConfigured: status.geminiConfigured,
+      deepseekConfigured: status.deepseekConfigured,
+      demoMode: status.demoMode,
+    });
+    throw new AiProviderError('gemini', AI_NOT_CONFIGURED_MESSAGE);
   }
 
   const run = await runWithFallback(
@@ -179,12 +222,15 @@ export async function generateQuiz(
   );
 
   const { questions } = quizResponseSchema.parse(run.value);
+  console.info('[ai] generateQuiz ok', {
+    provider: run.provider,
+    questions: questions.length,
+  });
   return { items: questions.slice(0, count), provider: run.provider };
 }
 
 // ---------------------------------------------------------------------------
-// Demo material — returned only when AI_DEMO_MODE=true.
-// Deterministic and obviously fake so it's never mistaken for real output.
+// Demo material — returned ONLY when AI_DEMO_MODE === "true".
 // ---------------------------------------------------------------------------
 
 function demoFlashcards(count: number, topicHint?: string): Flashcard[] {

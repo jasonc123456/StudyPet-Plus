@@ -34,6 +34,7 @@ export type GenerateFlashcardsActionState =
   | {
       ok: true;
       flashcards: FlashcardRow[];
+      generatedCount: number;
       provider: string;
       noteId?: string;
     }
@@ -66,13 +67,14 @@ function mapServiceError(error: unknown): GenerateFlashcardsActionState {
   }
 
   if (error instanceof AiProviderError) {
-    console.error('[ai] flashcard provider error', error.message);
-    const missingKey = /no AI providers are configured/i.test(error.message);
+    console.error('[ai] flashcard provider error', error.message.slice(0, 300));
+    const notConfigured =
+      /AI generation is not configured|Set GEMINI_API_KEY/i.test(error.message);
     return {
       ok: false,
-      error: missingKey
-        ? 'AI is not configured in the running app. Confirm GEMINI_API_KEY is set, AI_DEMO_MODE is false, then rebuild/restart the app container so it picks up .env.'
-        : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Check server logs for [ai] details, then try again.',
+      error: notConfigured
+        ? 'AI generation is not configured. Set GEMINI_API_KEY on the server.'
+        : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.',
       code: 'AI_ERROR',
     };
   }
@@ -90,7 +92,8 @@ function mapServiceError(error: unknown): GenerateFlashcardsActionState {
  */
 export async function generateFlashcardsAction(
   noteId: string,
-  count?: number
+  count?: number,
+  replaceGenerated?: boolean
 ): Promise<GenerateFlashcardsActionState> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -106,6 +109,7 @@ export async function generateFlashcardsAction(
       noteId,
       userId: session.user.id,
       count,
+      replaceGenerated: Boolean(replaceGenerated),
     });
 
     revalidateFlashcardPaths(noteId);
@@ -113,6 +117,7 @@ export async function generateFlashcardsAction(
     return {
       ok: true,
       flashcards: result.flashcards,
+      generatedCount: result.generatedCount,
       provider: result.provider,
       noteId,
     };
@@ -159,6 +164,7 @@ export async function createFlashcardsFromPasteAction(input: {
     return {
       ok: true,
       flashcards: result.flashcards,
+      generatedCount: result.generatedCount,
       provider: result.provider,
       noteId: result.noteId,
     };

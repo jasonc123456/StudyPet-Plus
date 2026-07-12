@@ -11,6 +11,8 @@ import {
 export type NoteOption = {
   id: string;
   title: string;
+  /** Existing flashcard count for this note (0 if none). */
+  cardCount?: number;
 };
 
 type CreateFlashcardsPanelProps = {
@@ -21,9 +23,28 @@ type CreateFlashcardsPanelProps = {
 
 type LastPayload =
   | { mode: 'paste'; content: string; title: string; count: number }
-  | { mode: 'note'; noteId: string; count: number };
+  | {
+      mode: 'note';
+      noteId: string;
+      count: number;
+      replaceGenerated: boolean;
+    };
 
 const DEFAULT_COUNT = 10;
+
+function providerSuccessLabel(provider: string, count: number): string {
+  const countLabel = `${count} flashcard${count === 1 ? '' : 's'}`;
+  if (provider === 'gemini') {
+    return `Generated ${countLabel} with Gemini.`;
+  }
+  if (provider === 'deepseek') {
+    return `Generated ${countLabel} with DeepSeek.`;
+  }
+  if (provider === 'demo') {
+    return `Saved ${countLabel} in demo mode (not AI). Set AI_DEMO_MODE=false and GEMINI_API_KEY for real cards.`;
+  }
+  return `Generated ${countLabel}.`;
+}
 
 export function CreateFlashcardsPanel({
   notes,
@@ -36,12 +57,20 @@ export function CreateFlashcardsPanel({
   const [title, setTitle] = useState('');
   const [noteId, setNoteId] = useState('');
   const [count, setCount] = useState(DEFAULT_COUNT);
+  const [replaceGenerated, setReplaceGenerated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [lastPayload, setLastPayload] = useState<LastPayload | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const usingExistingNote = Boolean(noteId);
+
+  const selectedNote = useMemo(
+    () => notes.find((note) => note.id === noteId) ?? null,
+    [notes, noteId]
+  );
+
+  const selectedHasCards = (selectedNote?.cardCount ?? 0) > 0;
 
   const helperText = useMemo(() => {
     if (usingExistingNote) {
@@ -51,6 +80,8 @@ export function CreateFlashcardsPanel({
   }, [usingExistingNote]);
 
   function runGenerate(payload: LastPayload) {
+    if (isPending) return;
+
     setError(null);
     setStatusMessage(null);
     setLastPayload(payload);
@@ -63,27 +94,25 @@ export function CreateFlashcardsPanel({
               title: payload.title || undefined,
               count: payload.count,
             })
-          : await generateFlashcardsAction(payload.noteId, payload.count);
+          : await generateFlashcardsAction(
+              payload.noteId,
+              payload.count,
+              payload.replaceGenerated
+            );
 
       if (!result.ok) {
         setError(result.error);
         return;
       }
 
-      const countLabel = `${result.flashcards.length} flashcard${
-        result.flashcards.length === 1 ? '' : 's'
-      }`;
-      if (result.provider === 'demo') {
-        setStatusMessage(
-          `Generated ${countLabel} in demo mode. Set GEMINI_API_KEY for real AI cards from your notes.`
-        );
-      } else {
-        setStatusMessage(`Generated ${countLabel} with ${result.provider}.`);
-      }
+      setStatusMessage(
+        providerSuccessLabel(result.provider, result.generatedCount)
+      );
 
       setContent('');
       setTitle('');
       setNoteId('');
+      setReplaceGenerated(false);
       setExpanded(false);
       onGenerated?.();
       router.refresh();
@@ -92,9 +121,15 @@ export function CreateFlashcardsPanel({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isPending) return;
 
     if (noteId) {
-      runGenerate({ mode: 'note', noteId, count });
+      runGenerate({
+        mode: 'note',
+        noteId,
+        count,
+        replaceGenerated: selectedHasCards ? replaceGenerated : false,
+      });
       return;
     }
 
@@ -177,6 +212,7 @@ export function CreateFlashcardsPanel({
             disabled={isPending}
             onChange={(e) => {
               setNoteId(e.target.value);
+              setReplaceGenerated(false);
               setError(null);
             }}
           >
@@ -189,6 +225,9 @@ export function CreateFlashcardsPanel({
               notes.map((note) => (
                 <option key={note.id} value={note.id}>
                   {note.title}
+                  {(note.cardCount ?? 0) > 0
+                    ? ` (${note.cardCount} cards)`
+                    : ''}
                 </option>
               ))
             )}
@@ -241,6 +280,22 @@ export function CreateFlashcardsPanel({
               />
             </div>
           </>
+        )}
+
+        {usingExistingNote && selectedHasCards && (
+          <label className="flex items-start gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={replaceGenerated}
+              disabled={isPending}
+              onChange={(e) => setReplaceGenerated(e.target.checked)}
+            />
+            <span>
+              Replace generated cards for this note (keeps cards you added
+              manually).
+            </span>
+          </label>
         )}
 
         <div className="flex flex-wrap items-end gap-4">
