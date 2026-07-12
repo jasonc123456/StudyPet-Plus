@@ -66,10 +66,12 @@ function mapServiceError(error: unknown): GenerateFlashcardsActionState {
   }
 
   if (error instanceof AiProviderError) {
+    const missingKey = /no AI providers are configured/i.test(error.message);
     return {
       ok: false,
-      error:
-        'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.',
+      error: missingKey
+        ? 'AI is not configured. Set GEMINI_API_KEY (or DEEPSEEK_API_KEY) in your server .env, keep AI_DEMO_MODE unset or false, then restart the app.'
+        : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.',
       code: 'AI_ERROR',
     };
   }

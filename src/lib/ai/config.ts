@@ -39,9 +39,9 @@ export function getDeepSeekConfig(): DeepSeekConfig | null {
 }
 
 /**
- * Demo mode returns canned material instead of calling any provider. It's ON
- * when AI_DEMO_MODE=true, and also implicitly ON when no provider is configured
- * so the feature degrades gracefully instead of erroring for a fresh checkout.
+ * Demo mode returns canned material instead of calling any provider.
+ * Only ON when AI_DEMO_MODE=true — without that flag, generation requires a
+ * configured GEMINI_API_KEY or DEEPSEEK_API_KEY.
  */
 export function isDemoModeForced(): boolean {
   return process.env.AI_DEMO_MODE?.trim().toLowerCase() === 'true';

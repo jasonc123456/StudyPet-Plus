@@ -7,12 +7,13 @@
 //
 // Callers get schema-validated, ready-to-persist data and never touch a model
 // directly. Under the hood this asks the provider chain (Gemini → DeepSeek) for
-// a JSON object, validates it, and falls back to canned demo material when
-// AI_DEMO_MODE=true or no provider is configured — so the feature always
-// returns something usable.
+// a JSON object and validates it. Canned demo material is returned only when
+// AI_DEMO_MODE=true. With no API key and demo off, generation fails clearly
+// so callers know to configure GEMINI_API_KEY or DEEPSEEK_API_KEY.
 
 import { isDemoModeForced } from '@/lib/ai/config';
 import {
+  AiProviderError,
   hasConfiguredProvider,
   runWithFallback,
   type JsonPrompt,
@@ -80,8 +81,15 @@ export async function generateFlashcards(
     throw new Error('generateFlashcards: sourceText is empty');
   }
 
-  if (isDemoModeForced() || !hasConfiguredProvider()) {
+  if (isDemoModeForced()) {
     return { items: demoFlashcards(count, input.topicHint), provider: 'demo' };
+  }
+
+  if (!hasConfiguredProvider()) {
+    throw new AiProviderError(
+      'gemini',
+      'no AI providers are configured — set GEMINI_API_KEY or DEEPSEEK_API_KEY'
+    );
   }
 
   const run = await runWithFallback(
@@ -133,8 +141,15 @@ export async function generateQuiz(
     throw new Error('generateQuiz: sourceText is empty');
   }
 
-  if (isDemoModeForced() || !hasConfiguredProvider()) {
+  if (isDemoModeForced()) {
     return { items: demoQuiz(count, input.topicHint), provider: 'demo' };
+  }
+
+  if (!hasConfiguredProvider()) {
+    throw new AiProviderError(
+      'gemini',
+      'no AI providers are configured — set GEMINI_API_KEY or DEEPSEEK_API_KEY'
+    );
   }
 
   const run = await runWithFallback(
@@ -147,7 +162,7 @@ export async function generateQuiz(
 }
 
 // ---------------------------------------------------------------------------
-// Demo material — returned when AI_DEMO_MODE=true or no key is configured.
+// Demo material — returned only when AI_DEMO_MODE=true.
 // Deterministic and obviously fake so it's never mistaken for real output.
 // ---------------------------------------------------------------------------
 

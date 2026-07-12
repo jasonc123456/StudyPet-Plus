@@ -37,6 +37,7 @@ export function CreateFlashcardsPanel({
   const [noteId, setNoteId] = useState('');
   const [count, setCount] = useState(DEFAULT_COUNT);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [lastPayload, setLastPayload] = useState<LastPayload | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -51,6 +52,7 @@ export function CreateFlashcardsPanel({
 
   function runGenerate(payload: LastPayload) {
     setError(null);
+    setStatusMessage(null);
     setLastPayload(payload);
 
     startTransition(async () => {
@@ -66,6 +68,17 @@ export function CreateFlashcardsPanel({
       if (!result.ok) {
         setError(result.error);
         return;
+      }
+
+      const countLabel = `${result.flashcards.length} flashcard${
+        result.flashcards.length === 1 ? '' : 's'
+      }`;
+      if (result.provider === 'demo') {
+        setStatusMessage(
+          `Generated ${countLabel} in demo mode. Set GEMINI_API_KEY for real AI cards from your notes.`
+        );
+      } else {
+        setStatusMessage(`Generated ${countLabel} with ${result.provider}.`);
       }
 
       setContent('');
@@ -100,17 +113,30 @@ export function CreateFlashcardsPanel({
 
   if (!expanded) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <p className="text-sm text-slate-600">
-          Study your sets below, or create another set from notes.
-        </p>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => setExpanded(true)}
-        >
-          New set
-        </button>
+      <div className="flex flex-col gap-3">
+        {statusMessage && (
+          <p
+            role="status"
+            className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+          >
+            {statusMessage}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-sm text-slate-600">
+            Study your sets below, or create another set from notes.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setExpanded(true);
+              setStatusMessage(null);
+            }}
+          >
+            New set
+          </button>
+        </div>
       </div>
     );
   }
@@ -276,6 +302,15 @@ export function CreateFlashcardsPanel({
             className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
           >
             {error}
+          </p>
+        )}
+
+        {statusMessage && !error && (
+          <p
+            role="status"
+            className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+          >
+            {statusMessage}
           </p>
         )}
       </form>
