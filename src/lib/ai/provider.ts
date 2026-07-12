@@ -1,6 +1,8 @@
 // AI provider abstraction with automatic fallback (US-3.2).
 //
-//   Gemini (primary)  ──fails──▶  DeepSeek (fallback)  ──fails/unconfigured──▶  demo
+//   Gemini (primary)  ──fails──▶  DeepSeek (fallback)
+//
+// Demo material is only used when AI_DEMO_MODE=true (see src/lib/ai/index.ts).
 //
 // Each provider's only job is: take a system + user prompt and return a parsed
 // JSON *object* (json_object / responseMimeType mode). The caller then validates

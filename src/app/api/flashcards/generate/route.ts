@@ -43,10 +43,11 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof AiProviderError) {
+      console.error('[ai] POST /api/flashcards/generate', error.message);
       const missingKey = /no AI providers are configured/i.test(error.message);
       return jsonError(
         missingKey
-          ? 'AI is not configured. Set GEMINI_API_KEY (or DEEPSEEK_API_KEY) in your server .env, keep AI_DEMO_MODE unset or false, then restart the app.'
+          ? 'AI is not configured in the running app. Confirm GEMINI_API_KEY is set, AI_DEMO_MODE is false, then rebuild/restart the app container so it picks up .env.'
           : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.',
         missingKey ? 503 : 502
       );
