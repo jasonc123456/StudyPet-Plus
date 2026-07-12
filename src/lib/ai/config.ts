@@ -47,11 +47,10 @@ export function getDeepSeekConfig(): DeepSeekConfig | null {
 
 /**
  * Demo mode returns canned material instead of calling any provider.
- * Only ON when AI_DEMO_MODE=true — without that flag, generation requires a
- * configured GEMINI_API_KEY or DEEPSEEK_API_KEY.
+ * Strict: only the exact string "true" enables demo (per product requirement).
  */
 export function isDemoModeForced(): boolean {
-  return readEnv('AI_DEMO_MODE')?.toLowerCase() === 'true';
+  return process.env['AI_DEMO_MODE'] === 'true';
 }
 
 /** Safe status for logs / errors — never includes secret values. */
@@ -73,3 +72,7 @@ export function getAiRuntimeStatus(): {
 
 /** How long to wait on a single provider before giving up and falling over. */
 export const AI_REQUEST_TIMEOUT_MS = 30_000;
+
+/** User-facing message when no provider key is available (and demo is off). */
+export const AI_NOT_CONFIGURED_MESSAGE =
+  'AI generation is not configured. Set GEMINI_API_KEY on the server.';

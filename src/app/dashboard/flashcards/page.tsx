@@ -25,7 +25,7 @@ export default async function DashboardFlashcardsPage() {
   const userId = session.user.id;
 
   let sets: FlashcardSetData[] = [];
-  let notes: { id: string; title: string }[] = [];
+  let notes: { id: string; title: string; cardCount: number }[] = [];
   let schemaError: string | null = null;
 
   try {
@@ -54,11 +54,19 @@ export default async function DashboardFlashcardsPage() {
       prisma.note.findMany({
         where: { userId },
         orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true },
+        select: {
+          id: true,
+          title: true,
+          _count: { select: { flashcards: true } },
+        },
       }),
     ]);
 
-    notes = allNotes;
+    notes = allNotes.map((note) => ({
+      id: note.id,
+      title: note.title,
+      cardCount: note._count.flashcards,
+    }));
     sets = notesWithCards.map((note) => {
       const topics = Array.from(
         new Set(note.flashcards.map((card) => card.topic))

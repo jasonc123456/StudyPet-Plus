@@ -19,6 +19,20 @@ type GenerateFlashcardsButtonProps = {
   hasContent: boolean;
 };
 
+function providerSuccessLabel(provider: string, count: number): string {
+  const countLabel = `${count} flashcard${count === 1 ? '' : 's'}`;
+  if (provider === 'gemini') {
+    return `Generated ${countLabel} with Gemini.`;
+  }
+  if (provider === 'deepseek') {
+    return `Generated ${countLabel} with DeepSeek.`;
+  }
+  if (provider === 'demo') {
+    return `Saved ${countLabel} in demo mode (not AI).`;
+  }
+  return `Generated ${countLabel}.`;
+}
+
 export function GenerateFlashcardsButton({
   noteId,
   initialFlashcards,
@@ -28,33 +42,32 @@ export function GenerateFlashcardsButton({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [replaceGenerated, setReplaceGenerated] = useState(false);
   const [flashcards, setFlashcards] =
     useState<FlashcardPreviewItem[]>(initialFlashcards);
 
   function handleGenerate() {
+    if (isPending || !hasContent) return;
+
     setError(null);
     setSuccessMessage(null);
 
     startTransition(async () => {
-      const result = await generateFlashcardsAction(noteId);
+      const result = await generateFlashcardsAction(
+        noteId,
+        undefined,
+        flashcards.length > 0 ? replaceGenerated : false
+      );
 
       if (!result.ok) {
         setError(result.error);
         return;
       }
 
-      // Merge newly generated cards at the top of the local preview.
-      setFlashcards((prev) => {
-        const existingIds = new Set(prev.map((c) => c.id));
-        const fresh = result.flashcards.filter((c) => !existingIds.has(c.id));
-        return [...fresh, ...prev];
-      });
+      setFlashcards(result.flashcards);
 
-      const providerLabel = result.provider === 'demo' ? ' (demo mode)' : '';
       setSuccessMessage(
-        `Generated ${result.flashcards.length} flashcard${
-          result.flashcards.length === 1 ? '' : 's'
-        }${providerLabel}.`
+        providerSuccessLabel(result.provider, result.generatedCount)
       );
       router.refresh();
     });
@@ -91,6 +104,19 @@ export function GenerateFlashcardsButton({
         </button>
       </div>
 
+      {flashcards.length > 0 && (
+        <label className="flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={replaceGenerated}
+            disabled={isPending}
+            onChange={(e) => setReplaceGenerated(e.target.checked)}
+          />
+          <span>Replace generated cards (keeps cards you added manually).</span>
+        </label>
+      )}
+
       {!hasContent && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Add and save note content before generating flashcards.
@@ -98,12 +124,23 @@ export function GenerateFlashcardsButton({
       )}
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {error}
-        </p>
+        <div className="flex flex-col gap-2">
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </p>
+          {!isPending && (
+            <button
+              type="button"
+              className="btn-secondary self-start"
+              onClick={handleGenerate}
+            >
+              Retry
+            </button>
+          )}
+        </div>
       )}
 
       {successMessage && !error && (

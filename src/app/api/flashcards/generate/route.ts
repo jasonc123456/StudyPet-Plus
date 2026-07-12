@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       noteId: parsed.data.noteId,
       userId: authResult.user.id,
       count: parsed.data.count,
+      replaceGenerated: parsed.data.replaceGenerated,
     });
     return jsonOk(result, 201);
   } catch (error) {
@@ -43,13 +44,18 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof AiProviderError) {
-      console.error('[ai] POST /api/flashcards/generate', error.message);
-      const missingKey = /no AI providers are configured/i.test(error.message);
+      console.error(
+        '[ai] POST /api/flashcards/generate',
+        error.message.slice(0, 300)
+      );
+      const notConfigured = /not configured|GEMINI_API_KEY/i.test(
+        error.message
+      );
       return jsonError(
-        missingKey
-          ? 'AI is not configured in the running app. Confirm GEMINI_API_KEY is set, AI_DEMO_MODE is false, then rebuild/restart the app container so it picks up .env.'
+        notConfigured
+          ? 'AI generation is not configured. Set GEMINI_API_KEY on the server.'
           : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.',
-        missingKey ? 503 : 502
+        notConfigured ? 503 : 502
       );
     }
 

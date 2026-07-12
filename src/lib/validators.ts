@@ -295,6 +295,7 @@ export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 export const generateFlashcardsRequestSchema = z.object({
   noteId: z.string().cuid(),
   count: z.coerce.number().int().min(1).max(20).optional(),
+  replaceGenerated: z.boolean().optional().default(false),
 });
 
 export type GenerateFlashcardsRequestInput = z.infer<

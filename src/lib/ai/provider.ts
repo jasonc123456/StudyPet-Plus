@@ -203,8 +203,7 @@ export interface ProviderRun {
  * response so we fall over to the next provider instead of surfacing garbage —
  * a malformed-but-parseable JSON body is treated as a provider failure.
  *
- * Throws AiProviderError only if EVERY configured provider fails; callers that
- * want graceful degradation should catch it and fall back to demo data.
+ * Throws AiProviderError only if EVERY configured provider fails.
  */
 export async function runWithFallback(
   prompt: JsonPrompt,
@@ -212,12 +211,20 @@ export async function runWithFallback(
 ): Promise<ProviderRun> {
   const configured = PROVIDER_CHAIN.filter((p) => p.isConfigured());
   if (configured.length === 0) {
-    throw new AiProviderError('gemini', 'no AI providers are configured');
+    throw new AiProviderError(
+      'gemini',
+      'AI generation is not configured. Set GEMINI_API_KEY on the server.'
+    );
   }
+
+  console.info('[ai] provider chain', {
+    providers: configured.map((p) => p.name),
+  });
 
   const errors: string[] = [];
   for (const provider of configured) {
     try {
+      console.info('[ai] trying provider', { provider: provider.name });
       const value = await provider.generateJson(prompt);
       if (!validate(value)) {
         throw new AiProviderError(
@@ -225,9 +232,15 @@ export async function runWithFallback(
           'response failed schema validation'
         );
       }
+      console.info('[ai] selected provider', { provider: provider.name });
       return { provider: provider.name, value };
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[ai] provider failed', {
+        provider: provider.name,
+        error: message.slice(0, 200),
+      });
+      errors.push(message);
     }
   }
 
