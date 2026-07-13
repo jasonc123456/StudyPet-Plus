@@ -32,6 +32,10 @@ type PetXpResponse = {
  */
 export function useFlashcardReviewXp() {
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Cards the server has already resolved this session (awarded, or already
+  // earned today) — re-marking them must not refire a request or flash "+XP".
+  // The server is still the authority; this just keeps the UI honest.
+  const settledRef = useRef<Set<string>>(new Set());
 
   const recordReview = useCallback(
     async (event: FlashcardReviewXpEvent): Promise<FlashcardReviewXpResult> => {
@@ -39,7 +43,10 @@ export function useFlashcardReviewXp() {
         return { awarded: false, xp: 0 };
       }
 
-      if (inFlightRef.current.has(event.cardId)) {
+      if (
+        settledRef.current.has(event.cardId) ||
+        inFlightRef.current.has(event.cardId)
+      ) {
         return { awarded: false, xp: 0 };
       }
       inFlightRef.current.add(event.cardId);
@@ -76,6 +83,10 @@ export function useFlashcardReviewXp() {
           typeof data.xpAwarded === 'number' && data.xpAwarded > 0
             ? data.xpAwarded
             : 0;
+
+        // The server has spoken for this card (granted XP, or reported it was
+        // already earned today). Either way, don't ask again this session.
+        settledRef.current.add(event.cardId);
 
         return { awarded: xp > 0, xp };
       } catch (error) {

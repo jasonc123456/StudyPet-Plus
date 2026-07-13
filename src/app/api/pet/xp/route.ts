@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
-import { awardPetXp, xpForFlashcardReview } from '@/lib/pet-xp';
+import { awardFlashcardReviewXp, awardPetXp } from '@/lib/pet-xp';
 import { awardPetXpSchema, zodFirstError } from '@/lib/validators';
 
 export async function POST(request: Request) {
@@ -20,12 +20,15 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { action, outcome } = parsed.data;
+  const { action, outcome, cardId } = parsed.data;
 
-  const xpAwarded =
-    action === 'flashcard_review' ? xpForFlashcardReview(outcome) : 0;
-
-  const pet = await awardPetXp(authResult.user.id, xpAwarded);
+  // Only a "known" mark earns XP, and the award is deduped server-side to at
+  // most once per card per day (see awardFlashcardReviewXp). An "unknown" mark
+  // just returns the current pet so the client stays in sync.
+  const { pet, xp: xpAwarded } =
+    action === 'flashcard_review' && outcome === 'known'
+      ? await awardFlashcardReviewXp(authResult.user.id, cardId)
+      : { pet: await awardPetXp(authResult.user.id, 0), xp: 0 };
 
   return jsonOk({
     pet: {
