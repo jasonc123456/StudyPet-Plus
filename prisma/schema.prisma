@@ -73,6 +73,8 @@ model User {
   pet                   Pet?
   notes                 Note[]
   flashcards            Flashcard[]
+  quizzes               Quiz[]
+  quizQuestions         QuizQuestion[]
   calendarSubscriptions CalendarSubscription[]
   gradeProfile          GradeProfile?
   gradeScaleEntries     GradeScaleEntry[]
@@ -169,6 +171,7 @@ model Course {
   assignments Assignment[]
   notes       Note[]
   flashcards  Flashcard[]
+  quizzes     Quiz[]
   gradeCategories GradeCategory[]
 
   @@index([userId])
@@ -440,6 +443,7 @@ model Note {
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   course     Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
   flashcards Flashcard[]
+  quizzes    Quiz[]
 
   @@index([userId])
   @@index([courseId])
@@ -471,6 +475,51 @@ model Flashcard {
   @@index([userId])
   @@index([noteId])
   @@index([courseId])
+  @@index([topic])
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 3 (US-3.4) — Quizzes.
+//
+// AI-generated multiple-choice quizzes persisted from a Note's content. Each
+// Quiz is one generation batch; QuizQuestion rows map to the US-3.2 AI contract
+// (`answerIndex` → `correctIndex` at persistence time).
+// ---------------------------------------------------------------------------
+
+model Quiz {
+  id        String   @id @default(cuid())
+  userId    String
+  noteId    String
+  courseId  String? // copied from Note at generation; null if uncategorized
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note      Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  course    Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  questions QuizQuestion[]
+
+  @@index([userId])
+  @@index([noteId])
+  @@index([courseId])
+}
+
+model QuizQuestion {
+  id           String   @id @default(cuid())
+  userId       String
+  quizId       String
+  topic        String
+  question     String
+  choices      String[]
+  correctIndex Int
+  explanation  String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([quizId])
   @@index([topic])
 }
 
