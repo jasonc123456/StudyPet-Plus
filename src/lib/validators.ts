@@ -302,6 +302,26 @@ export type GenerateFlashcardsRequestInput = z.infer<
   typeof generateFlashcardsRequestSchema
 >;
 
+/** Body for POST /api/quizzes/generate (US-3.4). */
+export const generateQuizRequestSchema = z.object({
+  noteId: z.string().cuid(),
+  count: z.coerce.number().int().min(1).max(20).optional(),
+  replaceGenerated: z.boolean().optional().default(false),
+});
+
+export type GenerateQuizRequestInput = z.infer<
+  typeof generateQuizRequestSchema
+>;
+
+/** Body for POST /api/pet/xp (US-3.6). */
+export const awardPetXpSchema = z.object({
+  action: z.literal('flashcard_review'),
+  cardId: z.string().cuid(),
+  outcome: z.enum(['known', 'unknown']),
+});
+
+export type AwardPetXpInput = z.infer<typeof awardPetXpSchema>;
+
 const flashcardFieldSchema = {
   topic: z.string().trim().min(1, 'Topic is required').max(80),
   front: z.string().trim().min(1, 'Front/question is required').max(500),

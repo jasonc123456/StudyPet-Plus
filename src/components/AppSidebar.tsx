@@ -124,6 +124,25 @@ function FlashcardsIcon({ className }: { className?: string }) {
   );
 }
 
+function QuizzesIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
 function CalendarIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -299,6 +318,7 @@ const NAV_LINKS = [
   { href: '/dashboard/grades', label: 'Grades', Icon: GradesIcon },
   { href: '/dashboard/groups', label: 'Groups', Icon: GroupsIcon },
   { href: '/dashboard/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
+  { href: '/dashboard/quizzes', label: 'Quizzes', Icon: QuizzesIcon },
 ];
 
 type AppChromeUser = {
