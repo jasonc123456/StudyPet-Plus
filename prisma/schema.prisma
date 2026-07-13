@@ -73,6 +73,7 @@ model User {
   pet                   Pet?
   notes                 Note[]
   flashcards            Flashcard[]
+  flashcardReviewAwards FlashcardReviewAward[]
   quizzes               Quiz[]
   quizQuestions         QuizQuestion[]
   calendarSubscriptions CalendarSubscription[]
@@ -472,10 +473,32 @@ model Flashcard {
   note   Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
   course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
+  reviewAwards FlashcardReviewAward[]
+
   @@index([userId])
   @@index([noteId])
   @@index([courseId])
   @@index([topic])
+}
+
+// Sprint 3 (US-3.6) — one row per flashcard-review XP grant. The unique
+// (userId, flashcardId, awardedOn) key caps the payout at once per card per
+// UTC day, so re-marking a card (same session, a reload, or a repeat pass)
+// can't farm XP, while a genuine review on a later day earns again.
+model FlashcardReviewAward {
+  id          String   @id @default(cuid())
+  userId      String
+  flashcardId String
+  awardedOn   String // UTC calendar day, "YYYY-MM-DD"
+  xp          Int
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flashcardId, awardedOn])
+  @@index([userId])
+  @@index([flashcardId])
 }
 
 // ---------------------------------------------------------------------------
