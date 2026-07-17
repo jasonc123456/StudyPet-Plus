@@ -1,13 +1,23 @@
 import { NextResponse } from 'next/server';
+import type { Note } from '@prisma/client';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
 import { deleteNotePdf, finalizeNotePdfUpload } from '@/lib/note-pdf';
 import { getOwnedCourse, getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
-import { updateNoteSchema, zodFirstError } from '@/lib/validators';
+import {
+  updateNoteSchema,
+  zodFirstError,
+  type UpdateNoteInput,
+} from '@/lib/validators';
 
 type RouteContext = {
   params: { noteId: string };
+};
+
+type PdfResolution = {
+  nextPdfName: string | null | undefined;
+  nextPdfUrl: string | null | undefined;
 };
 
 export async function GET(_request: Request, { params }: RouteContext) {
@@ -40,6 +50,56 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return jsonError('Note not found', 404);
   }
 
+  const parsed = await parseUpdateNoteBody(request);
+  if (parsed instanceof NextResponse) return parsed;
+
+  const courseError = await ensureOwnedCourseIfPresent(
+    parsed.courseId,
+    authResult.user.id
+  );
+  if (courseError) return courseError;
+
+  const pdfFields = await resolvePdfUpdateFields({
+    userId: authResult.user.id,
+    existing,
+    input: parsed,
+  });
+  if (pdfFields instanceof NextResponse) return pdfFields;
+
+  const note = await persistNoteUpdate({
+    noteId: params.noteId,
+    input: parsed,
+    pdf: pdfFields,
+  });
+
+  await cleanupReplacedPdf({
+    existingPdfUrl: existing.pdfUrl,
+    requestedPdfUrl: parsed.pdfUrl,
+    nextPdfUrl: pdfFields.nextPdfUrl,
+  });
+
+  return jsonOk(note);
+}
+
+export async function DELETE(_request: Request, { params }: RouteContext) {
+  const authResult = await requireUser();
+  if (authResult instanceof NextResponse) return authResult;
+
+  const existing = await getOwnedNote(params.noteId, authResult.user.id);
+  if (!existing) {
+    return jsonError('Note not found', 404);
+  }
+
+  await prisma.note.delete({ where: { id: params.noteId } });
+  await deleteNotePdf(existing.pdfUrl);
+
+  return jsonOk({ success: true });
+}
+
+/** Parse JSON + Zod validation for PATCH bodies. */
+async function parseUpdateNoteBody(
+  request: Request
+): Promise<UpdateNoteInput | NextResponse> {
   let body: unknown;
   try {
     body = await request.json();
@@ -52,14 +112,35 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { title, content, courseId, pdfName, pdfUrl, pdfToken } = parsed.data;
+  return parsed.data;
+}
 
-  if (courseId) {
-    const course = await getOwnedCourse(courseId, authResult.user.id);
-    if (!course) {
-      return jsonError('Course not found', 404);
-    }
+/** When courseId is a non-null id, require ownership; null/undefined skip. */
+async function ensureOwnedCourseIfPresent(
+  courseId: UpdateNoteInput['courseId'],
+  userId: string
+): Promise<NextResponse | null> {
+  if (!courseId) return null;
+
+  const course = await getOwnedCourse(courseId, userId);
+  if (!course) {
+    return jsonError('Course not found', 404);
   }
+
+  return null;
+}
+
+/**
+ * Resolve next pdfName/pdfUrl for the update, finalizing uploads when needed.
+ * Mirrors prior PATCH branching exactly (including clear-on-null).
+ */
+async function resolvePdfUpdateFields(args: {
+  userId: string;
+  existing: Note;
+  input: UpdateNoteInput;
+}): Promise<PdfResolution | NextResponse> {
+  const { userId, existing, input } = args;
+  const { pdfName, pdfUrl, pdfToken } = input;
 
   let nextPdfUrl = pdfUrl;
   let nextPdfName = pdfName;
@@ -79,17 +160,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     try {
       const finalized = await finalizeNotePdfUpload({
-        userId: authResult.user.id,
+        userId,
         pdfUrl,
         pdfToken,
       });
       nextPdfUrl = finalized.pdfUrl;
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to finalize uploaded PDF';
-      return jsonError(message, 400);
+      return jsonError(pdfFinalizeErrorMessage(error), 400);
     }
   }
 
@@ -98,42 +175,51 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     nextPdfUrl = null;
   }
 
-  const note = await prisma.note.update({
-    where: { id: params.noteId },
+  return { nextPdfName, nextPdfUrl };
+}
+
+function pdfFinalizeErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : 'Failed to finalize uploaded PDF';
+}
+
+async function persistNoteUpdate(args: {
+  noteId: string;
+  input: UpdateNoteInput;
+  pdf: PdfResolution;
+}) {
+  const { noteId, input, pdf } = args;
+  const { title, content, courseId, pdfName, pdfUrl } = input;
+
+  return prisma.note.update({
+    where: { id: noteId },
     data: {
       ...(title !== undefined && { title }),
       ...(content !== undefined && { content }),
       ...(courseId !== undefined && { courseId }),
-      ...(pdfName !== undefined && { pdfName: nextPdfName ?? null }),
-      ...(pdfUrl !== undefined && { pdfUrl: nextPdfUrl ?? null }),
+      ...(pdfName !== undefined && { pdfName: pdf.nextPdfName ?? null }),
+      ...(pdfUrl !== undefined && { pdfUrl: pdf.nextPdfUrl ?? null }),
     },
     include: {
       course: { select: { id: true, name: true, color: true } },
     },
   });
-
-  if (
-    pdfUrl !== undefined &&
-    existing.pdfUrl &&
-    existing.pdfUrl !== (nextPdfUrl ?? null)
-  ) {
-    await deleteNotePdf(existing.pdfUrl);
-  }
-
-  return jsonOk(note);
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
-  const authResult = await requireUser();
-  if (authResult instanceof NextResponse) return authResult;
+/** Delete the previous attachment when the stored URL actually changes. */
+async function cleanupReplacedPdf(args: {
+  existingPdfUrl: string | null;
+  requestedPdfUrl: UpdateNoteInput['pdfUrl'];
+  nextPdfUrl: string | null | undefined;
+}): Promise<void> {
+  const { existingPdfUrl, requestedPdfUrl, nextPdfUrl } = args;
 
-  const existing = await getOwnedNote(params.noteId, authResult.user.id);
-  if (!existing) {
-    return jsonError('Note not found', 404);
+  if (
+    requestedPdfUrl !== undefined &&
+    existingPdfUrl &&
+    existingPdfUrl !== (nextPdfUrl ?? null)
+  ) {
+    await deleteNotePdf(existingPdfUrl);
   }
-
-  await prisma.note.delete({ where: { id: params.noteId } });
-  await deleteNotePdf(existing.pdfUrl);
-
-  return jsonOk({ success: true });
 }
