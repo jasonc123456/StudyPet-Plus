@@ -7,6 +7,8 @@
 @tailwind utilities;
 
 :root {
+  /* Render native controls (select popups, number spinners, scrollbars) light. */
+  color-scheme: light;
   --page-bg: #f8fafc;
   --page-text: #0f172a;
   --card-bg: #ffffff;
@@ -30,6 +32,9 @@
 }
 
 html[data-theme='dark'] {
+  /* Native controls (select dropdowns, option lists, number spinners,
+     scrollbars) follow the OS dark rendering instead of staying white. */
+  color-scheme: dark;
   --page-bg: #191919;
   --page-text: #e2e8f0;
   --card-bg: #222222;
