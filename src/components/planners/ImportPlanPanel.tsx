@@ -2,6 +2,11 @@
 
 import { useRef, useState } from 'react';
 
+import {
+  GenerationProgress,
+  useGenerationProgress,
+} from '@/components/common/GenerationProgress';
+import { consumeGenerationStream } from '@/lib/generation-stream';
 import type { PlannerImportDraft } from '@/lib/validators';
 import {
   isSupportedPlanImportFile,
@@ -58,6 +63,7 @@ export function ImportPlanPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const progress = useGenerationProgress();
 
   const hasPlanner = Boolean(plannerId);
   const canParse =
@@ -141,25 +147,18 @@ export function ImportPlanPanel({
     setStatus(null);
     setDraft(null);
     setParsing(true);
+    progress.begin();
 
     try {
-      const res = await fetch('/api/course-planners/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed, plannerId }),
-      });
-
-      const data = (await res.json().catch(() => null)) as {
-        error?: string;
+      const data = await consumeGenerationStream<{
         draft?: PlannerImportDraft;
         provider?: string;
         stats?: { keptCourses?: number; ignoredRows?: number };
-      } | null;
-
-      if (!res.ok) {
-        setError(data?.error ?? 'Failed to parse course plan');
-        return;
-      }
+      }>(
+        '/api/course-planners/import',
+        { text: trimmed, plannerId },
+        progress.update
+      );
 
       if (!data?.draft || data.draft.sections.length === 0) {
         setError('No courses detected.');
@@ -179,9 +178,14 @@ export function ImportPlanPanel({
           filterNote +
           ' Review below, then save to planner.'
       );
-    } catch {
-      setError('Network error — please try again');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to parse course plan. Please try again.'
+      );
     } finally {
+      progress.end();
       setParsing(false);
     }
   }
@@ -561,11 +565,7 @@ export function ImportPlanPanel({
               {error}
             </p>
           ) : null}
-          {parsing ? (
-            <p className="text-sm text-slate-500" aria-live="polite">
-              Parsing…
-            </p>
-          ) : null}
+          <GenerationProgress state={progress.state} noun="courses" />
         </div>
       ) : null}
     </section>

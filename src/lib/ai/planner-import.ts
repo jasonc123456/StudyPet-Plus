@@ -11,7 +11,7 @@ import {
   runWithFallback,
   type JsonPrompt,
 } from '@/lib/ai/provider';
-import type { AiProviderName } from '@/lib/ai/types';
+import type { AiProgressCallback, AiProviderName } from '@/lib/ai/types';
 import type {
   PlannerImportDraft,
   PlannerImportDraftCourse,
@@ -920,7 +920,8 @@ function demoPlannerImport(source: string): PlannerImportDraft {
  * Parse plan text into a validated draft. Does not write to the database.
  */
 export async function parseCoursePlanText(
-  sourceText: string
+  sourceText: string,
+  onProgress?: AiProgressCallback
 ): Promise<PlannerImportResult> {
   const source = prepareSource(sourceText);
   if (!source) {
@@ -969,7 +970,8 @@ export async function parseCoursePlanText(
   try {
     const run = await runWithFallback(
       plannerImportPrompt(source),
-      (value) => plannerImportAiResponseSchema.safeParse(value).success
+      (value) => plannerImportAiResponseSchema.safeParse(value).success,
+      onProgress
     );
 
     const parsed = plannerImportAiResponseSchema.parse(run.value);
