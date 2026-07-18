@@ -50,7 +50,7 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href={`/dashboard/notes/${recommendation.noteId}/edit`}
+              href={`/dashboard/notes/${recommendation.noteId}`}
               className="btn-secondary px-4 py-2 text-sm"
             >
               Review notes

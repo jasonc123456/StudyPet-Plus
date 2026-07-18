@@ -29,6 +29,7 @@ export function NoteRow({ note }: NoteRowProps) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const viewHref = `/dashboard/notes/${note.id}`;
   const editHref = `/dashboard/notes/${note.id}/edit`;
 
   async function handleDelete() {
@@ -61,7 +62,7 @@ export function NoteRow({ note }: NoteRowProps) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <Link
-              href={editHref}
+              href={viewHref}
               className="font-semibold text-slate-900 hover:text-brand-600"
             >
               {note.title}
