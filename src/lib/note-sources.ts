@@ -5,7 +5,9 @@
 // shared character cap (reporting whether it had to truncate), and derives the
 // shared course + a smart default title.
 
+import type { AiAttachment } from '@/lib/ai/types';
 import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
+import { readNotePdfFile } from '@/lib/note-pdf';
 import { prisma } from '@/lib/prisma';
 
 /** Keep in step with the AI layer's own source cap. */
@@ -16,6 +18,8 @@ export type LoadedSourceNote = {
   title: string;
   courseId: string | null;
   plainText: string;
+  /** Attached PDF URL, when this note carries one. */
+  pdfUrl: string | null;
 };
 
 export type AssembledSource = {
@@ -25,6 +29,11 @@ export type AssembledSource = {
   sourceText: string;
   /** True when the combined text exceeded the cap and was cut. */
   truncated: boolean;
+  /**
+   * PDF attachments from the selected notes, read only here (at generation
+   * time) and passed straight to the model.
+   */
+  attachments: AiAttachment[];
   /** Shared course when every note agrees, else null. */
   courseId: string | null;
   /** Course name for topic biasing, when there is a shared course. */
@@ -49,7 +58,14 @@ export async function assembleNoteSource(
 
   const rows = await prisma.note.findMany({
     where: { id: { in: orderedIds }, userId },
-    select: { id: true, title: true, courseId: true, content: true },
+    select: {
+      id: true,
+      title: true,
+      courseId: true,
+      content: true,
+      pdfUrl: true,
+      pdfName: true,
+    },
   });
   if (rows.length !== orderedIds.length) {
     return { ok: false, reason: 'NOT_FOUND' };
@@ -65,10 +81,30 @@ export async function assembleNoteSource(
       plainText: hasVisibleRichText(row.content)
         ? richTextToPlainText(row.content)
         : '',
+      pdfUrl: row.pdfUrl,
     };
   });
 
-  if (!notes.some((note) => note.plainText.trim().length > 0)) {
+  // Read attached PDFs here — the only point where a note's file reaches the
+  // AI layer. Unreadable files are skipped rather than failing the whole run.
+  const attachments: AiAttachment[] = [];
+  for (const id of orderedIds) {
+    const row = byId.get(id)!;
+    if (!row.pdfUrl) continue;
+    try {
+      const { bytes } = await readNotePdfFile(row.pdfUrl);
+      attachments.push({
+        filename: row.pdfName ?? 'attachment.pdf',
+        mimeType: 'application/pdf',
+        base64: bytes.toString('base64'),
+      });
+    } catch (error) {
+      console.error('[note-sources] failed to read note PDF', id, error);
+    }
+  }
+
+  const hasText = notes.some((note) => note.plainText.trim().length > 0);
+  if (!hasText && attachments.length === 0) {
     return { ok: false, reason: 'EMPTY_CONTENT' };
   }
 
@@ -116,7 +152,7 @@ export async function assembleNoteSource(
 
   return {
     ok: true,
-    value: { notes, sourceText, truncated, courseId, topicHint },
+    value: { notes, sourceText, truncated, attachments, courseId, topicHint },
   };
 }
 

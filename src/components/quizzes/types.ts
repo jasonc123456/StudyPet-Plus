@@ -18,6 +18,8 @@ export type QuizNoteOption = {
   id: string;
   title: string;
   hasContent: boolean;
+  /** True when the note has an attached PDF passed through to the AI. */
+  hasPdf: boolean;
   course: QuizCourse | null;
 };
 
