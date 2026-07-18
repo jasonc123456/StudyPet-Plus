@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { QuizzesPageClient } from '@/components/quizzes/QuizzesPageClient';
 import type { QuizNoteOption } from '@/components/quizzes/types';
+import { hasVisibleRichText } from '@/lib/note-rich-text';
 import { prisma } from '@/lib/prisma';
 
 function isMissingQuizTable(error: unknown): boolean {
@@ -64,7 +65,7 @@ export default async function DashboardQuizzesPage() {
       return {
         id: note.id,
         title: note.title,
-        hasContent: note.content.trim().length > 0,
+        hasContent: hasVisibleRichText(note.content),
         questionCount: latestQuiz?.questions.length ?? 0,
         course: note.course,
         latestQuiz: latestQuiz

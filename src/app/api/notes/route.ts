@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { sanitizeRichTextHtml } from '@/lib/note-rich-text';
 import { getOwnedCourse } from '@/lib/planner';
 import { finalizeNotePdfUpload } from '@/lib/note-pdf';
 import {
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     data: {
       userId: authResult.user.id,
       title,
-      content: content ?? '',
+      content: sanitizeRichTextHtml(content ?? ''),
       courseId,
       pdfName: pdfName ?? null,
       pdfUrl: finalizedPdfUrl,

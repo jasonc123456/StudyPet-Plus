@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { Note } from '@prisma/client';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { sanitizeRichTextHtml } from '@/lib/note-rich-text';
 import { deleteNotePdf, finalizeNotePdfUpload } from '@/lib/note-pdf';
 import { getOwnedCourse, getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
@@ -196,7 +197,7 @@ async function persistNoteUpdate(args: {
     where: { id: noteId },
     data: {
       ...(title !== undefined && { title }),
-      ...(content !== undefined && { content }),
+      ...(content !== undefined && { content: sanitizeRichTextHtml(content) }),
       ...(courseId !== undefined && { courseId }),
       ...(pdfName !== undefined && { pdfName: pdf.nextPdfName ?? null }),
       ...(pdfUrl !== undefined && { pdfUrl: pdf.nextPdfUrl ?? null }),

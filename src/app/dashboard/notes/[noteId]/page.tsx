@@ -7,6 +7,7 @@ import { ColorSwatch } from '@/components/courses/ColorSwatch';
 import { NoteStudyView } from '@/components/notes/NoteStudyView';
 import { UpdatedAt } from '@/components/UpdatedAt';
 import { wordCount } from '@/lib/format';
+import { richTextToPlainText } from '@/lib/note-rich-text';
 import { prisma } from '@/lib/prisma';
 
 type NoteStudyPageProps = {
@@ -99,7 +100,10 @@ export default async function NoteStudyPage({ params }: NoteStudyPageProps) {
         </div>
       </section>
 
-      <NoteStudyView noteId={note.id} content={note.content} />
+      <NoteStudyView
+        noteId={note.id}
+        content={richTextToPlainText(note.content)}
+      />
     </div>
   );
 }

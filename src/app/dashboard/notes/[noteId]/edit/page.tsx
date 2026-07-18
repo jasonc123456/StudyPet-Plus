@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/courses/PageHeader';
 import { GenerateFlashcardsButton } from '@/components/notes/GenerateFlashcardsButton';
 import { NoteForm } from '@/components/notes/NoteForm';
 import { listFlashcardsForNote } from '@/lib/flashcards';
+import { hasVisibleRichText } from '@/lib/note-rich-text';
 import { prisma } from '@/lib/prisma';
 
 type EditNotePageProps = {
@@ -70,7 +71,7 @@ export default async function EditNotePage({ params }: EditNotePageProps) {
 
       <GenerateFlashcardsButton
         noteId={note.id}
-        hasContent={Boolean(note.content.trim())}
+        hasContent={hasVisibleRichText(note.content)}
         initialFlashcards={flashcards.map((card) => ({
           id: card.id,
           topic: card.topic,
