@@ -10,6 +10,7 @@ import {
   deleteFlashcardSetAction,
   updateFlashcardAction,
 } from '@/app/actions/flashcard-actions';
+import { Chip } from '@/components/common/Chip';
 import { ConfirmDialog } from '@/components/courses/ConfirmDialog';
 
 export type FlashcardSetItem = {
@@ -25,6 +26,7 @@ export type FlashcardSetData = {
   course: { id: string; name: string; color: string } | null;
   cards: FlashcardSetItem[];
   topics: string[];
+  sourceNotes: { id: string; title: string }[];
 };
 
 type FlashcardSetCardProps = {
@@ -53,7 +55,7 @@ export function FlashcardSetCard({ set }: FlashcardSetCardProps) {
     setError(null);
     startTransition(async () => {
       const result = await createFlashcardAction({
-        noteId: set.id,
+        setId: set.id,
         topic: draft.topic,
         front: draft.front,
         back: draft.back,
@@ -119,27 +121,34 @@ export function FlashcardSetCard({ set }: FlashcardSetCardProps) {
     <article className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-slate-900">
-            {set.title}
-          </h3>
-          {set.course && (
-            <p className="mt-0.5 text-xs text-slate-500">{set.course.name}</p>
-          )}
+          <h3 className="truncate text-base font-semibold">{set.title}</h3>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {set.course && (
+              <Chip color={set.course.color}>{set.course.name}</Chip>
+            )}
+            {set.sourceNotes.map((note) => (
+              <Chip key={note.id}>{note.title}</Chip>
+            ))}
+          </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {set.topics.length === 0 ? (
-              <span className="text-xs text-slate-400">No topics yet</span>
+              <span className="theme-muted text-xs">No topics yet</span>
             ) : (
               set.topics.map((topic) => (
                 <span
                   key={topic}
-                  className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700"
+                  className="rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{
+                    background: 'var(--accent-soft)',
+                    color: 'var(--accent)',
+                  }}
                 >
                   {topic}
                 </span>
               ))
             )}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="theme-muted mt-2 text-xs">
             {set.cards.length} card{set.cards.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -357,10 +366,10 @@ export function FlashcardSetCard({ set }: FlashcardSetCardProps) {
       <ConfirmDialog
         open={deleteSetOpen}
         title="Delete flashcard set?"
-        message={`Delete all ${set.cards.length} card${
+        message={`Delete “${set.title}” and all ${set.cards.length} card${
           set.cards.length === 1 ? '' : 's'
-        } for “${set.title}”? The note itself will be kept.`}
-        confirmLabel="Delete set"
+        }? Your source notes are kept. This cannot be undone.`}
+        confirmLabel="Delete deck"
         loading={isPending}
         onConfirm={confirmDeleteSet}
         onCancel={() => setDeleteSetOpen(false)}

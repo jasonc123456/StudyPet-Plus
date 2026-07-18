@@ -210,21 +210,28 @@ export async function createNoteAndGenerateFlashcards(input: {
 
 export async function createOwnedFlashcard(input: {
   userId: string;
-  noteId: string;
+  setId: string;
   topic: string;
   front: string;
   back: string;
 }): Promise<FlashcardRow> {
-  const note = await getOwnedNote(input.noteId, input.userId);
-  if (!note) {
-    throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
+  const set = await prisma.flashcardSet.findFirst({
+    where: { id: input.setId, userId: input.userId },
+    include: { sourceNotes: { select: { noteId: true } } },
+  });
+  if (!set) {
+    throw new FlashcardServiceError('NOT_FOUND', 'Deck not found');
   }
+
+  const singleNoteId =
+    set.sourceNotes.length === 1 ? set.sourceNotes[0]!.noteId : null;
 
   return prisma.flashcard.create({
     data: {
       userId: input.userId,
-      noteId: note.id,
-      courseId: note.courseId,
+      setId: set.id,
+      noteId: singleNoteId,
+      courseId: set.courseId,
       topic: input.topic,
       front: input.front,
       back: input.back,
@@ -270,18 +277,20 @@ export async function deleteOwnedFlashcard(
   await prisma.flashcard.delete({ where: { id: existing.id } });
 }
 
-/** Deletes all flashcards for a note; keeps the Note row. */
+/** Deletes a deck the caller owns; its cards cascade. Returns the card count. */
 export async function deleteOwnedFlashcardSet(
-  noteId: string,
+  setId: string,
   userId: string
 ): Promise<number> {
-  const note = await getOwnedNote(noteId, userId);
-  if (!note) {
-    throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
+  const set = await prisma.flashcardSet.findFirst({
+    where: { id: setId, userId },
+    select: { _count: { select: { cards: true } } },
+  });
+  if (!set) {
+    throw new FlashcardServiceError('NOT_FOUND', 'Deck not found');
   }
 
-  const result = await prisma.flashcard.deleteMany({
-    where: { noteId, userId },
-  });
-  return result.count;
+  const count = set._count.cards;
+  await prisma.flashcardSet.delete({ where: { id: setId } });
+  return count;
 }

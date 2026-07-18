@@ -18,8 +18,12 @@ export type ReviewCard = {
 type XpFloat = { id: number; amount: number };
 
 type FlashcardReviewFrameworkProps = {
-  noteTitle: string;
+  deckTitle: string;
   cards: ReviewCard[];
+  /** Seconds per card; 0 = off. */
+  timerPerCard?: number;
+  /** When the per-card timer ends, flip to the answer instead of advancing. */
+  autoFlip?: boolean;
 };
 
 /**
@@ -27,8 +31,10 @@ type FlashcardReviewFrameworkProps = {
  * known/unknown tallies, and pet XP awards via useFlashcardReviewXp.
  */
 export function FlashcardReviewFramework({
-  noteTitle,
+  deckTitle,
   cards,
+  timerPerCard = 0,
+  autoFlip = false,
 }: FlashcardReviewFrameworkProps) {
   const { recordReview } = useFlashcardReviewXp();
   const [index, setIndex] = useState(0);
@@ -36,6 +42,7 @@ export function FlashcardReviewFramework({
   const [knownIds, setKnownIds] = useState<Set<string>>(() => new Set());
   const [unknownIds, setUnknownIds] = useState<Set<string>>(() => new Set());
   const [xpFloats, setXpFloats] = useState<XpFloat[]>([]);
+  const [secondsLeft, setSecondsLeft] = useState(timerPerCard);
 
   const total = cards.length;
   const card = cards[index];
@@ -137,6 +144,36 @@ export function FlashcardReviewFramework({
     [reviewedCount, total]
   );
 
+  // Reset the per-card countdown whenever the card changes.
+  useEffect(() => {
+    setSecondsLeft(timerPerCard);
+  }, [index, timerPerCard]);
+
+  // Per-card timer: on expiry, flip to the answer (if auto-flip) or advance.
+  useEffect(() => {
+    if (timerPerCard <= 0 || sessionComplete || !card) return;
+    if (secondsLeft <= 0) {
+      if (autoFlip && !flipped) {
+        setFlipped(true);
+        setSecondsLeft(timerPerCard);
+      } else {
+        goTo(index + 1);
+      }
+      return;
+    }
+    const id = window.setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [
+    secondsLeft,
+    timerPerCard,
+    autoFlip,
+    flipped,
+    index,
+    card,
+    goTo,
+    sessionComplete,
+  ]);
+
   if (!card) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
@@ -164,13 +201,22 @@ export function FlashcardReviewFramework({
           >
             ← Back to flashcards
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-slate-900">
-            {noteTitle}
-          </h1>
+          <h1 className="mt-1 text-xl font-semibold">{deckTitle}</h1>
         </div>
-        <p className="text-sm font-medium text-slate-500" aria-live="polite">
-          {index + 1} / {total}
-        </p>
+        <div className="flex items-center gap-3">
+          {timerPerCard > 0 && (
+            <span
+              className="rounded-lg px-2.5 py-1 text-sm font-semibold tabular-nums"
+              style={{ background: 'var(--btn-secondary-hover)' }}
+              aria-label="Seconds left on this card"
+            >
+              ⏱ {secondsLeft}s
+            </span>
+          )}
+          <p className="theme-muted text-sm font-medium" aria-live="polite">
+            {index + 1} / {total}
+          </p>
+        </div>
       </div>
 
       <div
