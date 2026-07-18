@@ -22,6 +22,14 @@
   --accent-strong: #4338ca;
   --accent-soft: #eef2ff;
   --accent-text: #ffffff;
+  /* Semantic status colours for the redesign (quiz results, warnings, streaks).
+     Each has a strong "text/border" value and a soft tinted fill for badges. */
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
   --shell-sidebar-bg: color-mix(in srgb, #ffffff 92%, #f8fafc);
   --shell-sidebar-border: color-mix(
     in srgb,
@@ -45,6 +53,14 @@ html[data-theme='dark'] {
   --btn-secondary-border: #3a3a3a;
   --btn-secondary-hover: #2b2b2b;
   --accent-text: #ffffff;
+  /* Brighter foregrounds + darker, muted fills so status colours read on the
+     dark card surface without glowing. */
+  --success: #4ade80;
+  --success-soft: color-mix(in srgb, #16a34a 24%, var(--card-bg));
+  --danger: #f87171;
+  --danger-soft: color-mix(in srgb, #dc2626 24%, var(--card-bg));
+  --warning: #fbbf24;
+  --warning-soft: color-mix(in srgb, #d97706 24%, var(--card-bg));
   --shell-sidebar-bg: color-mix(in srgb, var(--card-bg) 90%, var(--page-bg));
   --shell-sidebar-border: color-mix(
     in srgb,
@@ -160,6 +176,26 @@ body {
     box-shadow:
       0 2px 8px rgba(15, 23, 42, 0.05),
       0 8px 20px rgba(79, 70, 229, 0.03);
+  }
+
+  /* Gradient fill for progress bars in the redesign. The track carries a muted
+     accent tint; the fill is a left-to-right accent gradient whose width the
+     component sets inline. */
+  .progress-track {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--card-border));
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      var(--accent) 0%,
+      color-mix(in srgb, var(--accent) 70%, #a855f7) 100%
+    );
+    transition: width 300ms ease;
   }
 }
 
