@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const result = await submitQuizAttempt({
       userId: authResult.user.id,
       quizId: parsed.data.quizId,
+      clientAttemptId: parsed.data.clientAttemptId,
       answers: parsed.data.answers,
     });
 

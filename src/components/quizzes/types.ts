@@ -15,6 +15,7 @@ export type QuizNoteOption = {
   course: { id: string; name: string; color: string } | null;
   latestQuiz: {
     id: string;
+    completed: boolean;
     questions: QuizQuestionData[];
   } | null;
 };

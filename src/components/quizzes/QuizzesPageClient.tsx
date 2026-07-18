@@ -318,6 +318,11 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
                       {note.questionCount > 0 ? (
                         <span>{note.questionCount} saved questions</span>
                       ) : null}
+                      {note.latestQuiz?.completed ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800">
+                          ✓ Done
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -337,7 +342,9 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
                         disabled={isPending}
                         onClick={() => handleTakeExisting(note)}
                       >
-                        Take quiz
+                        {note.latestQuiz?.completed
+                          ? 'Retake quiz'
+                          : 'Take quiz'}
                       </button>
                     ) : null}
                   </div>

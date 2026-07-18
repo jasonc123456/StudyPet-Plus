@@ -46,6 +46,7 @@ const QUESTION_ID = 'clq1q1q1q1q1q1q1q1q1q1q1q1';
 
 const validBody = {
   quizId: QUIZ_ID,
+  clientAttemptId: '11111111-1111-4111-8111-111111111111',
   answers: [{ questionId: QUESTION_ID, selectedIndex: 0 }],
 };
 
@@ -102,7 +103,13 @@ describe('POST /api/quizzes/attempts', () => {
   it('returns 400 for a body that fails validation (no answers)', async () => {
     authOk();
 
-    const res = await POST(postRequest({ quizId: QUIZ_ID, answers: [] }));
+    const res = await POST(
+      postRequest({
+        quizId: QUIZ_ID,
+        clientAttemptId: validBody.clientAttemptId,
+        answers: [],
+      })
+    );
     const { status, body } = await readJson(res);
 
     expect(status).toBe(400);
@@ -147,6 +154,7 @@ describe('POST /api/quizzes/attempts', () => {
       totalQuestions: 1,
       scorePercent: 100,
       xpAwarded: 15,
+      completed: true,
       weakTopic: null,
     } as Awaited<ReturnType<typeof submitQuizAttempt>>);
 
@@ -158,6 +166,7 @@ describe('POST /api/quizzes/attempts', () => {
     expect(submitQuizAttemptMock).toHaveBeenCalledWith({
       userId: USER_ID,
       quizId: QUIZ_ID,
+      clientAttemptId: validBody.clientAttemptId,
       answers: validBody.answers,
     });
   });

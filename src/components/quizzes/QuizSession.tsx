@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { QuizQuestionData } from '@/components/quizzes/types';
 
@@ -16,6 +16,7 @@ type SubmitQuizAttemptResponse = {
   totalQuestions: number;
   scorePercent: number;
   xpAwarded: number;
+  completed: boolean;
   weakTopic: string | null;
   error?: string;
 };
@@ -38,6 +39,7 @@ export function QuizSession({
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [attemptSummary, setAttemptSummary] =
     useState<SubmitQuizAttemptResponse | null>(null);
+  const clientAttemptIdRef = useRef<string | null>(null);
 
   const total = questions.length;
   const current = questions[index];
@@ -51,12 +53,14 @@ export function QuizSession({
     if (!finished || attemptSynced) return;
 
     let cancelled = false;
+    clientAttemptIdRef.current ??= globalThis.crypto.randomUUID();
 
     void fetch('/api/quizzes/attempts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         quizId,
+        clientAttemptId: clientAttemptIdRef.current,
         answers: questions.map((question) => ({
           questionId: question.id,
           selectedIndex: selectedAnswers[question.id],
@@ -173,7 +177,12 @@ export function QuizSession({
           ) : null}
           {attemptSummary && attemptSummary.xpAwarded === 0 ? (
             <p className="mt-2 text-sm text-slate-500">
-              You already earned XP for this quiz today.
+              You already earned the full reward for this quiz.
+            </p>
+          ) : null}
+          {attemptSummary?.completed ? (
+            <p className="mt-3 inline-flex self-center rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">
+              ✓ Done
             </p>
           ) : null}
           {attemptError ? (

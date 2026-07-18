@@ -32,6 +32,12 @@ const { txMock, prismaMock } = vi.hoisted(() => {
       quiz: {
         findFirst: vi.fn(),
       },
+      quizAttempt: {
+        findUnique: vi.fn(),
+      },
+      quizXpAward: {
+        findUnique: vi.fn(),
+      },
       // Runs the callback against the tx mock, mimicking an interactive
       // transaction. Rollback semantics are asserted via call ordering.
       $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
@@ -45,6 +51,7 @@ import { QuizServiceError, submitQuizAttempt } from '@/lib/quizzes';
 
 const USER_ID = 'user_quiz_1';
 const QUIZ_ID = 'clquizquizquizquizquizquiz';
+const ATTEMPT_ID = '11111111-1111-4111-8111-111111111111';
 
 const QUESTIONS = [
   {
@@ -103,6 +110,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   prismaMock.quiz.findFirst.mockResolvedValue(ownedQuiz as never);
+  prismaMock.quizAttempt.findUnique.mockResolvedValue(null);
+  prismaMock.quizXpAward.findUnique.mockResolvedValue(null);
   txMock.quizXpAward.findUnique.mockResolvedValue(null);
   txMock.quizXpAward.create.mockResolvedValue({} as never);
   txMock.quizAttempt.create.mockImplementation(
@@ -129,6 +138,7 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
     const result = await submitQuizAttempt({
       userId: USER_ID,
       quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
       answers: perfectAnswers,
     });
 
@@ -152,6 +162,7 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
     const result = await submitQuizAttempt({
       userId: USER_ID,
       quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
       answers: [
         { questionId: QUESTIONS[0].id, selectedIndex: 0 },
         { questionId: QUESTIONS[1].id, selectedIndex: 0 }, // wrong
@@ -160,6 +171,61 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
 
     // 1/2 = 50% → lowest tier.
     expect(result.xpAwarded).toBe(6);
+    expect(result.completed).toBe(false);
+    expect(txMock.quizXpAward.create).not.toHaveBeenCalled();
+  });
+
+  it('awards partial XP again for a genuine retake', async () => {
+    const partialAnswers = [
+      { questionId: QUESTIONS[0].id, selectedIndex: 0 },
+      { questionId: QUESTIONS[1].id, selectedIndex: 0 },
+    ];
+
+    const first = await submitQuizAttempt({
+      userId: USER_ID,
+      quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
+      answers: partialAnswers,
+    });
+    const second = await submitQuizAttempt({
+      userId: USER_ID,
+      quizId: QUIZ_ID,
+      clientAttemptId: '22222222-2222-4222-8222-222222222222',
+      answers: partialAnswers,
+    });
+
+    expect(first.xpAwarded).toBe(6);
+    expect(second.xpAwarded).toBe(6);
+    expect(txMock.quizAttempt.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns the saved result without awarding again when a request retries', async () => {
+    prismaMock.quizAttempt.findUnique.mockResolvedValue({
+      id: 'attempt_existing',
+      userId: USER_ID,
+      quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
+      correctCount: 1,
+      totalQuestions: 2,
+      scorePercent: 50,
+      xpAwarded: 6,
+      createdAt: new Date(),
+      questionResults: [],
+    } as never);
+
+    const result = await submitQuizAttempt({
+      userId: USER_ID,
+      quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
+      answers: [
+        { questionId: QUESTIONS[0].id, selectedIndex: 0 },
+        { questionId: QUESTIONS[1].id, selectedIndex: 0 },
+      ],
+    });
+
+    expect(result.xpAwarded).toBe(6);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(txMock.pet.upsert).not.toHaveBeenCalled();
   });
 
   it('evolves the pet stage when quiz XP crosses a threshold', async () => {
@@ -169,6 +235,7 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
     await submitQuizAttempt({
       userId: USER_ID,
       quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
       answers: perfectAnswers,
     });
 
@@ -183,25 +250,25 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
     );
   });
 
-  it('records the award marker keyed by user, quiz, and UTC day', async () => {
-    await submitQuizAttempt({
+  it('marks the quiz completed after a perfect score', async () => {
+    const result = await submitQuizAttempt({
       userId: USER_ID,
       quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
       answers: perfectAnswers,
     });
 
-    const today = new Date().toISOString().slice(0, 10);
+    expect(result.completed).toBe(true);
     expect(txMock.quizXpAward.create).toHaveBeenCalledWith({
       data: {
         userId: USER_ID,
         quizId: QUIZ_ID,
-        awardedOn: today,
         xp: 15,
       },
     });
   });
 
-  it('does not award XP twice for the same quiz on the same day', async () => {
+  it('allows retakes but awards no more XP after perfect completion', async () => {
     txMock.quizXpAward.findUnique.mockResolvedValue({
       id: 'award_1',
     } as never);
@@ -210,10 +277,12 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
     const result = await submitQuizAttempt({
       userId: USER_ID,
       quizId: QUIZ_ID,
+      clientAttemptId: ATTEMPT_ID,
       answers: perfectAnswers,
     });
 
     expect(result.xpAwarded).toBe(0);
+    expect(result.completed).toBe(true);
     expect(txMock.quizXpAward.create).not.toHaveBeenCalled();
     // The repeat attempt is still saved (score history), just with 0 XP...
     expect(txMock.quizAttempt.create).toHaveBeenCalledWith(
@@ -236,6 +305,7 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
       submitQuizAttempt({
         userId: USER_ID,
         quizId: QUIZ_ID,
+        clientAttemptId: ATTEMPT_ID,
         answers: perfectAnswers,
       })
     ).rejects.toMatchObject({
@@ -252,6 +322,7 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
       submitQuizAttempt({
         userId: USER_ID,
         quizId: QUIZ_ID,
+        clientAttemptId: ATTEMPT_ID,
         answers: [{ questionId: QUESTIONS[0].id, selectedIndex: 0 }],
       })
     ).rejects.toBeInstanceOf(QuizServiceError);
@@ -269,6 +340,7 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
       submitQuizAttempt({
         userId: USER_ID,
         quizId: QUIZ_ID,
+        clientAttemptId: ATTEMPT_ID,
         answers: perfectAnswers,
       })
     ).rejects.toThrow('db connection lost');

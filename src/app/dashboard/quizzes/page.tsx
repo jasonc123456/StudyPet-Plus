@@ -44,6 +44,11 @@ export default async function DashboardQuizzesPage() {
           take: 1,
           select: {
             id: true,
+            xpAwards: {
+              where: { userId },
+              take: 1,
+              select: { id: true },
+            },
             questions: {
               orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
               select: {
@@ -71,6 +76,7 @@ export default async function DashboardQuizzesPage() {
         latestQuiz: latestQuiz
           ? {
               id: latestQuiz.id,
+              completed: latestQuiz.xpAwards.length > 0,
               questions: latestQuiz.questions,
             }
           : null,

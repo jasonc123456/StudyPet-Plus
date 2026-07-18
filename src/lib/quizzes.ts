@@ -10,7 +10,7 @@ import {
   type AiProviderName,
 } from '@/lib/ai/types';
 import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
-import { recordStudyActivity, utcDayKey, xpForQuizScore } from '@/lib/pet-xp';
+import { recordStudyActivity, xpForQuizScore } from '@/lib/pet-xp';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import type {
@@ -62,6 +62,7 @@ export type GenerateAndSaveQuizResult = {
 export type SubmitQuizAttemptInput = {
   userId: string;
   quizId: string;
+  clientAttemptId: string;
   answers: Array<{
     questionId: string;
     selectedIndex: number;
@@ -74,6 +75,7 @@ export type SubmitQuizAttemptResult = {
   totalQuestions: number;
   scorePercent: number;
   xpAwarded: number;
+  completed: boolean;
   weakTopic: string | null;
 };
 
@@ -279,7 +281,7 @@ export async function submitQuizAttempt(
   const scorePercent =
     totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
   const xpOnCompletion = xpForQuizScore(correctCount, totalQuestions);
-  const awardedOn = utcDayKey();
+  const isPerfect = totalQuestions > 0 && correctCount === totalQuestions;
 
   const incorrectTopicCounts = new Map<string, number>();
   for (const result of resultRows) {
@@ -294,77 +296,121 @@ export async function submitQuizAttempt(
     [...incorrectTopicCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ??
     null;
 
-  // XP pays out at most once per quiz per UTC day — the same anti-farming
-  // granularity as flashcard reviews (see QuizXpAward). A repeat completion
-  // still saves an attempt for score history, just with xpAwarded = 0.
-  // The award marker, attempt row, and pet update commit (or roll back)
-  // together, so a failed save can never leave the pet partially rewarded.
-  const { attempt, xpAwarded } = await prisma.$transaction(async (tx) => {
-    const priorAward = await tx.quizXpAward.findUnique({
-      where: {
-        userId_quizId_awardedOn: {
-          userId: input.userId,
-          quizId: quiz.id,
-          awardedOn,
-        },
-      },
-      select: { id: true },
-    });
-    const awarded = priorAward ? 0 : xpOnCompletion;
-
-    if (!priorAward) {
-      // A concurrent duplicate that slips past the check above violates the
-      // unique key here and rolls the whole transaction back — no double XP.
-      await tx.quizXpAward.create({
-        data: {
-          userId: input.userId,
-          quizId: quiz.id,
-          awardedOn,
-          xp: awarded,
-        },
-      });
-    }
-
-    const createdAttempt = await tx.quizAttempt.create({
-      data: {
+  const previousAttempt = await prisma.quizAttempt.findUnique({
+    where: {
+      userId_clientAttemptId: {
         userId: input.userId,
-        quizId: quiz.id,
-        correctCount,
-        totalQuestions,
-        scorePercent,
-        xpAwarded: awarded,
-        questionResults: {
-          create: resultRows.map((result) => ({
-            userId: input.userId,
-            questionId: result.questionId,
-            selectedIndex: result.selectedIndex,
-            isCorrect: result.isCorrect,
-          })),
-        },
+        clientAttemptId: input.clientAttemptId,
       },
-      include: {
-        questionResults: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          include: {
-            question: {
-              select: {
-                id: true,
-                topic: true,
-                question: true,
-                correctIndex: true,
-              },
+    },
+    include: {
+      questionResults: {
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        include: {
+          question: {
+            select: {
+              id: true,
+              topic: true,
+              question: true,
+              correctIndex: true,
             },
           },
         },
       },
-    });
-
-    // Finishing a quiz always counts as study activity (streak/lastStudyDate);
-    // XP lands only on the first completion of this quiz today.
-    await recordStudyActivity(input.userId, { xp: awarded, client: tx });
-
-    return { attempt: createdAttempt, xpAwarded: awarded };
+    },
   });
+
+  if (previousAttempt) {
+    const completed = Boolean(
+      await prisma.quizXpAward.findUnique({
+        where: {
+          userId_quizId: { userId: input.userId, quizId: quiz.id },
+        },
+        select: { id: true },
+      })
+    );
+    return {
+      attempt: previousAttempt,
+      correctCount: previousAttempt.correctCount,
+      totalQuestions: previousAttempt.totalQuestions,
+      scorePercent: previousAttempt.scorePercent,
+      xpAwarded: previousAttempt.xpAwarded,
+      completed,
+      weakTopic,
+    };
+  }
+
+  // Every genuine partial attempt earns its score-tier XP. A perfect attempt
+  // creates the permanent completion marker; after that, retakes remain
+  // available but award no more XP. The attempt, marker, and pet update are
+  // atomic, while clientAttemptId makes network retries idempotent.
+  const { attempt, xpAwarded, completed } = await prisma.$transaction(
+    async (tx) => {
+      const completionAward = await tx.quizXpAward.findUnique({
+        where: {
+          userId_quizId: {
+            userId: input.userId,
+            quizId: quiz.id,
+          },
+        },
+        select: { id: true },
+      });
+      const awarded = completionAward ? 0 : xpOnCompletion;
+
+      const createdAttempt = await tx.quizAttempt.create({
+        data: {
+          userId: input.userId,
+          quizId: quiz.id,
+          clientAttemptId: input.clientAttemptId,
+          correctCount,
+          totalQuestions,
+          scorePercent,
+          xpAwarded: awarded,
+          questionResults: {
+            create: resultRows.map((result) => ({
+              userId: input.userId,
+              questionId: result.questionId,
+              selectedIndex: result.selectedIndex,
+              isCorrect: result.isCorrect,
+            })),
+          },
+        },
+        include: {
+          questionResults: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            include: {
+              question: {
+                select: {
+                  id: true,
+                  topic: true,
+                  question: true,
+                  correctIndex: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (isPerfect && !completionAward) {
+        await tx.quizXpAward.create({
+          data: {
+            userId: input.userId,
+            quizId: quiz.id,
+            xp: awarded,
+          },
+        });
+      }
+
+      await recordStudyActivity(input.userId, { xp: awarded, client: tx });
+
+      return {
+        attempt: createdAttempt,
+        xpAwarded: awarded,
+        completed: Boolean(completionAward) || isPerfect,
+      };
+    }
+  );
 
   return {
     attempt,
@@ -372,6 +418,7 @@ export async function submitQuizAttempt(
     totalQuestions,
     scorePercent,
     xpAwarded,
+    completed,
     weakTopic,
   };
 }
