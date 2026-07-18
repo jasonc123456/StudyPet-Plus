@@ -5,28 +5,43 @@ export type QuizQuestionData = {
   choices: string[];
   correctIndex: number;
   explanation: string | null;
+  hint: string | null;
 };
 
+export type QuizCourse = { id: string; name: string; color: string };
+
+/** A source note referenced by a quiz. */
+export type QuizSourceNote = { id: string; title: string };
+
+/** A note that can be picked as a quiz source. */
 export type QuizNoteOption = {
   id: string;
   title: string;
   hasContent: boolean;
-  questionCount: number;
-  course: { id: string; name: string; color: string } | null;
-  latestQuiz: {
-    id: string;
-    completed: boolean;
-    questions: QuizQuestionData[];
-    /** How many times this quiz has been submitted. */
-    attemptCount: number;
-    /** Score (0–100) of the most recent attempt, or null if never taken. */
-    lastScorePercent: number | null;
-  } | null;
+  course: QuizCourse | null;
 };
 
+/** A generated quiz, shown as one row on the quizzes page. */
+export type QuizEntity = {
+  id: string;
+  title: string;
+  course: QuizCourse | null;
+  sourceNotes: QuizSourceNote[];
+  questions: QuizQuestionData[];
+  /** How many times this quiz has been submitted. */
+  attemptCount: number;
+  /** Score (0–100) of the most recent attempt, or null if never taken. */
+  lastScorePercent: number | null;
+  /** True once the quiz has been fully completed for its reward. */
+  completed: boolean;
+};
+
+/** The three ways to take a quiz. */
+export type QuizMode = 'review' | 'practice' | 'exam';
+
+/** What the page hands to QuizSession; the session owns mode + timer state. */
 export type ActiveQuizSession = {
   quizId: string;
-  noteId: string;
-  noteTitle: string;
+  title: string;
   questions: QuizQuestionData[];
 };
