@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink';
 
@@ -142,6 +142,7 @@ function buildSegments(content: string, ranges: HighlightRange[]) {
 export function NoteStudyView({ noteId, content }: NoteStudyViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [highlights, setHighlights] = useState<HighlightRange[]>([]);
+  const [history, setHistory] = useState<HighlightRange[][]>([]);
   const [activeColor, setActiveColor] = useState<HighlightColor>('yellow');
   const [selectionRange, setSelectionRange] = useState<{
     start: number;
@@ -174,6 +175,19 @@ export function NoteStudyView({ noteId, content }: NoteStudyViewProps) {
     () => buildSegments(content, highlights),
     [content, highlights]
   );
+
+  const hasSelectedRange = selectionRange !== null;
+  const canUndo = history.length > 0;
+
+  function saveHistorySnapshot(nextHighlights: HighlightRange[]) {
+    setHistory((current) => [...current.slice(-19), highlights]);
+    setHighlights(nextHighlights);
+  }
+
+  function clearSelection() {
+    setSelectionRange(null);
+    window.getSelection()?.removeAllRanges();
+  }
 
   function syncSelection() {
     const root = containerRef.current;
@@ -226,117 +240,216 @@ export function NoteStudyView({ noteId, content }: NoteStudyViewProps) {
   function handleApplyHighlight() {
     if (!selectionRange) return;
 
-    setHighlights((current) =>
+    saveHistorySnapshot(
       applyHighlightRange(
-        current,
+        highlights,
         selectionRange.start,
         selectionRange.end,
         activeColor
       )
     );
-    setSelectionRange(null);
-    window.getSelection()?.removeAllRanges();
+    clearSelection();
   }
+
+  function handleRemoveSelectedHighlight() {
+    if (!selectionRange) return;
+
+    const nextHighlights = normalizeRanges(
+      highlights.flatMap((range) => {
+        if (
+          range.end <= selectionRange.start ||
+          range.start >= selectionRange.end
+        ) {
+          return [range];
+        }
+
+        const trimmed: HighlightRange[] = [];
+
+        if (range.start < selectionRange.start) {
+          trimmed.push({ ...range, end: selectionRange.start });
+        }
+
+        if (range.end > selectionRange.end) {
+          trimmed.push({ ...range, start: selectionRange.end });
+        }
+
+        return trimmed;
+      })
+    );
+
+    saveHistorySnapshot(nextHighlights);
+    clearSelection();
+  }
+
+  const handleUndo = useCallback(() => {
+    setHistory((current) => {
+      const previous = current[current.length - 1];
+      if (!previous) {
+        return current;
+      }
+
+      setHighlights(previous);
+      return current.slice(0, -1);
+    });
+    clearSelection();
+  }, []);
 
   function handleClearHighlights() {
-    setHighlights([]);
-    setSelectionRange(null);
-    window.getSelection()?.removeAllRanges();
+    saveHistorySnapshot([]);
+    clearSelection();
   }
 
-  return (
-    <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Study mode</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Select any part of the note, choose a highlighter color, then apply
-            it. Highlights are saved locally on this device for this note.
-          </p>
-        </div>
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const isUndoShortcut =
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'z';
 
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:min-w-[20rem]">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Highlighter
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(HIGHLIGHT_STYLES) as HighlightColor[]).map(
-              (color) => {
-                const isActive = activeColor === color;
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setActiveColor(color)}
-                    className={[
-                      'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition',
-                      isActive
-                        ? 'border-slate-900 text-slate-900 shadow-sm'
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300',
-                    ].join(' ')}
+      if (!isUndoShortcut || history.length === 0) return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      handleUndo();
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, history.length]);
+
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="flex flex-col gap-5">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Study mode</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Select any part of the note, choose a highlighter color, then
+              apply it. Highlights are saved locally on this device for this
+              note.
+            </p>
+          </div>
+
+          <div
+            ref={containerRef}
+            className="min-h-[20rem] rounded-3xl border border-slate-200 bg-slate-50/60 px-5 py-6 text-[15px] leading-8 text-slate-800 whitespace-pre-wrap"
+            onMouseUp={syncSelection}
+            onKeyUp={syncSelection}
+          >
+            {segments.length === 0 ? (
+              <p className="text-sm italic text-slate-500">
+                No note content yet.
+              </p>
+            ) : (
+              segments.map((segment) =>
+                segment.color ? (
+                  <mark
+                    key={segment.key}
+                    className={`${HIGHLIGHT_STYLES[segment.color].textClass} rounded px-0.5 text-inherit`}
                   >
-                    <span
-                      className={`h-4 w-4 rounded-full border ${HIGHLIGHT_STYLES[color].swatch}`}
-                      aria-hidden
-                    />
-                    {HIGHLIGHT_STYLES[color].label}
-                  </button>
-                );
-              }
+                    {segment.text}
+                  </mark>
+                ) : (
+                  <span key={segment.key}>{segment.text}</span>
+                )
+              )
             )}
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleApplyHighlight}
-              disabled={!selectionRange}
-              className="btn-primary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Apply highlight
-            </button>
-            <button
-              type="button"
-              onClick={handleClearHighlights}
-              disabled={highlights.length === 0}
-              className="btn-secondary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Clear all
-            </button>
-          </div>
-
-          <p className="text-xs text-slate-500">
-            {selectionRange
-              ? `Selected ${selectionRange.end - selectionRange.start} character${
-                  selectionRange.end - selectionRange.start === 1 ? '' : 's'
-                }.`
-              : 'Select some text in the note to highlight it.'}
-          </p>
         </div>
-      </div>
 
-      <div
-        ref={containerRef}
-        className="min-h-[20rem] rounded-3xl border border-slate-200 bg-slate-50/60 px-5 py-6 text-[15px] leading-8 text-slate-800 whitespace-pre-wrap"
-        onMouseUp={syncSelection}
-        onKeyUp={syncSelection}
-      >
-        {segments.length === 0 ? (
-          <p className="text-sm italic text-slate-500">No note content yet.</p>
-        ) : (
-          segments.map((segment) =>
-            segment.color ? (
-              <mark
-                key={segment.key}
-                className={`${HIGHLIGHT_STYLES[segment.color].textClass} rounded px-0.5 text-inherit`}
+        <aside className="lg:sticky lg:top-24">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Highlighter
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(HIGHLIGHT_STYLES) as HighlightColor[]).map(
+                (color) => {
+                  const isActive = activeColor === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setActiveColor(color)}
+                      className={[
+                        'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition',
+                        isActive
+                          ? 'border-slate-900 text-slate-900 shadow-sm'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300',
+                      ].join(' ')}
+                    >
+                      <span
+                        className={`h-4 w-4 rounded-full border ${HIGHLIGHT_STYLES[color].swatch}`}
+                        aria-hidden
+                      />
+                      {HIGHLIGHT_STYLES[color].label}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleApplyHighlight}
+                disabled={!hasSelectedRange}
+                className="btn-primary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {segment.text}
-              </mark>
-            ) : (
-              <span key={segment.key}>{segment.text}</span>
-            )
-          )
-        )}
+                Apply highlight
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveSelectedHighlight}
+                disabled={!hasSelectedRange}
+                className="btn-secondary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Unhighlight selected
+              </button>
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                className="btn-secondary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Undo highlight
+              </button>
+              <button
+                type="button"
+                onClick={handleClearHighlights}
+                disabled={highlights.length === 0}
+                className="btn-secondary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clear all
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-slate-500">
+              <p>
+                {selectionRange
+                  ? `Selected ${selectionRange.end - selectionRange.start} character${
+                      selectionRange.end - selectionRange.start === 1 ? '' : 's'
+                    }.`
+                  : 'Select some text in the note to highlight or unhighlight it.'}
+              </p>
+              <p>
+                Press{' '}
+                <span className="font-semibold text-slate-700">Cmd+Z</span> or{' '}
+                <span className="font-semibold text-slate-700">Ctrl+Z</span> to
+                undo the last highlight change.
+              </p>
+            </div>
+          </div>
+        </aside>
       </div>
     </section>
   );
