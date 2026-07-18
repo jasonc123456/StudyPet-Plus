@@ -63,6 +63,9 @@ function parseCardCountInput(rawValue: string): number | null {
 
 function providerSuccessLabel(provider: string, count: number): string {
   const countLabel = `${count} flashcard${count === 1 ? '' : 's'}`;
+  if (provider === 'local') {
+    return `Generated ${countLabel} with StudyPet+ AI.`;
+  }
   if (provider === 'gemini') {
     return `Generated ${countLabel} with Gemini.`;
   }

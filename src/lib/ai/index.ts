@@ -3,8 +3,9 @@
 //   const { items, provider } = await generateFlashcards({ sourceText });
 //   const { items, provider } = await generateQuiz({ sourceText });
 //
-// Gemini is primary whenever GEMINI_API_KEY is set and AI_DEMO_MODE !== "true".
-// DeepSeek is fallback only. Demo cards are returned ONLY when AI_DEMO_MODE === "true".
+// The self-hosted local LLM is primary whenever LOCAL_AI_BASE_URL is set and
+// AI_DEMO_MODE !== "true". Gemini is the hosted fallback. Demo cards are returned
+// ONLY when AI_DEMO_MODE === "true".
 
 import { AI_NOT_CONFIGURED_MESSAGE, getAiRuntimeStatus } from '@/lib/ai/config';
 import {
@@ -16,6 +17,7 @@ import {
 import {
   flashcardResponseSchema,
   quizResponseSchema,
+  type AiProviderName,
   type AiResult,
   type Flashcard,
   type GenerateFlashcardsInput,
@@ -54,7 +56,8 @@ export function dedupeFlashcards(cards: Flashcard[]): Flashcard[] {
   return unique;
 }
 
-function providerDisplayName(provider: 'gemini' | 'deepseek' | 'demo'): string {
+function providerDisplayName(provider: AiProviderName): string {
+  if (provider === 'local') return 'StudyPet+ AI';
   if (provider === 'gemini') return 'Gemini';
   if (provider === 'deepseek') return 'DeepSeek';
   return 'demo';
@@ -107,7 +110,7 @@ export async function generateFlashcards(
   const status = getAiRuntimeStatus();
   console.info('[ai] generateFlashcards start', {
     geminiConfigured: status.geminiConfigured,
-    deepseekConfigured: status.deepseekConfigured,
+    localConfigured: status.localConfigured,
     demoMode: status.demoMode,
     count,
   });
@@ -121,7 +124,7 @@ export async function generateFlashcards(
   if (!hasConfiguredProvider()) {
     console.error('[ai] generateFlashcards missing API keys', {
       geminiConfigured: status.geminiConfigured,
-      deepseekConfigured: status.deepseekConfigured,
+      localConfigured: status.localConfigured,
       demoMode: status.demoMode,
     });
     throw new AiProviderError('gemini', AI_NOT_CONFIGURED_MESSAGE);
@@ -144,7 +147,7 @@ export async function generateFlashcards(
 
   console.info('[ai] generateFlashcards ok', {
     geminiConfigured: status.geminiConfigured,
-    deepseekConfigured: status.deepseekConfigured,
+    localConfigured: status.localConfigured,
     demoMode: status.demoMode,
     provider: run.provider,
     providerLabel: providerDisplayName(run.provider),
@@ -197,7 +200,7 @@ export async function generateQuiz(
   const status = getAiRuntimeStatus();
   console.info('[ai] generateQuiz start', {
     geminiConfigured: status.geminiConfigured,
-    deepseekConfigured: status.deepseekConfigured,
+    localConfigured: status.localConfigured,
     demoMode: status.demoMode,
     count,
   });
@@ -210,7 +213,7 @@ export async function generateQuiz(
   if (!hasConfiguredProvider()) {
     console.error('[ai] generateQuiz missing API keys', {
       geminiConfigured: status.geminiConfigured,
-      deepseekConfigured: status.deepseekConfigured,
+      localConfigured: status.localConfigured,
       demoMode: status.demoMode,
     });
     throw new AiProviderError('gemini', AI_NOT_CONFIGURED_MESSAGE);
@@ -249,7 +252,7 @@ function demoFlashcards(count: number, topicHint?: string): Flashcard[] {
     {
       topic,
       front: '(Demo card) How do I get real cards?',
-      back: 'Set GEMINI_API_KEY (or DEEPSEEK_API_KEY) and AI_DEMO_MODE=false.',
+      back: 'Set LOCAL_AI_BASE_URL (or GEMINI_API_KEY) and AI_DEMO_MODE=false.',
     },
   ];
   return Array.from({ length: count }, (_, i) => base[i % base.length]);
@@ -275,7 +278,7 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'Upgrade Postgres',
       ],
       answerIndex: 1,
-      explanation: 'Configure GEMINI_API_KEY or DEEPSEEK_API_KEY, demo off.',
+      explanation: 'Configure LOCAL_AI_BASE_URL or GEMINI_API_KEY, demo off.',
     },
   ];
   return Array.from({ length: count }, (_, i) => base[i % base.length]);

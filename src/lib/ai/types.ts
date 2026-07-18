@@ -8,7 +8,7 @@
 import { z } from 'zod';
 
 /** Which backend produced a result — handy for logging + the UI "demo" badge. */
-export type AiProviderName = 'gemini' | 'deepseek' | 'demo';
+export type AiProviderName = 'local' | 'gemini' | 'deepseek' | 'demo';
 
 // ---------------------------------------------------------------------------
 // Flashcards
