@@ -2,68 +2,79 @@
 
 import { useMemo, useState } from 'react';
 
+import {
+  CLASS_ALL,
+  CLASS_UNCATEGORIZED,
+  ClassPicker,
+  type ClassOption,
+} from '@/components/common/ClassPicker';
+import { StatTile } from '@/components/common/StatTile';
 import { CreateFlashcardsPanel } from '@/components/flashcards/CreateFlashcardsPanel';
-import type { NoteOption } from '@/components/flashcards/CreateFlashcardsPanel';
+import type { FlashcardNoteOption } from '@/components/flashcards/CreateFlashcardsPanel';
 import type { FlashcardSetData } from '@/components/flashcards/FlashcardSetCard';
 import { FlashcardSetList } from '@/components/flashcards/FlashcardSetList';
 
 type FlashcardsPageClientProps = {
   sets: FlashcardSetData[];
-  notes: NoteOption[];
+  notes: FlashcardNoteOption[];
+  streak: number;
+  totalCards: number;
 };
 
 export function FlashcardsPageClient({
   sets,
   notes,
+  streak,
+  totalCards,
 }: FlashcardsPageClientProps) {
-  const [topicFilter, setTopicFilter] = useState('');
+  const [classFilter, setClassFilter] = useState<string>(CLASS_ALL);
 
-  const allTopics = useMemo(() => {
-    const topics = new Set<string>();
+  const courses = useMemo<ClassOption[]>(() => {
+    const map = new Map<string, ClassOption>();
     for (const set of sets) {
-      for (const topic of set.topics) {
-        topics.add(topic);
-      }
+      if (set.course) map.set(set.course.id, set.course);
     }
-    return Array.from(topics).sort((a, b) => a.localeCompare(b));
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [sets]);
+
+  const visibleSets = useMemo(() => {
+    if (classFilter === CLASS_ALL) return sets;
+    if (classFilter === CLASS_UNCATEGORIZED) {
+      return sets.filter((set) => !set.course);
+    }
+    return sets.filter((set) => set.course?.id === classFilter);
+  }, [sets, classFilter]);
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatTile
+          icon="🔥"
+          value={streak}
+          label={`Day streak${streak === 1 ? '' : 's'}`}
+          tone="warning"
+        />
+        <StatTile icon="🃏" value={totalCards} label="Cards in your decks" />
+      </div>
+
       <CreateFlashcardsPanel
         notes={notes}
         defaultExpanded={sets.length === 0}
       />
 
-      {sets.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3">
-          <label
-            htmlFor="topic-filter"
-            className="text-sm font-medium text-slate-700"
-          >
-            Filter by topic
-          </label>
-          <select
-            id="topic-filter"
-            value={topicFilter}
-            onChange={(e) => setTopicFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-          >
-            <option value="">All topics</option>
-            {allTopics.map((topic) => (
-              <option key={topic} value={topic}>
-                {topic}
-              </option>
-            ))}
-          </select>
-        </div>
+      {courses.length > 0 && (
+        <ClassPicker
+          courses={courses}
+          value={classFilter}
+          onChange={setClassFilter}
+        />
       )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Your sets
+        <h2 className="theme-muted text-sm font-semibold uppercase tracking-wide">
+          Your decks
         </h2>
-        <FlashcardSetList sets={sets} topicFilter={topicFilter} />
+        <FlashcardSetList sets={visibleSets} topicFilter="" />
       </section>
     </div>
   );

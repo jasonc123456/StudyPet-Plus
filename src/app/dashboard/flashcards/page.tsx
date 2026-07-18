@@ -3,14 +3,16 @@ import { Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { PageHeader } from '@/components/courses/PageHeader';
+import type { FlashcardNoteOption } from '@/components/flashcards/CreateFlashcardsPanel';
 import { FlashcardsPageClient } from '@/components/flashcards/FlashcardsPageClient';
 import type { FlashcardSetData } from '@/components/flashcards/FlashcardSetCard';
+import { hasVisibleRichText } from '@/lib/note-rich-text';
 import { prisma } from '@/lib/prisma';
 
 function isMissingFlashcardTable(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2021' &&
+    (error.code === 'P2021' || error.code === 'P2022') &&
     typeof error.message === 'string' &&
     error.message.includes('Flashcard')
   );
@@ -25,29 +27,26 @@ export default async function DashboardFlashcardsPage() {
   const userId = session.user.id;
 
   let sets: FlashcardSetData[] = [];
-  let notes: { id: string; title: string; cardCount: number }[] = [];
+  let notes: FlashcardNoteOption[] = [];
+  let streak = 0;
+  let totalCards = 0;
   let schemaError: string | null = null;
 
   try {
-    const [notesWithCards, allNotes] = await Promise.all([
-      prisma.note.findMany({
-        where: {
-          userId,
-          flashcards: { some: {} },
-        },
-        orderBy: { updatedAt: 'desc' },
+    const [setRows, noteRows, pet] = await Promise.all([
+      prisma.flashcardSet.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
         select: {
           id: true,
           title: true,
           course: { select: { id: true, name: true, color: true } },
-          flashcards: {
+          sourceNotes: {
+            select: { note: { select: { id: true, title: true } } },
+          },
+          cards: {
             orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-            select: {
-              id: true,
-              topic: true,
-              front: true,
-              back: true,
-            },
+            select: { id: true, topic: true, front: true, back: true },
           },
         },
       }),
@@ -57,32 +56,38 @@ export default async function DashboardFlashcardsPage() {
         select: {
           id: true,
           title: true,
-          _count: { select: { flashcards: true } },
+          content: true,
+          course: { select: { id: true, name: true, color: true } },
         },
+      }),
+      prisma.pet.findUnique({
+        where: { userId },
+        select: { streakCount: true },
       }),
     ]);
 
-    notes = allNotes.map((note) => ({
+    sets = setRows.map((set) => ({
+      id: set.id,
+      title: set.title,
+      course: set.course,
+      cards: set.cards,
+      topics: Array.from(new Set(set.cards.map((card) => card.topic))),
+      sourceNotes: set.sourceNotes.map((row) => row.note),
+    }));
+    totalCards = sets.reduce((sum, set) => sum + set.cards.length, 0);
+
+    notes = noteRows.map((note) => ({
       id: note.id,
       title: note.title,
-      cardCount: note._count.flashcards,
+      hasContent: hasVisibleRichText(note.content),
+      course: note.course,
     }));
-    sets = notesWithCards.map((note) => {
-      const topics = Array.from(
-        new Set(note.flashcards.map((card) => card.topic))
-      );
-      return {
-        id: note.id,
-        title: note.title,
-        course: note.course,
-        cards: note.flashcards,
-        topics,
-      };
-    });
+
+    streak = pet?.streakCount ?? 0;
   } catch (error) {
     if (isMissingFlashcardTable(error)) {
       schemaError =
-        'The Flashcard table is missing from the database. A pending Prisma migration needs to be applied on this environment (`npx prisma migrate deploy` with DATABASE_URL set).';
+        'The Flashcard tables are missing from the database. A pending Prisma migration needs to be applied on this environment (`npx prisma migrate deploy` with DATABASE_URL set).';
       console.error('Flashcards page schema mismatch (P2021):', error);
     } else {
       throw error;
@@ -93,7 +98,7 @@ export default async function DashboardFlashcardsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Flashcards"
-        description="Paste notes or use a saved note to generate topic-tagged cards, then study with flip mode."
+        description="Build decks from one or more notes, then study with flip mode and your own settings."
         action={{ label: 'Go to notes', href: '/dashboard/notes' }}
       />
 
@@ -104,14 +109,14 @@ export default async function DashboardFlashcardsPage() {
         >
           <p className="font-semibold">Database schema out of date</p>
           <p className="mt-1">{schemaError}</p>
-          <p className="mt-2 text-amber-900/80">
-            After migrate deploy succeeds, reload this page. Do not use{' '}
-            <code className="rounded bg-amber-100 px-1">prisma db push</code> on
-            the shared database.
-          </p>
         </div>
       ) : (
-        <FlashcardsPageClient sets={sets} notes={notes} />
+        <FlashcardsPageClient
+          sets={sets}
+          notes={notes}
+          streak={streak}
+          totalCards={totalCards}
+        />
       )}
     </div>
   );

@@ -49,12 +49,14 @@ export type FlashcardMutationState =
   | { ok: true; flashcard?: FlashcardRow; deletedCount?: number }
   | { ok: false; error: string; code?: FlashcardActionErrorCode };
 
-function revalidateFlashcardPaths(noteId?: string | null) {
+function revalidateFlashcardPaths(id?: string | null) {
   revalidatePath('/dashboard/flashcards');
   revalidatePath('/flashcards');
-  if (noteId) {
-    revalidatePath(`/dashboard/notes/${noteId}/edit`);
-    revalidatePath(`/dashboard/flashcards/study/${noteId}`);
+  if (id) {
+    // id may be a note id (note editor) or a deck id (study route); revalidate
+    // both shapes — a non-matching path is a harmless no-op.
+    revalidatePath(`/dashboard/notes/${id}/edit`);
+    revalidatePath(`/dashboard/flashcards/study/${id}`);
   }
 }
 
@@ -173,7 +175,7 @@ export async function createFlashcardsFromPasteAction(input: {
 }
 
 export async function createFlashcardAction(input: {
-  noteId: string;
+  setId: string;
   topic: string;
   front: string;
   back: string;
@@ -201,7 +203,7 @@ export async function createFlashcardAction(input: {
       userId: session.user.id,
       ...parsed.data,
     });
-    revalidateFlashcardPaths(parsed.data.noteId);
+    revalidateFlashcardPaths(parsed.data.setId);
     return { ok: true, flashcard };
   } catch (error) {
     if (error instanceof FlashcardServiceError) {
@@ -286,7 +288,7 @@ export async function deleteFlashcardAction(
 }
 
 export async function deleteFlashcardSetAction(
-  noteId: string
+  setId: string
 ): Promise<FlashcardMutationState> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -297,13 +299,13 @@ export async function deleteFlashcardSetAction(
     };
   }
 
-  if (!noteId || typeof noteId !== 'string') {
-    return { ok: false, error: 'Invalid note.', code: 'VALIDATION' };
+  if (!setId || typeof setId !== 'string') {
+    return { ok: false, error: 'Invalid deck.', code: 'VALIDATION' };
   }
 
   try {
-    const deletedCount = await deleteOwnedFlashcardSet(noteId, session.user.id);
-    revalidateFlashcardPaths(noteId);
+    const deletedCount = await deleteOwnedFlashcardSet(setId, session.user.id);
+    revalidateFlashcardPaths(setId);
     return { ok: true, deletedCount };
   } catch (error) {
     if (error instanceof FlashcardServiceError) {

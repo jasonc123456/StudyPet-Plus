@@ -433,7 +433,7 @@ export type CreateFlashcardsFromPasteInput = z.infer<
 >;
 
 export const createFlashcardSchema = z.object({
-  noteId: z.string().cuid(),
+  setId: z.string().cuid(),
   ...flashcardFieldSchema,
 });
 
