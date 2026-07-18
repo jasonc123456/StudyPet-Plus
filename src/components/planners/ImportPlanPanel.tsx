@@ -565,7 +565,11 @@ export function ImportPlanPanel({
               {error}
             </p>
           ) : null}
-          <GenerationProgress state={progress.state} noun="courses" />
+          <GenerationProgress
+            state={progress.state}
+            noun="course plan"
+            source="your course plan"
+          />
         </div>
       ) : null}
     </section>
