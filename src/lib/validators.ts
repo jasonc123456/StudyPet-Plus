@@ -315,6 +315,7 @@ export type GenerateQuizRequestInput = z.infer<
 
 export const submitQuizAttemptSchema = z.object({
   quizId: z.string().cuid(),
+  clientAttemptId: z.string().uuid(),
   answers: z
     .array(
       z.object({

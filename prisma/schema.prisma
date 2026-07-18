@@ -556,6 +556,7 @@ model QuizAttempt {
   id             String   @id @default(cuid())
   userId         String
   quizId         String
+  clientAttemptId String?
   correctCount   Int
   totalQuestions Int
   scorePercent   Int
@@ -568,26 +569,24 @@ model QuizAttempt {
 
   @@index([userId, createdAt])
   @@index([quizId, createdAt])
+  @@unique([userId, clientAttemptId])
 }
 
-// US-4.05 — one row per quiz-completion XP grant. The unique
-// (userId, quizId, awardedOn) key caps the payout at once per quiz per UTC
-// day — the same anti-farming granularity as FlashcardReviewAward — so
-// resubmitting or retaking a quiz on the same day can't farm XP, while a
-// genuine retake on a later day earns again. Repeat completions still save
-// a QuizAttempt (score history / weak topics), just with xpAwarded = 0.
+// US-4.05 — the permanent marker that a user earned a quiz's full reward.
+// Partial attempts award their score-tier XP without creating this row. Once
+// the user answers every question correctly, this unique row marks the quiz
+// done and prevents all later attempts from awarding more XP.
 model QuizXpAward {
   id        String   @id @default(cuid())
   userId    String
   quizId    String
-  awardedOn String // UTC calendar day, "YYYY-MM-DD"
   xp        Int
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, quizId, awardedOn])
+  @@unique([userId, quizId])
   @@index([userId])
   @@index([quizId])
 }
