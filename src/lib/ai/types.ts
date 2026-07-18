@@ -11,6 +11,30 @@ import { z } from 'zod';
 export type AiProviderName = 'local' | 'gemini' | 'deepseek' | 'demo';
 
 // ---------------------------------------------------------------------------
+// Streaming progress
+// ---------------------------------------------------------------------------
+//
+// Reasoning models (e.g. Qwen3 on the self-hosted server) "think" before they
+// emit the answer. The provider surfaces that as two phases so the UI can show
+// honest, live progress instead of a static spinner:
+//   - "thinking": the model is reasoning; no output items exist yet.
+//   - "writing":  the JSON answer is streaming in.
+// Counters are cumulative character counts — enough to prove the stream is
+// moving without promising a predictable total (generation length is unknown).
+
+export type AiProgressPhase = 'thinking' | 'writing';
+
+export interface AiProgressEvent {
+  phase: AiProgressPhase;
+  /** Cumulative reasoning characters streamed so far. */
+  thinkingChars: number;
+  /** Cumulative answer characters streamed so far. */
+  writingChars: number;
+}
+
+export type AiProgressCallback = (event: AiProgressEvent) => void;
+
+// ---------------------------------------------------------------------------
 // Flashcards
 // ---------------------------------------------------------------------------
 
@@ -63,12 +87,16 @@ export interface GenerateFlashcardsInput {
   count?: number;
   /** Optional subject/course name to bias topic tagging. */
   topicHint?: string;
+  /** Optional live progress callback (enables streaming when supported). */
+  onProgress?: AiProgressCallback;
 }
 
 export interface GenerateQuizInput {
   sourceText: string;
   count?: number;
   topicHint?: string;
+  /** Optional live progress callback (enables streaming when supported). */
+  onProgress?: AiProgressCallback;
 }
 
 /** Result wrapper so callers know which provider answered (real vs. demo). */

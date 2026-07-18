@@ -5,7 +5,11 @@
 // keeping manually created singleton cards.
 
 import { dedupeFlashcards, generateFlashcards } from '@/lib/ai';
-import { flashcardResponseSchema, type AiProviderName } from '@/lib/ai/types';
+import {
+  flashcardResponseSchema,
+  type AiProgressCallback,
+  type AiProviderName,
+} from '@/lib/ai/types';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import type { Flashcard as FlashcardRow } from '@prisma/client';
@@ -26,6 +30,8 @@ export type GenerateAndSaveFlashcardsInput = {
   count?: number;
   /** When true, remove prior AI-generated batches before inserting new cards. */
   replaceGenerated?: boolean;
+  /** Optional live progress callback forwarded to the AI layer. */
+  onProgress?: AiProgressCallback;
 };
 
 export type GenerateAndSaveFlashcardsResult = {
@@ -117,6 +123,7 @@ export async function generateAndSaveFlashcards(
     sourceText: note.content,
     count: input.count,
     topicHint,
+    onProgress: input.onProgress,
   });
 
   // Never persist demo material unless the caller explicitly requested demo mode
@@ -215,6 +222,7 @@ export async function createNoteAndGenerateFlashcards(input: {
   content: string;
   title?: string;
   count?: number;
+  onProgress?: AiProgressCallback;
 }): Promise<GenerateAndSaveFlashcardsResult & { noteId: string }> {
   const content = input.content.trim();
   if (!content) {
@@ -236,6 +244,7 @@ export async function createNoteAndGenerateFlashcards(input: {
     noteId: note.id,
     userId: input.userId,
     count: input.count,
+    onProgress: input.onProgress,
   });
 
   return { ...result, noteId: note.id };

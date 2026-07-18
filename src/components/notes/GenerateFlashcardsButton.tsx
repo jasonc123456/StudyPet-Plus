@@ -3,13 +3,24 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
-import { generateFlashcardsAction } from '@/app/actions/flashcard-actions';
+import {
+  GenerationProgress,
+  useGenerationProgress,
+} from '@/components/common/GenerationProgress';
+import { consumeGenerationStream } from '@/lib/generation-stream';
 
 export type FlashcardPreviewItem = {
   id: string;
   topic: string;
   front: string;
   back: string;
+};
+
+type GenerateFlashcardsResponse = {
+  flashcards: FlashcardPreviewItem[];
+  generatedCount: number;
+  provider: string;
+  noteId?: string;
 };
 
 type GenerateFlashcardsButtonProps = {
@@ -48,31 +59,42 @@ export function GenerateFlashcardsButton({
   const [replaceGenerated, setReplaceGenerated] = useState(false);
   const [flashcards, setFlashcards] =
     useState<FlashcardPreviewItem[]>(initialFlashcards);
+  const progress = useGenerationProgress();
 
   function handleGenerate() {
     if (isPending || !hasContent) return;
 
     setError(null);
     setSuccessMessage(null);
+    progress.begin();
 
     startTransition(async () => {
-      const result = await generateFlashcardsAction(
-        noteId,
-        undefined,
-        flashcards.length > 0 ? replaceGenerated : false
-      );
+      try {
+        const result =
+          await consumeGenerationStream<GenerateFlashcardsResponse>(
+            '/api/flashcards/generate',
+            {
+              noteId,
+              replaceGenerated:
+                flashcards.length > 0 ? replaceGenerated : false,
+            },
+            progress.update
+          );
 
-      if (!result.ok) {
-        setError(result.error);
-        return;
+        setFlashcards(result.flashcards);
+        setSuccessMessage(
+          providerSuccessLabel(result.provider, result.generatedCount)
+        );
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to generate flashcards. Please try again.'
+        );
+      } finally {
+        progress.end();
       }
-
-      setFlashcards(result.flashcards);
-
-      setSuccessMessage(
-        providerSuccessLabel(result.provider, result.generatedCount)
-      );
-      router.refresh();
     });
   }
 
@@ -119,6 +141,8 @@ export function GenerateFlashcardsButton({
           <span>Replace generated cards (keeps cards you added manually).</span>
         </label>
       )}
+
+      <GenerationProgress state={progress.state} noun="flashcards" />
 
       {!hasContent && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">

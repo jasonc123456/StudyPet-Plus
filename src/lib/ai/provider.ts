@@ -19,7 +19,7 @@ import {
   getGeminiConfig,
   getLocalConfig,
 } from '@/lib/ai/config';
-import type { AiProviderName } from '@/lib/ai/types';
+import type { AiProgressCallback, AiProviderName } from '@/lib/ai/types';
 
 export class AiProviderError extends Error {
   constructor(
@@ -44,6 +44,16 @@ interface AiProvider {
   isConfigured(): boolean;
   /** Returns a parsed JSON object, or throws AiProviderError. */
   generateJson(prompt: JsonPrompt): Promise<unknown>;
+  /**
+   * Streaming variant: reports thinking/writing progress via onProgress as
+   * tokens arrive, then returns the parsed JSON object. Providers that can't
+   * stream omit this; runWithFallback falls back to generateJson with a single
+   * synthetic "writing" event so the UI still shows a live phase.
+   */
+  generateJsonStreaming?(
+    prompt: JsonPrompt,
+    onProgress: AiProgressCallback
+  ): Promise<unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +77,109 @@ async function fetchJson(
       );
     }
     return await res.json();
+  } catch (err) {
+    if (err instanceof AiProviderError) throw err;
+    const reason =
+      err instanceof Error && err.name === 'AbortError'
+        ? `timed out after ${AI_REQUEST_TIMEOUT_MS}ms`
+        : 'request failed';
+    throw new AiProviderError(provider, reason, err);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * POSTs to an OpenAI-compatible endpoint with stream:true and reads the SSE
+ * body. Reasoning-model deltas arrive as `reasoning_content` (the "thinking"
+ * phase) first, then `content` (the "writing" phase). Reports cumulative
+ * progress as chunks arrive and returns the full concatenated answer text.
+ */
+async function streamOpenAiContent(
+  provider: AiProviderName,
+  url: string,
+  init: RequestInit,
+  onProgress: AiProgressCallback
+): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+
+  let thinkingChars = 0;
+  let writingChars = 0;
+  let content = '';
+  let phase: 'thinking' | 'writing' = 'thinking';
+
+  // Throttle progress emits so a fast token stream doesn't flood the SSE pipe.
+  let lastEmit = 0;
+  const emit = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastEmit < 120) return;
+    lastEmit = now;
+    onProgress({ phase, thinkingChars, writingChars });
+  };
+
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    if (!res.ok || !res.body) {
+      const body = res.body ? await res.text().catch(() => '') : '';
+      throw new AiProviderError(
+        provider,
+        `HTTP ${res.status}${body ? `: ${body.slice(0, 300)}` : ''}`
+      );
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE frames are separated by blank lines; each carries a `data:` line.
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data:'));
+        if (!line) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+
+        let parsed: {
+          choices?: {
+            delta?: { content?: string; reasoning_content?: string };
+          }[];
+        };
+        try {
+          parsed = JSON.parse(data);
+        } catch {
+          continue; // ignore keep-alives / partial frames
+        }
+
+        const delta = parsed.choices?.[0]?.delta;
+        if (!delta) continue;
+        if (delta.reasoning_content) {
+          thinkingChars += delta.reasoning_content.length;
+          emit();
+        }
+        if (delta.content) {
+          if (phase === 'thinking') {
+            phase = 'writing';
+            emit(true);
+          }
+          content += delta.content;
+          writingChars += delta.content.length;
+          emit();
+        }
+      }
+    }
+
+    emit(true);
+    if (!content.trim()) {
+      throw new AiProviderError(provider, 'no completion returned');
+    }
+    return content;
   } catch (err) {
     if (err instanceof AiProviderError) throw err;
     const reason =
@@ -160,6 +273,30 @@ const geminiProvider: AiProvider = {
 // reasoning models keep their chain-of-thought in a separate `reasoning_content`
 // field, and parseJsonObject strips any stray fences — so `content` is clean.
 
+function localRequestInit(
+  config: { apiKey: string; model: string },
+  system: string,
+  user: string,
+  stream: boolean
+): RequestInit {
+  return {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      temperature: 0.4,
+      stream,
+    }),
+  };
+}
+
 const localProvider: AiProvider = {
   name: 'local',
   isConfigured: () => getLocalConfig() !== null,
@@ -170,26 +307,24 @@ const localProvider: AiProvider = {
     const data = (await fetchJson(
       'local',
       `${config.baseUrl}/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          temperature: 0.4,
-        }),
-      }
+      localRequestInit(config, system, user, false)
     )) as { choices?: { message?: { content?: string } }[] };
 
     const text = data.choices?.[0]?.message?.content;
     if (!text) throw new AiProviderError('local', 'no completion returned');
 
+    return parseJsonObject('local', text);
+  },
+  async generateJsonStreaming({ system, user }, onProgress) {
+    const config = getLocalConfig();
+    if (!config) throw new AiProviderError('local', 'not configured');
+
+    const text = await streamOpenAiContent(
+      'local',
+      `${config.baseUrl}/chat/completions`,
+      localRequestInit(config, system, user, true),
+      onProgress
+    );
     return parseJsonObject('local', text);
   },
 };
@@ -200,6 +335,20 @@ const localProvider: AiProvider = {
 
 /** Primary first, then fallback: self-hosted LLM, then hosted Gemini. */
 const PROVIDER_CHAIN: AiProvider[] = [localProvider, geminiProvider];
+
+/**
+ * Runs a provider that can't stream. When the caller wants progress, emit one
+ * synthetic "writing" event up front so the UI still shows a live phase (rather
+ * than a static spinner) while the single request is in flight.
+ */
+async function runNonStreaming(
+  provider: AiProvider,
+  prompt: JsonPrompt,
+  onProgress?: AiProgressCallback
+): Promise<unknown> {
+  onProgress?.({ phase: 'writing', thinkingChars: 0, writingChars: 0 });
+  return provider.generateJson(prompt);
+}
 
 export interface ProviderRun {
   provider: AiProviderName;
@@ -216,7 +365,8 @@ export interface ProviderRun {
  */
 export async function runWithFallback(
   prompt: JsonPrompt,
-  validate: (value: unknown) => boolean
+  validate: (value: unknown) => boolean,
+  onProgress?: AiProgressCallback
 ): Promise<ProviderRun> {
   const configured = PROVIDER_CHAIN.filter((p) => p.isConfigured());
   if (configured.length === 0) {
@@ -234,7 +384,10 @@ export async function runWithFallback(
   for (const provider of configured) {
     try {
       console.info('[ai] trying provider', { provider: provider.name });
-      const value = await provider.generateJson(prompt);
+      const value =
+        onProgress && provider.generateJsonStreaming
+          ? await provider.generateJsonStreaming(prompt, onProgress)
+          : await runNonStreaming(provider, prompt, onProgress);
       if (!validate(value)) {
         throw new AiProviderError(
           provider.name,

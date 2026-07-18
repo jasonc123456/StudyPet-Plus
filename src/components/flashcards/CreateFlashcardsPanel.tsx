@@ -4,9 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition, type FormEvent } from 'react';
 
 import {
-  createFlashcardsFromPasteAction,
-  generateFlashcardsAction,
-} from '@/app/actions/flashcard-actions';
+  GenerationProgress,
+  useGenerationProgress,
+} from '@/components/common/GenerationProgress';
+import {
+  consumeGenerationStream,
+  type GenerationProgress as ProgressData,
+} from '@/lib/generation-stream';
 
 export type NoteOption = {
   id: string;
@@ -148,21 +152,41 @@ function resolveSubmitPayload(input: {
 }
 
 async function requestFlashcards(
-  payload: LastPayload
+  payload: LastPayload,
+  onProgress: (progress: ProgressData) => void
 ): Promise<GenerateResult> {
-  if (payload.mode === 'paste') {
-    return createFlashcardsFromPasteAction({
-      content: payload.content,
-      title: payload.title || undefined,
-      count: payload.count,
-    });
-  }
+  const body =
+    payload.mode === 'paste'
+      ? {
+          content: payload.content,
+          title: payload.title || undefined,
+          count: payload.count,
+        }
+      : {
+          noteId: payload.noteId,
+          count: payload.count,
+          replaceGenerated: payload.replaceGenerated,
+        };
 
-  return generateFlashcardsAction(
-    payload.noteId,
-    payload.count,
-    payload.replaceGenerated
-  );
+  try {
+    const result = await consumeGenerationStream<{
+      provider: string;
+      generatedCount: number;
+    }>('/api/flashcards/generate', body, onProgress);
+    return {
+      ok: true,
+      provider: result.provider,
+      generatedCount: result.generatedCount,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate flashcards. Please try again.',
+    };
+  }
 }
 
 function shouldShowRetry(
@@ -457,6 +481,7 @@ function useCreateFlashcardsPanel({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [lastPayload, setLastPayload] = useState<LastPayload | null>(null);
   const [isPending, startTransition] = useTransition();
+  const progress = useGenerationProgress();
 
   const usingExistingNote = Boolean(noteId);
   const canCollapse = !defaultExpanded;
@@ -483,20 +508,25 @@ function useCreateFlashcardsPanel({
     setError(null);
     setStatusMessage(null);
     setLastPayload(payload);
+    progress.begin();
 
     startTransition(async () => {
-      const result = await requestFlashcards(payload);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
+      try {
+        const result = await requestFlashcards(payload, progress.update);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
 
-      setStatusMessage(
-        providerSuccessLabel(result.provider, result.generatedCount)
-      );
-      resetFormAfterSuccess();
-      onGenerated?.();
-      router.refresh();
+        setStatusMessage(
+          providerSuccessLabel(result.provider, result.generatedCount)
+        );
+        resetFormAfterSuccess();
+        onGenerated?.();
+        router.refresh();
+      } finally {
+        progress.end();
+      }
     });
   }
 
@@ -563,6 +593,7 @@ function useCreateFlashcardsPanel({
     error,
     statusMessage,
     isPending,
+    progressState: progress.state,
     usingExistingNote,
     canCollapse,
     selectedHasCards,
@@ -590,6 +621,7 @@ function ExpandedCreateForm({
   error,
   statusMessage,
   isPending,
+  progressState,
   usingExistingNote,
   canCollapse,
   selectedHasCards,
@@ -677,6 +709,8 @@ function ExpandedCreateForm({
             </button>
           ) : null}
         </div>
+
+        <GenerationProgress state={progressState} noun="flashcards" />
 
         <FormFeedback error={error} statusMessage={statusMessage} />
       </form>
