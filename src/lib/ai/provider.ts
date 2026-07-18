@@ -19,7 +19,11 @@ import {
   getGeminiConfig,
   getLocalConfig,
 } from '@/lib/ai/config';
-import type { AiProgressCallback, AiProviderName } from '@/lib/ai/types';
+import type {
+  AiAttachment,
+  AiProgressCallback,
+  AiProviderName,
+} from '@/lib/ai/types';
 
 export class AiProviderError extends Error {
   constructor(
@@ -37,6 +41,8 @@ export interface JsonPrompt {
   system: string;
   /** The task + source text. Must mention "JSON" for json_object mode. */
   user: string;
+  /** Optional binary files (e.g. PDFs) passed straight to the model. */
+  attachments?: AiAttachment[];
 }
 
 interface AiProvider {
@@ -219,13 +225,21 @@ function parseJsonObject(provider: AiProviderName, raw: string): unknown {
 const geminiProvider: AiProvider = {
   name: 'gemini',
   isConfigured: () => getGeminiConfig() !== null,
-  async generateJson({ system, user }) {
+  async generateJson({ system, user, attachments }) {
     const config = getGeminiConfig();
     if (!config) throw new AiProviderError('gemini', 'no API key configured');
 
     const url =
       `https://generativelanguage.googleapis.com/v1beta/models/` +
       `${encodeURIComponent(config.model)}:generateContent`;
+
+    // Gemini takes files as inline base64 parts alongside the text prompt.
+    const userParts: Array<Record<string, unknown>> = [{ text: user }];
+    for (const file of attachments ?? []) {
+      userParts.push({
+        inlineData: { mimeType: file.mimeType, data: file.base64 },
+      });
+    }
 
     const data = (await fetchJson('gemini', url, {
       method: 'POST',
@@ -235,7 +249,7 @@ const geminiProvider: AiProvider = {
       },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: user }] }],
+        contents: [{ role: 'user', parts: userParts }],
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.4,
@@ -273,10 +287,31 @@ const geminiProvider: AiProvider = {
 // reasoning models keep their chain-of-thought in a separate `reasoning_content`
 // field, and parseJsonObject strips any stray fences — so `content` is clean.
 
+/**
+ * Builds the user message content. With no attachments it stays a plain string
+ * (widest server compatibility); with attachments it becomes an OpenAI-style
+ * content array carrying a base64 `file` part per document.
+ */
+function localUserContent(
+  user: string,
+  attachments?: AiAttachment[]
+): string | Array<Record<string, unknown>> {
+  if (!attachments || attachments.length === 0) return user;
+  return [
+    { type: 'text', text: user },
+    ...attachments.map((file) => ({
+      type: 'file',
+      file: {
+        filename: file.filename,
+        file_data: `data:${file.mimeType};base64,${file.base64}`,
+      },
+    })),
+  ];
+}
+
 function localRequestInit(
   config: { apiKey: string; model: string },
-  system: string,
-  user: string,
+  prompt: JsonPrompt,
   stream: boolean
 ): RequestInit {
   return {
@@ -288,8 +323,11 @@ function localRequestInit(
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
+        { role: 'system', content: prompt.system },
+        {
+          role: 'user',
+          content: localUserContent(prompt.user, prompt.attachments),
+        },
       ],
       temperature: 0.4,
       stream,
@@ -300,14 +338,14 @@ function localRequestInit(
 const localProvider: AiProvider = {
   name: 'local',
   isConfigured: () => getLocalConfig() !== null,
-  async generateJson({ system, user }) {
+  async generateJson(prompt) {
     const config = getLocalConfig();
     if (!config) throw new AiProviderError('local', 'not configured');
 
     const data = (await fetchJson(
       'local',
       `${config.baseUrl}/chat/completions`,
-      localRequestInit(config, system, user, false)
+      localRequestInit(config, prompt, false)
     )) as { choices?: { message?: { content?: string } }[] };
 
     const text = data.choices?.[0]?.message?.content;
@@ -315,14 +353,14 @@ const localProvider: AiProvider = {
 
     return parseJsonObject('local', text);
   },
-  async generateJsonStreaming({ system, user }, onProgress) {
+  async generateJsonStreaming(prompt, onProgress) {
     const config = getLocalConfig();
     if (!config) throw new AiProviderError('local', 'not configured');
 
     const text = await streamOpenAiContent(
       'local',
       `${config.baseUrl}/chat/completions`,
-      localRequestInit(config, system, user, true),
+      localRequestInit(config, prompt, true),
       onProgress
     );
     return parseJsonObject('local', text);

@@ -57,6 +57,7 @@ export default async function DashboardFlashcardsPage() {
           id: true,
           title: true,
           content: true,
+          pdfUrl: true,
           course: { select: { id: true, name: true, color: true } },
         },
       }),
@@ -79,7 +80,8 @@ export default async function DashboardFlashcardsPage() {
     notes = noteRows.map((note) => ({
       id: note.id,
       title: note.title,
-      hasContent: hasVisibleRichText(note.content),
+      hasContent: hasVisibleRichText(note.content) || Boolean(note.pdfUrl),
+      hasPdf: Boolean(note.pdfUrl),
       course: note.course,
     }));
 

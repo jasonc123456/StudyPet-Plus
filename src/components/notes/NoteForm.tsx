@@ -45,7 +45,7 @@ type NoteFormProps =
 const TITLE_MAX = 200;
 const CONTENT_MAX = 50000;
 const NOTE_PDF_SECURITY_MESSAGE =
-  'PDFs are stored as attachments only and are not automatically parsed or sent to AI tools.';
+  'PDFs stay private attachments and are never sent to AI on their own — the file is only shared with the AI if you pick this note to generate flashcards or a quiz.';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';

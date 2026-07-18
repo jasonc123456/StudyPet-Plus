@@ -17,6 +17,7 @@ import {
 import {
   flashcardResponseSchema,
   quizResponseSchema,
+  type AiAttachment,
   type AiProviderName,
   type AiResult,
   type Flashcard,
@@ -39,6 +40,25 @@ function clampCount(count: number | undefined): number {
 
 function prepareSource(text: string): string {
   return text.trim().slice(0, MAX_SOURCE_CHARS);
+}
+
+/**
+ * The source-material section of a prompt. Uses the typed notes when present,
+ * points at the attached document(s) when a PDF-backed note was chosen, and
+ * describes both when the note has typed text *and* a PDF.
+ */
+function sourceSection(source: string, attachmentCount: number): string {
+  const noteBlock = source ? `\n\nNOTES:\n"""\n${source}\n"""` : '';
+  if (attachmentCount === 0) return noteBlock;
+
+  const plural = attachmentCount === 1 ? '' : 's';
+  const how = source
+    ? 'them together with the notes above'
+    : 'the attached document(s)';
+  return (
+    `${noteBlock}\n\nThe user also attached ${attachmentCount} document${plural} ` +
+    `(e.g. a PDF). Read ${how} as the source material.`
+  );
 }
 
 /** Collapse equivalent cards (same front+back, case/whitespace-insensitive). */
@@ -72,30 +92,32 @@ function providerDisplayName(provider: AiProviderName): string {
 function flashcardPrompt(
   source: string,
   count: number,
-  topicHint?: string
+  topicHint?: string,
+  attachments?: AiAttachment[]
 ): JsonPrompt {
   const hint = topicHint?.trim()
-    ? ` The course/subject context is "${topicHint.trim()}" — use it only for topic tags when it fits the notes.`
+    ? ` The course/subject context is "${topicHint.trim()}" — use it only for topic tags when it fits the source.`
     : '';
   return {
     system:
       "You are a study assistant that turns a student's notes into concise, " +
       'accurate flashcards for exam review. Rules:\n' +
-      '1. Use ONLY facts explicitly present in the provided NOTES.\n' +
-      '2. Never invent facts, definitions, or examples that are not in the notes.\n' +
+      '1. Use ONLY facts explicitly present in the provided source (notes and/or attached documents).\n' +
+      '2. Never invent facts, definitions, or examples that are not in the source.\n' +
       '3. Do NOT create generic study-skill cards (spaced repetition, active recall, ' +
       'how flashcards work, meta-learning tips, or how to configure AI).\n' +
-      '4. Each card must test a specific concept, term, formula, or fact from the notes.\n' +
+      '4. Each card must test a specific concept, term, formula, or fact from the source.\n' +
       '5. Respond with JSON only — no markdown fences or commentary.',
     user:
-      `Create exactly ${count} flashcards from the NOTES below.${hint}\n\n` +
+      `Create exactly ${count} flashcards from the source material.${hint}\n\n` +
       'Return a JSON object of this exact shape:\n' +
       '{ "cards": [ { "topic": string, "front": string, "back": string } ] }\n' +
-      '- "topic": a short subject/section tag grounded in the notes (a few words).\n' +
-      '- "front": a clear question or prompt about the notes.\n' +
-      '- "back": a concise answer drawn only from the notes.\n' +
-      '- Prefer variety across distinct facts in the notes; avoid near-duplicate cards.\n\n' +
-      `NOTES:\n"""\n${source}\n"""`,
+      '- "topic": a short subject/section tag grounded in the source (a few words).\n' +
+      '- "front": a clear question or prompt about the source.\n' +
+      '- "back": a concise answer drawn only from the source.\n' +
+      '- Prefer variety across distinct facts; avoid near-duplicate cards.' +
+      sourceSection(source, attachments?.length ?? 0),
+    attachments,
   };
 }
 
@@ -104,9 +126,10 @@ export async function generateFlashcards(
 ): Promise<AiResult<Flashcard>> {
   const source = prepareSource(input.sourceText);
   const count = clampCount(input.count);
+  const attachments = input.attachments ?? [];
 
-  if (!source) {
-    throw new Error('generateFlashcards: sourceText is empty');
+  if (!source && attachments.length === 0) {
+    throw new Error('generateFlashcards: no source text or attachments');
   }
 
   const status = getAiRuntimeStatus();
@@ -133,7 +156,7 @@ export async function generateFlashcards(
   }
 
   const run = await runWithFallback(
-    flashcardPrompt(source, count, input.topicHint),
+    flashcardPrompt(source, count, input.topicHint, attachments),
     (value) => flashcardResponseSchema.safeParse(value).success,
     input.onProgress
   );
@@ -167,7 +190,8 @@ export async function generateFlashcards(
 function quizPrompt(
   source: string,
   count: number,
-  topicHint?: string
+  topicHint?: string,
+  attachments?: AiAttachment[]
 ): JsonPrompt {
   const hint = topicHint?.trim()
     ? ` The course/subject context is "${topicHint.trim()}".`
@@ -175,11 +199,11 @@ function quizPrompt(
   return {
     system:
       'You are a study assistant that writes fair multiple-choice quiz ' +
-      "questions from a student's notes. Only use facts present in the notes; " +
-      'never invent material. Do not ask meta questions about study skills or AI. ' +
-      'Respond with JSON only.',
+      "questions from a student's notes and attached documents. Only use facts " +
+      'present in the source; never invent material. Do not ask meta questions ' +
+      'about study skills or AI. Respond with JSON only.',
     user:
-      `Write ${count} multiple-choice questions from the notes below.${hint}\n\n` +
+      `Write ${count} multiple-choice questions from the source material.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
       '{ "questions": [ { "topic": string, "question": string, ' +
       '"choices": string[], "answerIndex": number, "explanation": string, ' +
@@ -188,8 +212,9 @@ function quizPrompt(
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
       '- "explanation" briefly says why the answer is correct.\n' +
       '- "hint" nudges the student toward the answer WITHOUT revealing which ' +
-      'choice is correct (point at the relevant concept, not the option).\n\n' +
-      `NOTES:\n"""\n${source}\n"""`,
+      'choice is correct (point at the relevant concept, not the option).' +
+      sourceSection(source, attachments?.length ?? 0),
+    attachments,
   };
 }
 
@@ -198,9 +223,10 @@ export async function generateQuiz(
 ): Promise<AiResult<QuizQuestion>> {
   const source = prepareSource(input.sourceText);
   const count = clampCount(input.count);
+  const attachments = input.attachments ?? [];
 
-  if (!source) {
-    throw new Error('generateQuiz: sourceText is empty');
+  if (!source && attachments.length === 0) {
+    throw new Error('generateQuiz: no source text or attachments');
   }
 
   const status = getAiRuntimeStatus();
@@ -226,7 +252,7 @@ export async function generateQuiz(
   }
 
   const run = await runWithFallback(
-    quizPrompt(source, count, input.topicHint),
+    quizPrompt(source, count, input.topicHint, attachments),
     (value) => quizResponseSchema.safeParse(value).success,
     input.onProgress
   );

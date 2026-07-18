@@ -284,6 +284,7 @@ export function QuizzesPageClient({ notes, quizzes }: QuizzesPageClientProps) {
                     <span className="min-w-0 flex-1 truncate">
                       {note.title}
                     </span>
+                    {note.hasPdf && <Chip>PDF</Chip>}
                     {note.course && (
                       <Chip color={note.course.color}>{note.course.name}</Chip>
                     )}

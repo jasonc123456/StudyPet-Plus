@@ -170,4 +170,4 @@ export async function deleteNotePdf(pdfUrl: string | null | undefined) {
 }
 
 export const notePdfSecurityMessage =
-  'PDFs are stored as attachments only and are not automatically parsed or sent to AI tools.';
+  'PDFs stay private attachments and are never sent to AI on their own — a note’s PDF is only shared with the AI when the user picks that note to generate flashcards or a quiz.';

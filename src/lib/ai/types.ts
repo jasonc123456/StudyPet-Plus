@@ -35,6 +35,24 @@ export interface AiProgressEvent {
 export type AiProgressCallback = (event: AiProgressEvent) => void;
 
 // ---------------------------------------------------------------------------
+// Binary attachments (PDF passthrough)
+// ---------------------------------------------------------------------------
+//
+// A source note can carry a PDF attachment. When such a note is chosen for
+// generation, the raw file is passed straight to the model (rather than
+// extracted server-side) so it decides how to read it. Only reaches a provider
+// at generation time — never on upload.
+
+export interface AiAttachment {
+  /** Display name, e.g. "lecture-3.pdf". */
+  filename: string;
+  /** MIME type, e.g. "application/pdf". */
+  mimeType: string;
+  /** Raw file bytes, base64-encoded (no `data:` prefix). */
+  base64: string;
+}
+
+// ---------------------------------------------------------------------------
 // Flashcards
 // ---------------------------------------------------------------------------
 
@@ -84,12 +102,14 @@ export const quizResponseSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export interface GenerateFlashcardsInput {
-  /** Source study text — typically a Note's content. */
+  /** Source study text — typically a Note's content. May be empty when attachments carry the source. */
   sourceText: string;
   /** How many cards to aim for. Clamped to a sane range. */
   count?: number;
   /** Optional subject/course name to bias topic tagging. */
   topicHint?: string;
+  /** Raw file attachments (e.g. PDFs) passed through to the model. */
+  attachments?: AiAttachment[];
   /** Optional live progress callback (enables streaming when supported). */
   onProgress?: AiProgressCallback;
 }
@@ -98,6 +118,8 @@ export interface GenerateQuizInput {
   sourceText: string;
   count?: number;
   topicHint?: string;
+  /** Raw file attachments (e.g. PDFs) passed through to the model. */
+  attachments?: AiAttachment[];
   /** Optional live progress callback (enables streaming when supported). */
   onProgress?: AiProgressCallback;
 }

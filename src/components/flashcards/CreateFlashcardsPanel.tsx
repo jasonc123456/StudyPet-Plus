@@ -19,6 +19,8 @@ export type FlashcardNoteOption = {
   id: string;
   title: string;
   hasContent: boolean;
+  /** True when the note has an attached PDF passed through to the AI. */
+  hasPdf: boolean;
   course: { id: string; name: string; color: string } | null;
 };
 
@@ -286,6 +288,7 @@ export function CreateFlashcardsPanel({
                       <span className="min-w-0 flex-1 truncate">
                         {note.title}
                       </span>
+                      {note.hasPdf && <Chip>PDF</Chip>}
                       {note.course && (
                         <Chip color={note.course.color}>
                           {note.course.name}

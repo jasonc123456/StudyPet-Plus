@@ -37,18 +37,29 @@ const NOTES: FlashcardNoteOption[] = [
     id: 'note_1',
     title: 'Biology midterm',
     hasContent: true,
+    hasPdf: false,
     course: { id: 'course_1', name: 'Biology', color: '#16a34a' },
   },
   {
     id: 'note_2',
     title: 'Chemistry notes',
     hasContent: true,
+    hasPdf: false,
     course: null,
   },
   {
     id: 'note_3',
     title: 'Empty note',
     hasContent: false,
+    hasPdf: false,
+    course: null,
+  },
+  {
+    // PDF-only note: no typed text, selectable because it carries a PDF.
+    id: 'note_4',
+    title: 'Lecture slides',
+    hasContent: true,
+    hasPdf: true,
     course: null,
   },
 ];
@@ -130,6 +141,28 @@ describe('CreateFlashcardsPanel', () => {
       expect(streamMock).toHaveBeenCalledWith(
         '/api/flashcards/generate',
         expect.objectContaining({ noteIds: ['note_1'] }),
+        expect.anything()
+      );
+    });
+  });
+
+  it('lets a PDF-backed note be selected and generated from', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    // Lecture slides is uncategorized + PDF-backed, so it shows by default.
+    expect(screen.getByText('Lecture slides')).toBeInTheDocument();
+    expect(screen.getByText('PDF')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Lecture slides'));
+    await user.click(
+      screen.getByRole('button', { name: 'Generate flashcards' })
+    );
+
+    await waitFor(() => {
+      expect(streamMock).toHaveBeenCalledWith(
+        '/api/flashcards/generate',
+        expect.objectContaining({ noteIds: ['note_4'] }),
         expect.anything()
       );
     });

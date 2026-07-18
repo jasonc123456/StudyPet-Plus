@@ -117,12 +117,14 @@ export async function generateAndSaveQuiz(
     );
   }
 
-  const { notes, sourceText, truncated, courseId, topicHint } = assembled.value;
+  const { notes, sourceText, truncated, attachments, courseId, topicHint } =
+    assembled.value;
 
   const { items, provider } = await generateQuiz({
     sourceText,
     count: input.count,
     topicHint,
+    attachments,
     onProgress: input.onProgress,
   });
 
