@@ -5,12 +5,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { QuizQuestionData } from '@/components/quizzes/types';
 
 type QuizSessionProps = {
+  quizId: string;
   noteTitle: string;
   questions: QuizQuestionData[];
   onExit: () => void;
 };
 
+type SubmitQuizAttemptResponse = {
+  correctCount: number;
+  totalQuestions: number;
+  scorePercent: number;
+  xpAwarded: number;
+  weakTopic: string | null;
+  error?: string;
+};
+
 export function QuizSession({
+  quizId,
   noteTitle,
   questions,
   onExit,
@@ -20,7 +31,13 @@ export function QuizSession({
   const [revealed, setRevealed] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [completionLogged, setCompletionLogged] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState<
+    Record<string, number>
+  >({});
+  const [attemptSynced, setAttemptSynced] = useState(false);
+  const [attemptError, setAttemptError] = useState<string | null>(null);
+  const [attemptSummary, setAttemptSummary] =
+    useState<SubmitQuizAttemptResponse | null>(null);
 
   const total = questions.length;
   const current = questions[index];
@@ -31,30 +48,60 @@ export function QuizSession({
   );
 
   useEffect(() => {
-    if (!finished || completionLogged) return;
+    if (!finished || attemptSynced) return;
 
     let cancelled = false;
 
-    void fetch('/api/pet/activity', {
+    void fetch('/api/quizzes/attempts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'quiz_session' }),
-    }).finally(() => {
-      if (!cancelled) {
-        setCompletionLogged(true);
-      }
-    });
+      body: JSON.stringify({
+        quizId,
+        answers: questions.map((question) => ({
+          questionId: question.id,
+          selectedIndex: selectedAnswers[question.id],
+        })),
+      }),
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as SubmitQuizAttemptResponse;
+        if (!response.ok) {
+          throw new Error(
+            data.error ?? 'We could not save this quiz attempt just now.'
+          );
+        }
+
+        if (!cancelled) {
+          setAttemptSummary(data);
+          setAttemptError(null);
+          setAttemptSynced(true);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setAttemptError(
+            error instanceof Error
+              ? error.message
+              : 'We could not save this quiz attempt just now.'
+          );
+          setAttemptSynced(true);
+        }
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [completionLogged, finished]);
+  }, [attemptSynced, finished, quizId, questions, selectedAnswers]);
 
   const handleChoice = useCallback(
     (choiceIndex: number) => {
       if (revealed || !current) return;
 
       setSelectedIndex(choiceIndex);
+      setSelectedAnswers((answers) => ({
+        ...answers,
+        [current.id]: choiceIndex,
+      }));
       setRevealed(true);
       if (choiceIndex === current.correctIndex) {
         setCorrectCount((count) => count + 1);
@@ -111,6 +158,22 @@ export function QuizSession({
           <p className="mt-2 text-sm text-slate-600">
             You answered {percent}% of questions correctly.
           </p>
+          {attemptSummary?.weakTopic ? (
+            <p className="mt-3 text-sm text-slate-600">
+              Review next:{' '}
+              <span className="font-semibold text-slate-900">
+                {attemptSummary.weakTopic}
+              </span>
+            </p>
+          ) : null}
+          {attemptSummary ? (
+            <p className="mt-2 text-sm text-brand-600">
+              +{attemptSummary.xpAwarded} XP added to your StudyPet
+            </p>
+          ) : null}
+          {attemptError ? (
+            <p className="mt-3 text-sm text-red-700">{attemptError}</p>
+          ) : null}
           <button type="button" className="btn-primary mt-6" onClick={onExit}>
             Done
           </button>

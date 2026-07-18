@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getVisibleStreakCount } from '@/lib/pet-xp';
+import { Prisma } from '@prisma/client';
 
 export type DashboardPet = {
   name: string;
@@ -43,12 +44,22 @@ export type DashboardQuest = {
   status: string;
 };
 
+export type DashboardReviewNext = {
+  topic: string;
+  incorrectCount: number;
+  noteId: string;
+  noteTitle: string;
+  quizId: string;
+  hasFlashcards: boolean;
+};
+
 export type DashboardData = {
   courses: DashboardCourse[];
   stats: DashboardStats;
   upcomingAssignments: DashboardAssignment[];
   openQuests: DashboardQuest[];
   pet: DashboardPet | null;
+  reviewNext: DashboardReviewNext | null;
 };
 
 function weekWindowFrom(now: Date): { start: Date; end: Date } {
@@ -57,12 +68,56 @@ function weekWindowFrom(now: Date): { start: Date; end: Date } {
   return { start: now, end };
 }
 
+async function getWeakTopicResults(userId: string) {
+  try {
+    return await prisma.quizQuestionResult.findMany({
+      where: {
+        userId,
+        isCorrect: false,
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 100,
+      select: {
+        createdAt: true,
+        question: {
+          select: {
+            topic: true,
+            quiz: {
+              select: {
+                id: true,
+                note: {
+                  select: {
+                    id: true,
+                    title: true,
+                    flashcards: {
+                      where: { userId },
+                      select: { id: true },
+                      take: 1,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2021' || error.code === 'P2022')
+    ) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
 /**
  * Loads all dashboard sections for a user from the database.
  *
- * Note: "Cards studied today" is not available yet — the schema has no
- * Flashcard, StudySession, Review, or QuizAttempt model (Sprint 4+). The
- * dashboard uses "Open quests" instead, which is backed by Quest rows.
+ * The dashboard mixes planner status with lightweight study recommendations.
  */
 export async function getDashboardData(userId: string): Promise<DashboardData> {
   const now = new Date();
@@ -75,6 +130,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     upcomingAssignments,
     openQuests,
     petRow,
+    weakTopicResults,
   ] = await Promise.all([
     prisma.course.findMany({
       where: { userId, archivedAt: null },
@@ -137,6 +193,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         lastStudyDate: true,
       },
     }),
+    getWeakTopicResults(userId),
   ]);
 
   const basePet = petRow
@@ -165,6 +222,48 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       }
     : null;
 
+  const reviewNextMap = new Map<
+    string,
+    DashboardReviewNext & { latestIncorrectAt: Date }
+  >();
+
+  for (const result of weakTopicResults) {
+    const topic = result.question.topic.trim();
+    const note = result.question.quiz.note;
+    if (!topic || !note) continue;
+
+    const key = `${note.id}:${topic.toLowerCase()}`;
+    const existing = reviewNextMap.get(key);
+
+    if (!existing) {
+      reviewNextMap.set(key, {
+        topic,
+        incorrectCount: 1,
+        noteId: note.id,
+        noteTitle: note.title,
+        quizId: result.question.quiz.id,
+        hasFlashcards: note.flashcards.length > 0,
+        latestIncorrectAt: result.createdAt,
+      });
+      continue;
+    }
+
+    existing.incorrectCount += 1;
+    if (result.createdAt > existing.latestIncorrectAt) {
+      existing.latestIncorrectAt = result.createdAt;
+      existing.quizId = result.question.quiz.id;
+    }
+  }
+
+  const reviewNext =
+    [...reviewNextMap.values()].sort((a, b) => {
+      if (b.incorrectCount !== a.incorrectCount) {
+        return b.incorrectCount - a.incorrectCount;
+      }
+
+      return b.latestIncorrectAt.getTime() - a.latestIncorrectAt.getTime();
+    })[0] ?? null;
+
   return {
     courses,
     stats: {
@@ -175,5 +274,15 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     upcomingAssignments,
     openQuests,
     pet,
+    reviewNext: reviewNext
+      ? {
+          topic: reviewNext.topic,
+          incorrectCount: reviewNext.incorrectCount,
+          noteId: reviewNext.noteId,
+          noteTitle: reviewNext.noteTitle,
+          quizId: reviewNext.quizId,
+          hasFlashcards: reviewNext.hasFlashcards,
+        }
+      : null,
   };
 }

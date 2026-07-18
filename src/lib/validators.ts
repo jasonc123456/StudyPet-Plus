@@ -313,6 +313,21 @@ export type GenerateQuizRequestInput = z.infer<
   typeof generateQuizRequestSchema
 >;
 
+export const submitQuizAttemptSchema = z.object({
+  quizId: z.string().cuid(),
+  answers: z
+    .array(
+      z.object({
+        questionId: z.string().cuid(),
+        selectedIndex: z.coerce.number().int().min(0).max(20),
+      })
+    )
+    .min(1, 'At least one answer is required')
+    .max(50, 'Too many answers submitted'),
+});
+
+export type SubmitQuizAttemptInput = z.infer<typeof submitQuizAttemptSchema>;
+
 /** Body for POST /api/pet/xp (US-3.6). */
 export const awardPetXpSchema = z.object({
   action: z.literal('flashcard_review'),

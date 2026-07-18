@@ -5,9 +5,15 @@
 
 import { generateQuiz } from '@/lib/ai';
 import { quizResponseSchema, type AiProviderName } from '@/lib/ai/types';
+import { recordStudyActivity } from '@/lib/pet-xp';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
-import type { Quiz, QuizQuestion } from '@prisma/client';
+import type {
+  Quiz,
+  QuizAttempt,
+  QuizQuestion,
+  QuizQuestionResult,
+} from '@prisma/client';
 
 export class QuizServiceError extends Error {
   constructor(
@@ -20,6 +26,17 @@ export class QuizServiceError extends Error {
 }
 
 export type QuizWithQuestions = Quiz & { questions: QuizQuestion[] };
+
+export type QuizAttemptWithResults = QuizAttempt & {
+  questionResults: Array<
+    QuizQuestionResult & {
+      question: Pick<
+        QuizQuestion,
+        'id' | 'topic' | 'question' | 'correctIndex'
+      >;
+    }
+  >;
+};
 
 export type GenerateAndSaveQuizInput = {
   noteId: string;
@@ -34,6 +51,34 @@ export type GenerateAndSaveQuizResult = {
   generatedCount: number;
   provider: AiProviderName;
 };
+
+export type SubmitQuizAttemptInput = {
+  userId: string;
+  quizId: string;
+  answers: Array<{
+    questionId: string;
+    selectedIndex: number;
+  }>;
+};
+
+export type SubmitQuizAttemptResult = {
+  attempt: QuizAttemptWithResults;
+  correctCount: number;
+  totalQuestions: number;
+  scorePercent: number;
+  xpAwarded: number;
+  weakTopic: string | null;
+};
+
+function xpForQuizScore(correctCount: number, totalQuestions: number): number {
+  if (totalQuestions <= 0) return 0;
+
+  const percent = Math.round((correctCount / totalQuestions) * 100);
+  if (percent >= 90) return 15;
+  if (percent >= 75) return 12;
+  if (percent >= 60) return 9;
+  return 6;
+}
 
 async function deleteQuizzesForNote(
   noteId: string,
@@ -173,4 +218,123 @@ export async function getLatestQuizForNote(
       questions: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
     },
   });
+}
+
+export async function submitQuizAttempt(
+  input: SubmitQuizAttemptInput
+): Promise<SubmitQuizAttemptResult> {
+  const quiz = await prisma.quiz.findFirst({
+    where: {
+      id: input.quizId,
+      userId: input.userId,
+    },
+    include: {
+      questions: {
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      },
+    },
+  });
+
+  if (!quiz) {
+    throw new QuizServiceError('NOT_FOUND', 'Quiz not found');
+  }
+
+  const questionMap = new Map(
+    quiz.questions.map((question) => [question.id, question])
+  );
+  const normalizedAnswers = input.answers.filter((answer) =>
+    questionMap.has(answer.questionId)
+  );
+
+  if (normalizedAnswers.length !== quiz.questions.length) {
+    throw new QuizServiceError(
+      'EMPTY_CONTENT',
+      'Submit one answer for each quiz question'
+    );
+  }
+
+  const answerByQuestionId = new Map(
+    normalizedAnswers.map((answer) => [answer.questionId, answer.selectedIndex])
+  );
+
+  const resultRows = quiz.questions.map((question) => {
+    const selectedIndex = answerByQuestionId.get(question.id);
+    if (selectedIndex === undefined) {
+      throw new QuizServiceError(
+        'EMPTY_CONTENT',
+        'Submit one answer for each quiz question'
+      );
+    }
+
+    return {
+      questionId: question.id,
+      selectedIndex,
+      isCorrect: selectedIndex === question.correctIndex,
+      topic: question.topic,
+    };
+  });
+
+  const correctCount = resultRows.filter((result) => result.isCorrect).length;
+  const totalQuestions = quiz.questions.length;
+  const scorePercent =
+    totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+  const xpAwarded = xpForQuizScore(correctCount, totalQuestions);
+
+  const incorrectTopicCounts = new Map<string, number>();
+  for (const result of resultRows) {
+    if (result.isCorrect) continue;
+    incorrectTopicCounts.set(
+      result.topic,
+      (incorrectTopicCounts.get(result.topic) ?? 0) + 1
+    );
+  }
+
+  const weakTopic =
+    [...incorrectTopicCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    null;
+
+  const attempt = await prisma.quizAttempt.create({
+    data: {
+      userId: input.userId,
+      quizId: quiz.id,
+      correctCount,
+      totalQuestions,
+      scorePercent,
+      xpAwarded,
+      questionResults: {
+        create: resultRows.map((result) => ({
+          userId: input.userId,
+          questionId: result.questionId,
+          selectedIndex: result.selectedIndex,
+          isCorrect: result.isCorrect,
+        })),
+      },
+    },
+    include: {
+      questionResults: {
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        include: {
+          question: {
+            select: {
+              id: true,
+              topic: true,
+              question: true,
+              correctIndex: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  await recordStudyActivity(input.userId, { xp: xpAwarded });
+
+  return {
+    attempt,
+    correctCount,
+    totalQuestions,
+    scorePercent,
+    xpAwarded,
+    weakTopic,
+  };
 }

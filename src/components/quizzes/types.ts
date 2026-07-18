@@ -20,6 +20,8 @@ export type QuizNoteOption = {
 };
 
 export type ActiveQuizSession = {
+  quizId: string;
+  noteId: string;
   noteTitle: string;
   questions: QuizQuestionData[];
 };

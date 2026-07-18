@@ -76,6 +76,8 @@ model User {
   flashcardReviewAwards FlashcardReviewAward[]
   quizzes               Quiz[]
   quizQuestions         QuizQuestion[]
+  quizAttempts          QuizAttempt[]
+  quizQuestionResults   QuizQuestionResult[]
   calendarSubscriptions CalendarSubscription[]
   gradeProfile          GradeProfile?
   gradeScaleEntries     GradeScaleEntry[]
@@ -521,6 +523,7 @@ model Quiz {
   note      Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
   course    Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
   questions QuizQuestion[]
+  attempts  QuizAttempt[]
 
   @@index([userId])
   @@index([noteId])
@@ -538,12 +541,50 @@ model QuizQuestion {
   explanation  String?
   createdAt    DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz    Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  results QuizQuestionResult[]
 
   @@index([userId])
   @@index([quizId])
   @@index([topic])
+}
+
+model QuizAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  quizId         String
+  correctCount   Int
+  totalQuestions Int
+  scorePercent   Int
+  xpAwarded      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz            Quiz                 @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionResults QuizQuestionResult[]
+
+  @@index([userId, createdAt])
+  @@index([quizId, createdAt])
+}
+
+model QuizQuestionResult {
+  id            String   @id @default(cuid())
+  userId        String
+  attemptId     String
+  questionId    String
+  selectedIndex Int
+  isCorrect     Boolean
+  createdAt     DateTime @default(now())
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([userId, createdAt])
+  @@index([questionId])
+  @@index([isCorrect])
 }
 
 model CoursePlanner {
