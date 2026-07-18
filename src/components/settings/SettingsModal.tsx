@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { SecuritySettings } from '@/components/settings/SecuritySettings';
+
 const DEFAULT_ACCENT = '#4f46e5';
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 const DEFAULT_PROFILE_IMAGE = '/profile-pics/1.png';
@@ -71,7 +73,7 @@ type SettingsModalProps = {
   };
 };
 
-type SettingsTab = 'profile' | 'theme';
+type SettingsTab = 'profile' | 'theme' | 'security';
 
 type ThemeTextMode = 'auto' | 'custom';
 
@@ -386,6 +388,19 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                 <span className="text-2xl">◍</span>
                 Theme
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('security')}
+                className={[
+                  'flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left text-lg font-semibold transition',
+                  activeTab === 'security'
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : 'text-[var(--page-text)] hover:bg-[var(--btn-secondary-hover)]',
+                ].join(' ')}
+              >
+                <span className="text-2xl">🔐</span>
+                Security
+              </button>
             </div>
           </aside>
 
@@ -506,7 +521,7 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : activeTab === 'theme' ? (
                 <div className="max-w-4xl">
                   <h3 className="text-3xl font-black tracking-tight">Theme</h3>
                   <p className="theme-muted mt-3 text-sm">
@@ -710,6 +725,8 @@ export function SettingsModal({ open, onClose, user }: SettingsModalProps) {
                     </div>
                   </div>
                 </div>
+              ) : (
+                <SecuritySettings />
               )}
             </div>
 

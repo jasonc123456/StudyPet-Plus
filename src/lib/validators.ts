@@ -329,6 +329,36 @@ export const submitQuizAttemptSchema = z.object({
 
 export type SubmitQuizAttemptInput = z.infer<typeof submitQuizAttemptSchema>;
 
+// ---- Multi-factor auth (US-4.S1) ----
+
+/** A 6-digit TOTP code, tolerant of a space in the middle. */
+export const totpCodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/\s+/g, ''))
+    .pipe(z.string().regex(/^\d{6}$/, 'Enter the 6-digit code')),
+});
+
+export const totpActionSchema = z.object({
+  action: z.enum(['setup', 'activate', 'disable']),
+  // Required only for `activate`; validated in the handler.
+  code: z.string().trim().optional(),
+});
+
+/** A friendly label for a passkey. */
+export const passkeyRegisterSchema = z.object({
+  deviceName: z.string().trim().max(60).optional(),
+  // The WebAuthn attestation response — structurally verified by
+  // @simplewebauthn/server, so accepted as an opaque object here.
+  response: z.record(z.string(), z.unknown()),
+});
+
+/** A WebAuthn assertion response at the login gate. */
+export const passkeyAssertionSchema = z.object({
+  response: z.record(z.string(), z.unknown()),
+});
+
 /** Body for POST /api/pet/xp (US-3.6). */
 export const awardPetXpSchema = z.object({
   action: z.literal('flashcard_review'),
