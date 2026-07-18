@@ -614,10 +614,34 @@ export type UpdatePlannedCourseInput = z.infer<
 
 export const parseCoursePlannerImportSchema = z.object({
   text: z
-    .string()
-    .trim()
-    .min(1, 'Paste plan text or upload a .txt/.csv file')
-    .max(20000, 'Plan text is too long (max 20,000 characters)'),
+    .string({
+      error: 'Plan text must be a string',
+    })
+    .transform((value) => {
+      // Inline sanitize to avoid validators ↔ heavy module cycles:
+      // strip nulls/controls, normalize newlines, cap length.
+      let text = String(value ?? '');
+      text = text.replace(/\0/g, '');
+      text = text.replace(
+        /[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+        ''
+      );
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      text = text.replace(/[ \t]{12,}/g, '  ');
+      text = text.replace(/\n{5,}/g, '\n\n\n');
+      text = text.trim();
+      if (text.length > 20_000) text = text.slice(0, 20_000);
+      return text;
+    })
+    .pipe(
+      z
+        .string()
+        .min(3, 'Paste plan text or upload a .txt/.csv/.xlsx file')
+        .max(20000, 'Plan text is too long (max 20,000 characters)')
+        .refine((value) => /[A-Za-z0-9]/.test(value), {
+          message: 'Plan text looks empty or invalid',
+        })
+    ),
   /** Required so we verify ownership before spending an AI call. */
   plannerId: z.string().trim().min(1, 'Select a planner to import into'),
 });

@@ -6,6 +6,8 @@ import type { PlannerImportDraft } from '@/lib/validators';
 import {
   isSupportedPlanImportFile,
   readPlanImportFileAsText,
+  sanitizePlanImportText,
+  UNSUPPORTED_FILE_TYPE_MESSAGE,
 } from '@/lib/planner-import-file';
 
 export type ImportPlanResult = {
@@ -94,10 +96,9 @@ export function ImportPlanPanel({
     }
 
     if (!isSupportedPlanImportFile(file.name)) {
-      setError(
-        'Only .txt, .csv, or .xlsx files are supported. PDF and screenshots are not available yet.'
-      );
+      setError(UNSUPPORTED_FILE_TYPE_MESSAGE);
       setFileName(null);
+      setText('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -107,10 +108,9 @@ export function ImportPlanPanel({
       setText(content);
       setFileName(file.name);
       setStatus(
-        file.name.toLowerCase().endsWith('.xlsx') ||
-          file.name.toLowerCase().endsWith('.xls')
-          ? 'Spreadsheet converted to text. Review it below, then parse with AI.'
-          : null
+        file.name.toLowerCase().endsWith('.xlsx')
+          ? 'Spreadsheet converted to plain text (no macros or formulas run). Review below, then parse with AI.'
+          : 'File loaded as plain text. Review below, then parse with AI.'
       );
     } catch (readError) {
       setError(
@@ -120,6 +120,7 @@ export function ImportPlanPanel({
       );
       setFileName(null);
       setText('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -129,11 +130,12 @@ export function ImportPlanPanel({
       return;
     }
 
-    const trimmed = text.trim();
+    const trimmed = sanitizePlanImportText(text);
     if (!trimmed) {
       setError('Paste or upload plan text before parsing.');
       return;
     }
+    setText(trimmed);
 
     setError(null);
     setStatus(null);
@@ -264,14 +266,18 @@ export function ImportPlanPanel({
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Import plan</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Paste an education plan, term list, or upload a .txt / .csv / .xlsx
-            file. We draft terms and courses for preview — nothing is saved
-            until you confirm.
+            Paste an education plan or upload a supported export. Files are
+            converted to plain text before AI parsing — nothing is executed, and
+            nothing is saved until you confirm.
             {plannerTitle
               ? ` Imports into “${plannerTitle}”.`
               : planners.length === 0
                 ? ' Create a planner first, then come back here.'
                 : ' Choose which planner to import into below.'}
+          </p>
+          <p className="mt-2 text-xs text-slate-400">
+            Supported: .txt, .csv, .xlsx (max 2 MB). Not supported: PDFs,
+            screenshots, macro-enabled spreadsheets (.xlsm), or legacy .xls.
           </p>
         </div>
         <button
@@ -363,7 +369,8 @@ export function ImportPlanPanel({
             />
             <p className="mt-1.5 text-xs text-slate-400">
               Tip: upload a .xlsx / .csv / .txt export, or paste rows directly.
-              PDF and screenshots are not supported yet.
+              Spreadsheet cells are read as plain text only (formulas and macros
+              are not run).
             </p>
           </div>
 
@@ -373,7 +380,7 @@ export function ImportPlanPanel({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt,.csv,.xlsx,.xls,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  accept=".txt,.csv,.xlsx,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={(e) =>
                     void handleFileChange(e.target.files?.[0] ?? null)
