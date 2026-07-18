@@ -13,11 +13,52 @@
 //   EMAIL_SERVER_HOST/PORT/USER/PASSWORD - SMTP transport for the magic links
 //   EMAIL_FROM           - From: address on magic-link emails
 
-import { getServerSession, type NextAuthOptions } from 'next-auth';
+import {
+  getServerSession,
+  type NextAuthOptions,
+  type Provider,
+} from 'next-auth';
 import EmailProvider from 'next-auth/providers/email';
+import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 
 import { prisma } from '@/lib/prisma';
+
+// True when Google OAuth is configured for this environment (US-4.S2). Kept
+// optional so local/demo deploys without Google credentials still boot with
+// magic-link sign-in only — the button on /login is hidden to match.
+export const googleOAuthEnabled = Boolean(
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+);
+
+const providers: Provider[] = [
+  EmailProvider({
+    // Build the SMTP transport from the discrete EMAIL_SERVER_* env vars
+    // already set in .env (Office 365, STARTTLS on 587).
+    server: {
+      host: process.env.EMAIL_SERVER_HOST,
+      port: Number(process.env.EMAIL_SERVER_PORT ?? 587),
+      auth: {
+        user: process.env.EMAIL_SERVER_USER,
+        pass: process.env.EMAIL_SERVER_PASSWORD,
+      },
+    },
+    from: process.env.EMAIL_FROM,
+  }),
+];
+
+if (googleOAuthEnabled) {
+  providers.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      // A magic-link user and a Google sign-in with the same Google-verified
+      // email resolve to one account instead of erroring with
+      // OAuthAccountNotLinked. Safe here because Google asserts the email.
+      allowDangerousEmailAccountLinking: true,
+    })
+  );
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -25,21 +66,7 @@ export const authOptions: NextAuthOptions = {
   // database session strategy (the default when an adapter is present).
   session: { strategy: 'database' },
   secret: process.env.NEXTAUTH_SECRET,
-  providers: [
-    EmailProvider({
-      // Build the SMTP transport from the discrete EMAIL_SERVER_* env vars
-      // already set in .env (Office 365, STARTTLS on 587).
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT ?? 587),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
-      },
-      from: process.env.EMAIL_FROM,
-    }),
-  ],
+  providers,
   pages: {
     signIn: '/login',
     // Where users land after submitting their email ("we sent you a link").
