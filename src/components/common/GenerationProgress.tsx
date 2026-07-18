@@ -96,9 +96,9 @@ export function useGenerationProgress() {
   return { state, begin, update, end };
 }
 
-function phaseLabel(phase: Phase, noun: string): string {
-  if (phase === 'connecting') return 'Sending your notes to the model…';
-  if (phase === 'thinking') return 'Thinking through your notes…';
+function phaseLabel(phase: Phase, noun: string, source: string): string {
+  if (phase === 'connecting') return `Sending ${source} to the model…`;
+  if (phase === 'thinking') return `Thinking through ${source}…`;
   return `Writing ${noun}…`;
 }
 
@@ -136,10 +136,13 @@ function helperCopy(seconds: number): string {
 export function GenerationProgress({
   state,
   noun = 'flashcards',
+  source = 'your notes',
 }: {
   state: ProgressState;
   /** What's being written, e.g. "flashcards" or "quiz questions". */
   noun?: string;
+  /** The source material, e.g. "your notes" or "your course plan". */
+  source?: string;
 }) {
   if (!state.active) return null;
 
@@ -155,7 +158,7 @@ export function GenerationProgress({
     >
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="font-medium text-brand-800">
-          {phaseLabel(state.phase, noun)}
+          {phaseLabel(state.phase, noun, source)}
         </span>
         <span className="tabular-nums text-xs text-brand-700/80">
           ~{pct}% · {seconds}s
