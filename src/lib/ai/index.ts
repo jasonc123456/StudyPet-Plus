@@ -132,7 +132,8 @@ export async function generateFlashcards(
 
   const run = await runWithFallback(
     flashcardPrompt(source, count, input.topicHint),
-    (value) => flashcardResponseSchema.safeParse(value).success
+    (value) => flashcardResponseSchema.safeParse(value).success,
+    input.onProgress
   );
 
   const parsed = flashcardResponseSchema.parse(run.value);
@@ -221,7 +222,8 @@ export async function generateQuiz(
 
   const run = await runWithFallback(
     quizPrompt(source, count, input.topicHint),
-    (value) => quizResponseSchema.safeParse(value).success
+    (value) => quizResponseSchema.safeParse(value).success,
+    input.onProgress
   );
 
   const { questions } = quizResponseSchema.parse(run.value);

@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
 
 import { AiProviderError } from '@/lib/ai/provider';
-import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { streamGeneration } from '@/lib/ai/sse';
+import { jsonError, requireUser } from '@/lib/api-response';
 import { generateAndSaveQuiz, QuizServiceError } from '@/lib/quizzes';
 import { generateQuizRequestSchema, zodFirstError } from '@/lib/validators';
+
+/** Friendly message for an AI failure surfaced as an SSE `error` event. */
+function aiErrorMessage(error: AiProviderError): string {
+  const notConfigured = /not configured|GEMINI_API_KEY|LOCAL_AI/i.test(
+    error.message
+  );
+  return notConfigured
+    ? 'AI generation is not configured on the server.'
+    : 'Quiz generation failed. The AI provider timed out or returned an invalid response. Please try again.';
+}
 
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -21,39 +32,36 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  try {
-    const result = await generateAndSaveQuiz({
-      noteId: parsed.data.noteId,
-      userId: authResult.user.id,
-      count: parsed.data.count,
-      replaceGenerated: parsed.data.replaceGenerated,
-    });
-    return jsonOk(result, 201);
-  } catch (error) {
-    if (error instanceof QuizServiceError) {
-      if (error.code === 'NOT_FOUND') {
-        return jsonError(error.message, 404);
+  const { noteId, count, replaceGenerated } = parsed.data;
+  const userId = authResult.user.id;
+
+  // Everything below streams as SSE: progress events while the model works,
+  // then a single `done` (with the saved payload) or `error` event.
+  return streamGeneration(async (emit) => {
+    try {
+      const result = await generateAndSaveQuiz({
+        noteId,
+        userId,
+        count,
+        replaceGenerated,
+        onProgress: (p) => emit({ type: 'progress', ...p }),
+      });
+      emit({ type: 'done', result });
+    } catch (error) {
+      if (error instanceof QuizServiceError) {
+        emit({ type: 'error', message: error.message });
+        return;
       }
-      return jsonError(error.message, 400);
+      if (error instanceof AiProviderError) {
+        console.error(
+          '[ai] POST /api/quizzes/generate',
+          error.message.slice(0, 300)
+        );
+        emit({ type: 'error', message: aiErrorMessage(error) });
+        return;
+      }
+      console.error('POST /api/quizzes/generate', error);
+      emit({ type: 'error', message: 'Failed to generate quiz.' });
     }
-
-    if (error instanceof AiProviderError) {
-      console.error(
-        '[ai] POST /api/quizzes/generate',
-        error.message.slice(0, 300)
-      );
-      const notConfigured = /not configured|GEMINI_API_KEY/i.test(
-        error.message
-      );
-      return jsonError(
-        notConfigured
-          ? 'AI generation is not configured. Set GEMINI_API_KEY on the server.'
-          : 'Quiz generation failed. The AI provider timed out or returned an invalid response. Please try again.',
-        notConfigured ? 503 : 502
-      );
-    }
-
-    console.error('POST /api/quizzes/generate', error);
-    return jsonError('Failed to generate quiz', 500);
-  }
+  });
 }

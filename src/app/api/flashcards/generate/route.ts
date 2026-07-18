@@ -1,15 +1,37 @@
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 
 import { AiProviderError } from '@/lib/ai/provider';
-import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { streamGeneration } from '@/lib/ai/sse';
+import { jsonError, requireUser } from '@/lib/api-response';
 import {
+  createNoteAndGenerateFlashcards,
   FlashcardServiceError,
   generateAndSaveFlashcards,
 } from '@/lib/flashcards';
 import {
+  createFlashcardsFromPasteSchema,
   generateFlashcardsRequestSchema,
   zodFirstError,
 } from '@/lib/validators';
+
+function aiErrorMessage(error: AiProviderError): string {
+  const notConfigured = /not configured|GEMINI_API_KEY|LOCAL_AI/i.test(
+    error.message
+  );
+  return notConfigured
+    ? 'AI generation is not configured on the server.'
+    : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.';
+}
+
+function revalidateFlashcardPaths(noteId?: string) {
+  revalidatePath('/dashboard/flashcards');
+  revalidatePath('/flashcards');
+  if (noteId) {
+    revalidatePath(`/dashboard/notes/${noteId}/edit`);
+    revalidatePath(`/dashboard/flashcards/study/${noteId}`);
+  }
+}
 
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -22,44 +44,76 @@ export async function POST(request: Request) {
     return jsonError('Invalid JSON body', 400);
   }
 
-  const parsed = generateFlashcardsRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonError(zodFirstError(parsed.error), 400);
-  }
+  const userId = authResult.user.id;
 
-  try {
-    const result = await generateAndSaveFlashcards({
-      noteId: parsed.data.noteId,
-      userId: authResult.user.id,
-      count: parsed.data.count,
-      replaceGenerated: parsed.data.replaceGenerated,
-    });
-    return jsonOk(result, 201);
-  } catch (error) {
-    if (error instanceof FlashcardServiceError) {
-      if (error.code === 'NOT_FOUND') {
-        return jsonError(error.message, 404);
+  // Two modes share this endpoint: generate from an existing note (has cuid
+  // noteId), or paste text → create a note → generate. Branch on noteId so the
+  // right validator runs and both surface a proper 400 before streaming starts.
+  const hasNoteId =
+    typeof body === 'object' &&
+    body !== null &&
+    typeof (body as { noteId?: unknown }).noteId === 'string';
+
+  if (hasNoteId) {
+    const parsed = generateFlashcardsRequestSchema.safeParse(body);
+    if (!parsed.success) return jsonError(zodFirstError(parsed.error), 400);
+    const { noteId, count, replaceGenerated } = parsed.data;
+
+    return streamGeneration(async (emit) => {
+      try {
+        const result = await generateAndSaveFlashcards({
+          noteId,
+          userId,
+          count,
+          replaceGenerated,
+          onProgress: (p) => emit({ type: 'progress', ...p }),
+        });
+        revalidateFlashcardPaths(noteId);
+        emit({ type: 'done', result });
+      } catch (error) {
+        emitFlashcardError(emit, error);
       }
-      return jsonError(error.message, 400);
-    }
-
-    if (error instanceof AiProviderError) {
-      console.error(
-        '[ai] POST /api/flashcards/generate',
-        error.message.slice(0, 300)
-      );
-      const notConfigured = /not configured|GEMINI_API_KEY/i.test(
-        error.message
-      );
-      return jsonError(
-        notConfigured
-          ? 'AI generation is not configured. Set GEMINI_API_KEY on the server.'
-          : 'Flashcard generation failed. The AI provider timed out or returned an invalid response. Please try again.',
-        notConfigured ? 503 : 502
-      );
-    }
-
-    console.error('POST /api/flashcards/generate', error);
-    return jsonError('Failed to generate flashcards', 500);
+    });
   }
+
+  const parsed = createFlashcardsFromPasteSchema.safeParse(body);
+  if (!parsed.success) return jsonError(zodFirstError(parsed.error), 400);
+  const { content, title, count } = parsed.data;
+
+  return streamGeneration(async (emit) => {
+    try {
+      const result = await createNoteAndGenerateFlashcards({
+        userId,
+        content,
+        title,
+        count,
+        onProgress: (p) => emit({ type: 'progress', ...p }),
+      });
+      revalidateFlashcardPaths(result.noteId);
+      revalidatePath('/dashboard/notes');
+      emit({ type: 'done', result });
+    } catch (error) {
+      emitFlashcardError(emit, error);
+    }
+  });
+}
+
+function emitFlashcardError(
+  emit: (event: { type: 'error'; message: string }) => void,
+  error: unknown
+) {
+  if (error instanceof FlashcardServiceError) {
+    emit({ type: 'error', message: error.message });
+    return;
+  }
+  if (error instanceof AiProviderError) {
+    console.error(
+      '[ai] POST /api/flashcards/generate',
+      error.message.slice(0, 300)
+    );
+    emit({ type: 'error', message: aiErrorMessage(error) });
+    return;
+  }
+  console.error('POST /api/flashcards/generate', error);
+  emit({ type: 'error', message: 'Failed to generate flashcards.' });
 }

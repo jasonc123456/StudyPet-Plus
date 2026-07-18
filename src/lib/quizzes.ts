@@ -4,7 +4,11 @@
 // then persists a Quiz batch with child QuizQuestion rows.
 
 import { generateQuiz } from '@/lib/ai';
-import { quizResponseSchema, type AiProviderName } from '@/lib/ai/types';
+import {
+  quizResponseSchema,
+  type AiProgressCallback,
+  type AiProviderName,
+} from '@/lib/ai/types';
 import { recordStudyActivity } from '@/lib/pet-xp';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
@@ -44,6 +48,8 @@ export type GenerateAndSaveQuizInput = {
   count?: number;
   /** When true, remove prior AI-generated quiz batches for this note. */
   replaceGenerated?: boolean;
+  /** Optional live progress callback forwarded to the AI layer. */
+  onProgress?: AiProgressCallback;
 };
 
 export type GenerateAndSaveQuizResult = {
@@ -130,6 +136,7 @@ export async function generateAndSaveQuiz(
     sourceText: note.content,
     count: input.count,
     topicHint,
+    onProgress: input.onProgress,
   });
 
   if (provider === 'demo' && process.env['AI_DEMO_MODE'] !== 'true') {

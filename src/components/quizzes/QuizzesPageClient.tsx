@@ -3,12 +3,17 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
+import {
+  GenerationProgress,
+  useGenerationProgress,
+} from '@/components/common/GenerationProgress';
 import { QuizSession } from '@/components/quizzes/QuizSession';
 import type {
   ActiveQuizSession,
   QuizNoteOption,
   QuizQuestionData,
 } from '@/components/quizzes/types';
+import { consumeGenerationStream } from '@/lib/generation-stream';
 
 type QuizzesPageClientProps = {
   notes: QuizNoteOption[];
@@ -49,6 +54,7 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const autoStartedRef = useRef(false);
+  const progress = useGenerationProgress();
 
   const notesWithContent = useMemo(
     () => notes.filter((note) => note.hasContent),
@@ -96,25 +102,15 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
     setError(null);
     setStatusMessage(null);
     setPendingNoteId(note.id);
+    progress.begin();
 
     startTransition(async () => {
       try {
-        const response = await fetch('/api/quizzes/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            noteId: note.id,
-            count,
-            replaceGenerated,
-          }),
-        });
-
-        const data = (await response.json()) as GenerateQuizResponse;
-
-        if (!response.ok) {
-          setError(data.error ?? 'Failed to generate quiz. Please try again.');
-          return;
-        }
+        const data = await consumeGenerationStream<GenerateQuizResponse>(
+          '/api/quizzes/generate',
+          { noteId: note.id, count, replaceGenerated },
+          progress.update
+        );
 
         const questions = data.quiz?.questions ?? [];
         if (questions.length === 0) {
@@ -132,9 +128,14 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
         );
         startSession(note.id, data.quiz!.id, note.title, questions);
         router.refresh();
-      } catch {
-        setError('Network error while generating quiz. Please try again.');
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Network error while generating quiz. Please try again.'
+        );
       } finally {
+        progress.end();
         setPendingNoteId(null);
       }
     });
@@ -245,6 +246,8 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
             ? 'Generating…'
             : 'Generate quiz'}
         </button>
+
+        <GenerationProgress state={progress.state} noun="quiz questions" />
       </section>
 
       {error ? (
