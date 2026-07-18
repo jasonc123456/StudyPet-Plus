@@ -20,6 +20,31 @@ export function xpForFlashcardReview(outcome: FlashcardReviewOutcome): number {
   return outcome === 'known' ? FLASHCARD_REVIEW_XP : 0;
 }
 
+/**
+ * Score-tiered XP for completing a quiz (US-4.05). The top tier matches the
+ * StudyPetHero "Take quiz" payout of 15 XP; weaker scores still earn something
+ * so finishing a quiz always feels rewarding.
+ */
+export const QUIZ_COMPLETION_XP_TIERS = [
+  { minScorePercent: 90, xp: 15 },
+  { minScorePercent: 75, xp: 12 },
+  { minScorePercent: 60, xp: 9 },
+  { minScorePercent: 0, xp: 6 },
+] as const;
+
+export function xpForQuizScore(
+  correctCount: number,
+  totalQuestions: number
+): number {
+  if (totalQuestions <= 0) return 0;
+
+  const percent = Math.round((correctCount / totalQuestions) * 100);
+  const tier = QUIZ_COMPLETION_XP_TIERS.find(
+    (candidate) => percent >= candidate.minScorePercent
+  );
+  return tier?.xp ?? 0;
+}
+
 export function derivePetLevelAndStage(xp: number): {
   level: number;
   stage: string;

@@ -12,7 +12,9 @@ export {
   FLASHCARD_REVIEW_XP,
   PET_STAGE_KEYS,
   PET_STAGE_XP_THRESHOLDS,
+  QUIZ_COMPLETION_XP_TIERS,
   xpForFlashcardReview,
+  xpForQuizScore,
   type FlashcardReviewOutcome,
   type PetXpAction,
 } from '@/lib/pet-xp.constants';
@@ -152,8 +154,8 @@ export async function awardPetXp(userId: string, amount: number): Promise<Pet> {
   return recordStudyActivity(userId, { xp: amount });
 }
 
-/** UTC calendar day ("YYYY-MM-DD") — the anti-farming granularity for review XP. */
-function utcDayKey(date = new Date()): string {
+/** UTC calendar day ("YYYY-MM-DD") — the anti-farming granularity for XP awards. */
+export function utcDayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
