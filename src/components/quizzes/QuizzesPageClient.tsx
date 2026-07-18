@@ -60,6 +60,7 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
+  const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const autoStartedRef = useRef(false);
   const progress = useGenerationProgress();
@@ -98,6 +99,35 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
       return;
     }
     startSession(note.id, latestQuiz!.id, note.title, questions);
+  }
+
+  async function handleDeleteQuiz(note: QuizNoteOption) {
+    const quizId = note.latestQuiz?.id;
+    if (!quizId || deletingQuizId) return;
+    if (
+      !window.confirm(
+        `Delete the quiz for “${note.title}”? This removes its questions and past attempts. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingQuizId(quizId);
+    setError(null);
+    setStatusMessage(null);
+    try {
+      const res = await fetch(`/api/quizzes/${quizId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? 'Failed to delete quiz');
+      }
+      setStatusMessage(`Deleted the quiz for “${note.title}”.`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete quiz');
+    } finally {
+      setDeletingQuizId(null);
+    }
   }
 
   function handleGenerate(note: QuizNoteOption) {
@@ -284,7 +314,7 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Your notes
+          Your Generated Quizzes
         </h2>
 
         {notes.length === 0 ? (
@@ -385,6 +415,18 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
                         {note.latestQuiz?.completed
                           ? 'Retake quiz'
                           : 'Take quiz'}
+                      </button>
+                    ) : null}
+                    {alreadyGenerated ? (
+                      <button
+                        type="button"
+                        className="rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                        disabled={deletingQuizId === note.latestQuiz?.id}
+                        onClick={() => handleDeleteQuiz(note)}
+                      >
+                        {deletingQuizId === note.latestQuiz?.id
+                          ? 'Deleting…'
+                          : 'Delete quiz'}
                       </button>
                     ) : null}
                   </div>

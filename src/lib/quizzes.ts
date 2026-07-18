@@ -89,6 +89,23 @@ async function deleteQuizzesForNote(
   return result.count;
 }
 
+/**
+ * Delete a single quiz the caller owns. Child questions, attempts, XP awards
+ * and question results all cascade, so removing the Quiz row is enough.
+ * Throws NOT_FOUND when the quiz doesn't exist or belongs to someone else.
+ */
+export async function deleteOwnedQuiz(
+  quizId: string,
+  userId: string
+): Promise<void> {
+  const result = await prisma.quiz.deleteMany({
+    where: { id: quizId, userId },
+  });
+  if (result.count === 0) {
+    throw new QuizServiceError('NOT_FOUND', 'Quiz not found');
+  }
+}
+
 function questionKey(question: string, choices: string[]): string {
   const normalizedChoices = choices
     .map((choice) => choice.trim().toLowerCase())
