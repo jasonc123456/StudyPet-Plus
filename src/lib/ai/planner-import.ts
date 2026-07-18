@@ -17,9 +17,9 @@ import type {
   PlannerImportDraftCourse,
   PlannerImportDraftSection,
 } from '@/lib/validators';
+import { sanitizePlanImportText } from '@/lib/planner-import-file';
 import { z } from 'zod';
 
-const MAX_SOURCE_CHARS = 20_000;
 const MAX_TITLE_LEN = 80;
 const MAX_NOTES_LEN = 1000;
 
@@ -128,7 +128,7 @@ export type PlannerImportResult = {
 };
 
 function prepareSource(text: string): string {
-  return text.trim().slice(0, MAX_SOURCE_CHARS);
+  return sanitizePlanImportText(text);
 }
 
 function emptyCourse(): Omit<PlannerImportDraftCourse, 'title'> {

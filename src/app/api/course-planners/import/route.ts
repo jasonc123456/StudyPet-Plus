@@ -14,6 +14,7 @@ import {
  *
  * Parse pasted / CSV plan text into a draft. Does not write to the database —
  * the client must call /api/course-planners/import/confirm after preview.
+ * Incoming text is validated + sanitized server-side (never trust the client).
  */
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -24,6 +25,15 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return jsonError('Invalid JSON body', 400);
+  }
+
+  if (
+    body === null ||
+    typeof body !== 'object' ||
+    Array.isArray(body) ||
+    typeof (body as { text?: unknown }).text !== 'string'
+  ) {
+    return jsonError('Plan text must be a string', 400);
   }
 
   const parsed = parseCoursePlannerImportSchema.safeParse(body);
