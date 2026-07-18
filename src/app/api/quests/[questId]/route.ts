@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { recordStudyActivity } from '@/lib/pet-xp';
 import { getOwnedQuest } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import { updateQuestSchema, zodFirstError } from '@/lib/validators';
@@ -61,18 +62,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
     });
 
     if (shouldAwardXp) {
-      await tx.pet.upsert({
-        where: { userId: authResult.user.id },
-        update: {
-          xp: { increment: updatedQuest.xpReward },
-          lastStudyDate: new Date(),
-        },
-        create: {
-          userId: authResult.user.id,
-          name: 'StudyPet',
-          xp: updatedQuest.xpReward,
-          lastStudyDate: new Date(),
-        },
+      await recordStudyActivity(authResult.user.id, {
+        xp: updatedQuest.xpReward,
+        client: tx,
       });
     }
 

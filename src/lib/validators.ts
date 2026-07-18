@@ -322,6 +322,14 @@ export const awardPetXpSchema = z.object({
 
 export type AwardPetXpInput = z.infer<typeof awardPetXpSchema>;
 
+export const recordStudyActivitySchema = z.object({
+  action: z.enum(['quiz_session']),
+});
+
+export type RecordStudyActivityInput = z.infer<
+  typeof recordStudyActivitySchema
+>;
+
 const flashcardFieldSchema = {
   topic: z.string().trim().min(1, 'Topic is required').max(80),
   front: z.string().trim().min(1, 'Front/question is required').max(500),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { QuizQuestionData } from '@/components/quizzes/types';
 
@@ -20,6 +20,7 @@ export function QuizSession({
   const [revealed, setRevealed] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [completionLogged, setCompletionLogged] = useState(false);
 
   const total = questions.length;
   const current = questions[index];
@@ -28,6 +29,26 @@ export function QuizSession({
     () => `${correctCount}/${total} Correct`,
     [correctCount, total]
   );
+
+  useEffect(() => {
+    if (!finished || completionLogged) return;
+
+    let cancelled = false;
+
+    void fetch('/api/pet/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'quiz_session' }),
+    }).finally(() => {
+      if (!cancelled) {
+        setCompletionLogged(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [completionLogged, finished]);
 
   const handleChoice = useCallback(
     (choiceIndex: number) => {
