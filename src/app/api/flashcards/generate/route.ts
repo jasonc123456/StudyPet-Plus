@@ -12,6 +12,7 @@ import {
 import {
   createFlashcardsFromPasteSchema,
   generateFlashcardsRequestSchema,
+  resolveNoteIds,
   zodFirstError,
 } from '@/lib/validators';
 
@@ -46,29 +47,32 @@ export async function POST(request: Request) {
 
   const userId = authResult.user.id;
 
-  // Two modes share this endpoint: generate from an existing note (has cuid
-  // noteId), or paste text → create a note → generate. Branch on noteId so the
-  // right validator runs and both surface a proper 400 before streaming starts.
-  const hasNoteId =
-    typeof body === 'object' &&
-    body !== null &&
-    typeof (body as { noteId?: unknown }).noteId === 'string';
+  // Two modes share this endpoint: generate from existing notes (has noteId or
+  // noteIds), or paste text → create a note → generate. Branch on the note
+  // selection so the right validator runs and both surface a proper 400 before
+  // streaming starts.
+  const bodyObj = (
+    typeof body === 'object' && body !== null ? body : {}
+  ) as Record<string, unknown>;
+  const hasNoteSelection =
+    typeof bodyObj['noteId'] === 'string' || Array.isArray(bodyObj['noteIds']);
 
-  if (hasNoteId) {
+  if (hasNoteSelection) {
     const parsed = generateFlashcardsRequestSchema.safeParse(body);
     if (!parsed.success) return jsonError(zodFirstError(parsed.error), 400);
-    const { noteId, count, replaceGenerated } = parsed.data;
+    const { title, count } = parsed.data;
+    const noteIds = resolveNoteIds(parsed.data);
 
     return streamGeneration(async (emit) => {
       try {
         const result = await generateAndSaveFlashcards({
-          noteId,
+          noteIds,
           userId,
+          title,
           count,
-          replaceGenerated,
           onProgress: (p) => emit({ type: 'progress', ...p }),
         });
-        revalidateFlashcardPaths(noteId);
+        for (const id of noteIds) revalidateFlashcardPaths(id);
         emit({ type: 'done', result });
       } catch (error) {
         emitFlashcardError(emit, error);

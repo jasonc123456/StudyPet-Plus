@@ -64,6 +64,9 @@ export const quizQuestionSchema = z
     // 0-based index into `choices`.
     answerIndex: z.number().int().min(0),
     explanation: z.string().trim().max(1000).optional(),
+    // A nudge toward the answer without giving it away. Required in the contract;
+    // stored nullable so pre-redesign rows (there are none) wouldn't break.
+    hint: z.string().trim().min(1).max(500),
   })
   .refine((q) => q.answerIndex < q.choices.length, {
     message: 'answerIndex must point at one of the choices',

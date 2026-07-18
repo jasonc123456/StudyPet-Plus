@@ -182,10 +182,13 @@ function quizPrompt(
       `Write ${count} multiple-choice questions from the notes below.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
       '{ "questions": [ { "topic": string, "question": string, ' +
-      '"choices": string[], "answerIndex": number, "explanation": string } ] }\n' +
+      '"choices": string[], "answerIndex": number, "explanation": string, ' +
+      '"hint": string } ] }\n' +
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
-      '- "explanation" briefly says why the answer is correct.\n\n' +
+      '- "explanation" briefly says why the answer is correct.\n' +
+      '- "hint" nudges the student toward the answer WITHOUT revealing which ' +
+      'choice is correct (point at the relevant concept, not the option).\n\n' +
       `NOTES:\n"""\n${source}\n"""`,
   };
 }
@@ -271,6 +274,7 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
       choices: ['Cramming', 'Active recall', 'Highlighting', 'Re-reading'],
       answerIndex: 1,
       explanation: 'Answering questions from memory is active recall.',
+      hint: 'Think about retrieving the answer from memory, not reviewing it.',
     },
     {
       topic,
@@ -283,6 +287,7 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
       ],
       answerIndex: 1,
       explanation: 'Configure LOCAL_AI_BASE_URL or GEMINI_API_KEY, demo off.',
+      hint: 'It involves configuration, not hardware.',
     },
   ];
   return Array.from({ length: count }, (_, i) => base[i % base.length]);
