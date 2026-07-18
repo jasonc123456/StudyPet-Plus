@@ -24,8 +24,7 @@ export type TopicPerformance = {
 export type QuizAttemptHistoryItem = {
   id: string;
   quizId: string;
-  noteId: string | null;
-  noteTitle: string;
+  quizTitle: string;
   courseName: string | null;
   courseColor: string | null;
   correctCount: number;
@@ -33,6 +32,8 @@ export type QuizAttemptHistoryItem = {
   scorePercent: number;
   createdAt: Date;
 };
+
+export type AnalyticsCourse = { id: string; name: string; color: string };
 
 export type QuizAnalytics = {
   totalAttempts: number;
@@ -43,6 +44,12 @@ export type QuizAnalytics = {
   topics: TopicPerformance[];
   /** Most recent attempts first. */
   attempts: QuizAttemptHistoryItem[];
+  /** Distinct courses among the user's quizzes, for the class filter. */
+  courses: AnalyticsCourse[];
+  /** Flashcards reviewed (one per card per day), all-time. */
+  flashcardsDone: number;
+  /** Current study-day streak. */
+  streak: number;
 };
 
 const EMPTY_ANALYTICS: QuizAnalytics = {
@@ -51,6 +58,9 @@ const EMPTY_ANALYTICS: QuizAnalytics = {
   overallAccuracy: 0,
   topics: [],
   attempts: [],
+  courses: [],
+  flashcardsDone: 0,
+  streak: 0,
 };
 
 function isMissingQuizSchema(error: unknown): boolean {
@@ -73,43 +83,56 @@ function percent(part: number, whole: number): number {
  */
 export async function getQuizAnalytics(
   userId: string,
-  historyLimit = 20
+  historyLimit = 20,
+  courseId?: string
 ): Promise<QuizAnalytics> {
   try {
-    const [results, attempts, attemptCount] = await Promise.all([
-      prisma.quizQuestionResult.findMany({
-        where: { userId },
-        select: {
-          isCorrect: true,
-          question: { select: { topic: true } },
-        },
-      }),
-      prisma.quizAttempt.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: historyLimit,
-        select: {
-          id: true,
-          quizId: true,
-          correctCount: true,
-          totalQuestions: true,
-          scorePercent: true,
-          createdAt: true,
-          quiz: {
-            select: {
-              note: {
-                select: {
-                  id: true,
-                  title: true,
-                  course: { select: { name: true, color: true } },
-                },
+    const attemptWhere = courseId ? { userId, quiz: { courseId } } : { userId };
+    const resultWhere = courseId
+      ? { userId, question: { quiz: { courseId } } }
+      : { userId };
+
+    const [results, attempts, attemptCount, courseRows, flashcardsDone, pet] =
+      await Promise.all([
+        prisma.quizQuestionResult.findMany({
+          where: resultWhere,
+          select: {
+            isCorrect: true,
+            question: { select: { topic: true } },
+          },
+        }),
+        prisma.quizAttempt.findMany({
+          where: attemptWhere,
+          orderBy: { createdAt: 'desc' },
+          take: historyLimit,
+          select: {
+            id: true,
+            quizId: true,
+            correctCount: true,
+            totalQuestions: true,
+            scorePercent: true,
+            createdAt: true,
+            quiz: {
+              select: {
+                title: true,
+                note: { select: { title: true } },
+                course: { select: { name: true, color: true } },
               },
             },
           },
-        },
-      }),
-      prisma.quizAttempt.count({ where: { userId } }),
-    ]);
+        }),
+        prisma.quizAttempt.count({ where: attemptWhere }),
+        prisma.quiz.findMany({
+          where: { userId, courseId: { not: null } },
+          distinct: ['courseId'],
+          select: { course: { select: { id: true, name: true, color: true } } },
+        }),
+        prisma.flashcardReviewAward.count({ where: { userId } }),
+        prisma.pet.findUnique({
+          where: { userId },
+          select: { streakCount: true },
+        }),
+      ]);
 
     const topicTotals = new Map<string, { correct: number; total: number }>();
     let overallCorrect = 0;
@@ -135,21 +158,23 @@ export async function getQuizAnalytics(
       // Weakest first; ties broken by the larger sample (more evidence).
       .sort((a, b) => a.accuracy - b.accuracy || b.total - a.total);
 
-    const history: QuizAttemptHistoryItem[] = attempts.map((attempt) => {
-      const note = attempt.quiz.note;
-      return {
-        id: attempt.id,
-        quizId: attempt.quizId,
-        noteId: note?.id ?? null,
-        noteTitle: note?.title ?? 'Untitled quiz',
-        courseName: note?.course?.name ?? null,
-        courseColor: note?.course?.color ?? null,
-        correctCount: attempt.correctCount,
-        totalQuestions: attempt.totalQuestions,
-        scorePercent: attempt.scorePercent,
-        createdAt: attempt.createdAt,
-      };
-    });
+    const history: QuizAttemptHistoryItem[] = attempts.map((attempt) => ({
+      id: attempt.id,
+      quizId: attempt.quizId,
+      quizTitle:
+        attempt.quiz.title ?? attempt.quiz.note?.title ?? 'Untitled quiz',
+      courseName: attempt.quiz.course?.name ?? null,
+      courseColor: attempt.quiz.course?.color ?? null,
+      correctCount: attempt.correctCount,
+      totalQuestions: attempt.totalQuestions,
+      scorePercent: attempt.scorePercent,
+      createdAt: attempt.createdAt,
+    }));
+
+    const courses: AnalyticsCourse[] = courseRows
+      .map((row) => row.course)
+      .filter((course): course is AnalyticsCourse => Boolean(course))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return {
       totalAttempts: attemptCount,
@@ -157,6 +182,9 @@ export async function getQuizAnalytics(
       overallAccuracy: percent(overallCorrect, results.length),
       topics,
       attempts: history,
+      courses,
+      flashcardsDone,
+      streak: pet?.streakCount ?? 0,
     };
   } catch (error) {
     if (isMissingQuizSchema(error)) {
