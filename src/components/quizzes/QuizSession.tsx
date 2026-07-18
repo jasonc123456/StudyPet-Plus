@@ -166,9 +166,14 @@ export function QuizSession({
               </span>
             </p>
           ) : null}
-          {attemptSummary ? (
+          {attemptSummary && attemptSummary.xpAwarded > 0 ? (
             <p className="mt-2 text-sm text-brand-600">
               +{attemptSummary.xpAwarded} XP added to your StudyPet
+            </p>
+          ) : null}
+          {attemptSummary && attemptSummary.xpAwarded === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">
+              You already earned XP for this quiz today.
             </p>
           ) : null}
           {attemptError ? (

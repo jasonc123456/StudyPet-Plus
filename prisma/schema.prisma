@@ -78,6 +78,7 @@ model User {
   quizQuestions         QuizQuestion[]
   quizAttempts          QuizAttempt[]
   quizQuestionResults   QuizQuestionResult[]
+  quizXpAwards          QuizXpAward[]
   calendarSubscriptions CalendarSubscription[]
   gradeProfile          GradeProfile?
   gradeScaleEntries     GradeScaleEntry[]
@@ -524,6 +525,7 @@ model Quiz {
   course    Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
   questions QuizQuestion[]
   attempts  QuizAttempt[]
+  xpAwards  QuizXpAward[]
 
   @@index([userId])
   @@index([noteId])
@@ -566,6 +568,28 @@ model QuizAttempt {
 
   @@index([userId, createdAt])
   @@index([quizId, createdAt])
+}
+
+// US-4.05 — one row per quiz-completion XP grant. The unique
+// (userId, quizId, awardedOn) key caps the payout at once per quiz per UTC
+// day — the same anti-farming granularity as FlashcardReviewAward — so
+// resubmitting or retaking a quiz on the same day can't farm XP, while a
+// genuine retake on a later day earns again. Repeat completions still save
+// a QuizAttempt (score history / weak topics), just with xpAwarded = 0.
+model QuizXpAward {
+  id        String   @id @default(cuid())
+  userId    String
+  quizId    String
+  awardedOn String // UTC calendar day, "YYYY-MM-DD"
+  xp        Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, quizId, awardedOn])
+  @@index([userId])
+  @@index([quizId])
 }
 
 model QuizQuestionResult {
