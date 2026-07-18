@@ -30,6 +30,7 @@ type GenerateQuizResponse = {
 };
 
 const DEFAULT_COUNT = 8;
+const MAX_COUNT = 50;
 
 // Colour the "last score" pill by how well the most recent attempt went.
 function scoreBadgeClass(score: number): string {
@@ -216,12 +217,12 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
             <input
               type="number"
               min={1}
-              max={20}
+              max={MAX_COUNT}
               value={count}
               onChange={(e) =>
                 setCount(
                   Math.min(
-                    20,
+                    MAX_COUNT,
                     Math.max(1, Number(e.target.value) || DEFAULT_COUNT)
                   )
                 )
@@ -246,12 +247,18 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
         <button
           type="button"
           className="btn-primary w-fit"
-          disabled={!selectedNote || isPending}
+          disabled={
+            !selectedNote ||
+            isPending ||
+            (selectedNote.latestQuiz !== null && !replaceGenerated)
+          }
           onClick={() => selectedNote && handleGenerate(selectedNote)}
         >
           {isPending && pendingNoteId === selectedNoteId
             ? 'Generating…'
-            : 'Generate quiz'}
+            : selectedNote?.latestQuiz && !replaceGenerated
+              ? 'Quiz already generated'
+              : 'Generate quiz'}
         </button>
 
         <GenerationProgress state={progress.state} noun="quiz questions" />
@@ -291,7 +298,8 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
           <ul className="flex flex-col gap-3">
             {notes.map((note) => {
               const isGenerating = isPending && pendingNoteId === note.id;
-              const canGenerate = note.hasContent;
+              const alreadyGenerated = note.latestQuiz !== null;
+              const canGenerate = note.hasContent && !alreadyGenerated;
               const canTake = (note.latestQuiz?.questions.length ?? 0) > 0;
 
               return (
@@ -354,9 +362,18 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
                       type="button"
                       className="btn-primary px-3 py-2 text-sm"
                       disabled={!canGenerate || isPending}
+                      title={
+                        alreadyGenerated
+                          ? 'A quiz already exists for this note. Take it, or use “Replace previous quiz” above to regenerate.'
+                          : undefined
+                      }
                       onClick={() => handleGenerate(note)}
                     >
-                      {isGenerating ? 'Generating…' : 'Generate quiz'}
+                      {isGenerating
+                        ? 'Generating…'
+                        : alreadyGenerated
+                          ? 'Quiz generated'
+                          : 'Generate quiz'}
                     </button>
                     {canTake ? (
                       <button

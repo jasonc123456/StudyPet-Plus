@@ -17,13 +17,16 @@ import type { Flashcard as FlashcardRow } from '@prisma/client';
 
 export class FlashcardServiceError extends Error {
   constructor(
-    public readonly code: 'NOT_FOUND' | 'EMPTY_CONTENT',
+    public readonly code: 'NOT_FOUND' | 'EMPTY_CONTENT' | 'LIMIT_REACHED',
     message: string
   ) {
     super(message);
     this.name = 'FlashcardServiceError';
   }
 }
+
+/** A note can hold at most this many flashcards (manual + AI-generated). */
+export const MAX_FLASHCARDS_PER_NOTE = 100;
 
 export type GenerateAndSaveFlashcardsInput = {
   noteId: string;
@@ -152,12 +155,26 @@ export async function generateAndSaveFlashcards(
     where: { noteId: note.id, userId: input.userId },
     select: { front: true, back: true },
   });
+
+  // Cap total cards per note. Existing cards count toward the limit; if the
+  // note is already full, refuse rather than silently drop everything.
+  const remainingSlots = MAX_FLASHCARDS_PER_NOTE - existing.length;
+  if (remainingSlots <= 0) {
+    throw new FlashcardServiceError(
+      'LIMIT_REACHED',
+      `This note already has the maximum of ${MAX_FLASHCARDS_PER_NOTE} flashcards. Delete some before generating more.`
+    );
+  }
+
   const existingKeys = new Set(
     existing.map((card) => cardKey(card.front, card.back))
   );
   cards = cards.filter(
     (card) => !existingKeys.has(cardKey(card.front, card.back))
   );
+
+  // Never let a batch push the note over the per-note cap.
+  cards = cards.slice(0, remainingSlots);
 
   if (cards.length === 0) {
     const flashcards = await prisma.flashcard.findMany({

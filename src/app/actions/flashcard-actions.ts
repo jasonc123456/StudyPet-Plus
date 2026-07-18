@@ -26,6 +26,7 @@ export type FlashcardActionErrorCode =
   | 'UNAUTHORIZED'
   | 'NOT_FOUND'
   | 'EMPTY_CONTENT'
+  | 'LIMIT_REACHED'
   | 'AI_ERROR'
   | 'VALIDATION'
   | 'UNKNOWN';
