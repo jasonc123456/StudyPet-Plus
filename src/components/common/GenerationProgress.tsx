@@ -4,32 +4,45 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { GenerationProgress as ProgressData } from '@/lib/generation-stream';
 
-type Phase = 'thinking' | 'writing';
+// Client-side phase. "connecting" is ours: it covers the gap between the POST
+// and the model's first streamed token (sending the prompt + the model warming
+// up). "thinking" and "writing" mirror the server's streamed phases.
+type Phase = 'connecting' | 'thinking' | 'writing';
 
 type ProgressState = {
   active: boolean;
   phase: Phase;
   thinkingChars: number;
   writingChars: number;
+  /** Total time since begin(). */
   elapsedMs: number;
+  /** Time since the current phase started — drives the writing-phase estimate. */
+  phaseElapsedMs: number;
 };
 
 const INITIAL: ProgressState = {
   active: false,
-  phase: 'thinking',
+  phase: 'connecting',
   thinkingChars: 0,
   writingChars: 0,
   elapsedMs: 0,
+  phaseElapsedMs: 0,
 };
 
+// Reassure the user on slow local runs instead of leaving them guessing.
+const SLOW_SECONDS = 30;
+const VERY_SLOW_SECONDS = 60;
+
 /**
- * Drives the two-phase generation UI. `begin` before the request, pass `update`
- * to consumeGenerationStream, and `end` in a finally block. An interval keeps
- * the elapsed timer moving even while the model is silently "thinking".
+ * Drives the multi-stage generation UI. `begin` before the request, pass
+ * `update` to consumeGenerationStream, and `end` in a finally block. An interval
+ * keeps the elapsed timers moving even while the model is silently "thinking",
+ * so the estimated bar and the timer never freeze between token bursts.
  */
 export function useGenerationProgress() {
   const [state, setState] = useState<ProgressState>(INITIAL);
   const startRef = useRef<number>(0);
+  const phaseStartRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopTimer = useCallback(() => {
@@ -40,26 +53,37 @@ export function useGenerationProgress() {
   }, []);
 
   const begin = useCallback(() => {
-    startRef.current = Date.now();
-    setState({ ...INITIAL, active: true });
+    const now = Date.now();
+    startRef.current = now;
+    phaseStartRef.current = now;
+    setState({ ...INITIAL, active: true, phase: 'connecting' });
     stopTimer();
     timerRef.current = setInterval(() => {
       setState((prev) =>
         prev.active
-          ? { ...prev, elapsedMs: Date.now() - startRef.current }
+          ? {
+              ...prev,
+              elapsedMs: Date.now() - startRef.current,
+              phaseElapsedMs: Date.now() - phaseStartRef.current,
+            }
           : prev
       );
     }, 200);
   }, [stopTimer]);
 
   const update = useCallback((progress: ProgressData) => {
-    setState((prev) => ({
-      ...prev,
-      active: true,
-      phase: progress.phase,
-      thinkingChars: progress.thinkingChars,
-      writingChars: progress.writingChars,
-    }));
+    setState((prev) => {
+      const phaseChanged = prev.phase !== progress.phase;
+      if (phaseChanged) phaseStartRef.current = Date.now();
+      return {
+        ...prev,
+        active: true,
+        phase: progress.phase,
+        thinkingChars: progress.thinkingChars,
+        writingChars: progress.writingChars,
+        phaseElapsedMs: phaseChanged ? 0 : prev.phaseElapsedMs,
+      };
+    });
   }, []);
 
   const end = useCallback(() => {
@@ -73,9 +97,40 @@ export function useGenerationProgress() {
 }
 
 function phaseLabel(phase: Phase, noun: string): string {
-  return phase === 'thinking'
-    ? 'Thinking through your notes…'
-    : `Writing ${noun}…`;
+  if (phase === 'connecting') return 'Sending your notes to the model…';
+  if (phase === 'thinking') return 'Thinking through your notes…';
+  return `Writing ${noun}…`;
+}
+
+/**
+ * Soft ETA fraction in [0, 1). The real total is unknowable, so this is a
+ * decelerating estimate that never reaches 100% on its own — it only fills as
+ * time passes and jumps at real milestones (connecting → thinking → writing).
+ * When generation finishes the component unmounts, so we never fake completion.
+ */
+function estimateFraction(state: ProgressState): number {
+  const total = state.elapsedMs / 1000;
+  if (state.phase === 'connecting') {
+    // Creep up to ~6% while we wait for the first token.
+    return Math.min(0.06, total * 0.03);
+  }
+  if (state.phase === 'thinking') {
+    // Ease from ~6% toward ~55%, decelerating (τ ≈ 22s).
+    return 0.06 + 0.49 * (1 - Math.exp(-total / 22));
+  }
+  // writing: jump to a 60% floor, then ease toward ~97% over the writing phase.
+  const w = state.phaseElapsedMs / 1000;
+  return 0.6 + 0.37 * (1 - Math.exp(-w / 30));
+}
+
+function helperCopy(seconds: number): string {
+  if (seconds >= VERY_SLOW_SECONDS) {
+    return "Still working — longer notes take more time. It hasn't stalled; the model is finishing up.";
+  }
+  if (seconds >= SLOW_SECONDS) {
+    return 'This is taking a little longer than usual, but the model is still working hard on your notes.';
+  }
+  return 'Local AI reasons before it answers, so this can take a bit longer than a hosted model.';
 }
 
 export function GenerationProgress({
@@ -89,6 +144,8 @@ export function GenerationProgress({
   if (!state.active) return null;
 
   const seconds = Math.floor(state.elapsedMs / 1000);
+  const pct = Math.round(estimateFraction(state) * 100);
+  const isSlow = seconds >= SLOW_SECONDS;
 
   return (
     <div
@@ -101,29 +158,49 @@ export function GenerationProgress({
           {phaseLabel(state.phase, noun)}
         </span>
         <span className="tabular-nums text-xs text-brand-700/80">
-          {seconds}s
+          ~{pct}% · {seconds}s
         </span>
       </div>
 
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-brand-100">
-        <div className="gen-slide absolute inset-y-0 w-1/3 rounded-full bg-brand-500" />
+        <div
+          className="gen-fill absolute inset-y-0 left-0 rounded-full bg-brand-500"
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        >
+          {/* Animated sheen keeps the bar alive even when the estimate is flat. */}
+          <div className="gen-sheen absolute inset-0" />
+        </div>
       </div>
 
-      <p className="text-xs text-brand-700/80">
-        Local AI thinks before it answers, so this can take a bit longer than a
-        hosted model.
+      <p
+        className={
+          isSlow
+            ? 'text-xs font-medium text-amber-700'
+            : 'text-xs text-brand-700/80'
+        }
+      >
+        {helperCopy(seconds)}
       </p>
 
       <style jsx>{`
-        .gen-slide {
-          animation: gen-slide 1.15s ease-in-out infinite;
+        .gen-fill {
+          transition: width 0.4s ease-out;
         }
-        @keyframes gen-slide {
+        .gen-sheen {
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.55),
+            transparent
+          );
+          animation: gen-sheen 1.4s ease-in-out infinite;
+        }
+        @keyframes gen-sheen {
           0% {
-            left: -35%;
+            transform: translateX(-100%);
           }
           100% {
-            left: 100%;
+            transform: translateX(100%);
           }
         }
       `}</style>
