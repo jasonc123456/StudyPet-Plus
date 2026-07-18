@@ -63,8 +63,20 @@ model User {
   showAllGroupTasksOnCalendar Boolean @default(false)
   createdAt     DateTime  @default(now())
 
+  // ---- Multi-factor auth (US-4.S1) ----
+  // totpSecret holds a base32 TOTP secret. It is written at the start of
+  // enrollment (pending) and only becomes an active factor once the user
+  // proves possession by entering a valid code, at which point
+  // totpActivatedAt is set. currentChallenge stores the one-time WebAuthn
+  // ceremony challenge (registration or authentication) between the "options"
+  // and "verify" round-trips. Passkeys live in the Authenticator table.
+  totpSecret       String?
+  totpActivatedAt  DateTime?
+  currentChallenge String?
+
   accounts Account[]
   sessions Session[]
+  authenticators Authenticator[]
   emailChangeRequests EmailChangeRequest[]
 
   // Sprint 2 — planner + gamification relations.
@@ -118,7 +130,34 @@ model Session {
   userId       String
   expires      DateTime
 
+  // Set once this session clears the second factor (US-4.S1). Null right after
+  // sign-in when the user has MFA enabled — the /mfa gate fills it in. A fresh
+  // login mints a new session row (null again), so re-authentication always
+  // requires the second factor. Null-by-default means MFA-free users and every
+  // pre-existing session are unaffected.
+  mfaVerifiedAt DateTime?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// A registered WebAuthn passkey / security key (US-4.S1). One row per
+// credential; a user may enroll several. publicKey + counter are used to verify
+// each assertion; counter is bumped on every successful authentication to catch
+// cloned authenticators.
+model Authenticator {
+  id           String   @id @default(cuid())
+  userId       String
+  credentialID String   @unique // base64url-encoded credential id
+  publicKey    Bytes
+  counter      Int      @default(0)
+  transports   String? // comma-joined hints, e.g. "internal,hybrid"
+  deviceName   String? // user-facing label
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {

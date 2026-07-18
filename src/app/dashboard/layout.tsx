@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AppSidebar, AppTopBar } from '@/components/AppSidebar';
 import { TimezoneProvider } from '@/components/TimezoneProvider';
+import { requiresMfaChallenge } from '@/lib/mfa';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -23,6 +24,12 @@ export default async function DashboardLayout({
 
   if (!session?.user?.id) {
     redirect('/login');
+  }
+
+  // Second-factor gate (US-4.S1): a user with MFA enabled whose current session
+  // hasn't cleared the challenge is sent to /mfa before reaching any app page.
+  if (await requiresMfaChallenge(session.user.id)) {
+    redirect('/mfa');
   }
 
   const userProfile = await prisma.user.findUnique({
