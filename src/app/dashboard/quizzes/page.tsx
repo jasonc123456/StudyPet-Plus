@@ -49,6 +49,12 @@ export default async function DashboardQuizzesPage() {
               take: 1,
               select: { id: true },
             },
+            _count: { select: { attempts: true } },
+            attempts: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: { scorePercent: true, createdAt: true },
+            },
             questions: {
               orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
               select: {
@@ -67,6 +73,7 @@ export default async function DashboardQuizzesPage() {
 
     notes = rows.map((note) => {
       const latestQuiz = note.quizzes[0] ?? null;
+      const lastAttempt = latestQuiz?.attempts[0] ?? null;
       return {
         id: note.id,
         title: note.title,
@@ -78,6 +85,8 @@ export default async function DashboardQuizzesPage() {
               id: latestQuiz.id,
               completed: latestQuiz.xpAwards.length > 0,
               questions: latestQuiz.questions,
+              attemptCount: latestQuiz._count.attempts,
+              lastScorePercent: lastAttempt?.scorePercent ?? null,
             }
           : null,
       };

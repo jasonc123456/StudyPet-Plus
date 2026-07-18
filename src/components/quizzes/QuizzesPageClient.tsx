@@ -31,6 +31,13 @@ type GenerateQuizResponse = {
 
 const DEFAULT_COUNT = 8;
 
+// Colour the "last score" pill by how well the most recent attempt went.
+function scoreBadgeClass(score: number): string {
+  if (score >= 80) return 'bg-emerald-100 text-emerald-800';
+  if (score >= 50) return 'bg-amber-100 text-amber-800';
+  return 'bg-red-100 text-red-800';
+}
+
 function providerSuccessLabel(provider: string, count: number): string {
   const countLabel = `${count} question${count === 1 ? '' : 's'}`;
   if (provider === 'local') return `Generated ${countLabel} with StudyPet+ AI.`;
@@ -318,7 +325,23 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
                       {note.questionCount > 0 ? (
                         <span>{note.questionCount} saved questions</span>
                       ) : null}
-                      {note.latestQuiz?.completed ? (
+                      {note.latestQuiz && note.latestQuiz.attemptCount > 0 ? (
+                        <>
+                          {note.latestQuiz.lastScorePercent !== null ? (
+                            <span
+                              className={`rounded-full px-2 py-0.5 font-semibold ${scoreBadgeClass(
+                                note.latestQuiz.lastScorePercent
+                              )}`}
+                            >
+                              Last score {note.latestQuiz.lastScorePercent}%
+                            </span>
+                          ) : null}
+                          <span>
+                            {note.latestQuiz.attemptCount} attempt
+                            {note.latestQuiz.attemptCount === 1 ? '' : 's'}
+                          </span>
+                        </>
+                      ) : note.latestQuiz?.completed ? (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800">
                           ✓ Done
                         </span>
