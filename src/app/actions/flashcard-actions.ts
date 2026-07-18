@@ -93,8 +93,7 @@ function mapServiceError(error: unknown): GenerateFlashcardsActionState {
  */
 export async function generateFlashcardsAction(
   noteId: string,
-  count?: number,
-  replaceGenerated?: boolean
+  count?: number
 ): Promise<GenerateFlashcardsActionState> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -107,10 +106,9 @@ export async function generateFlashcardsAction(
 
   try {
     const result = await generateAndSaveFlashcards({
-      noteId,
+      noteIds: [noteId],
       userId: session.user.id,
       count,
-      replaceGenerated: Boolean(replaceGenerated),
     });
 
     revalidateFlashcardPaths(noteId);

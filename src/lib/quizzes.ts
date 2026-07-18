@@ -9,9 +9,8 @@ import {
   type AiProgressCallback,
   type AiProviderName,
 } from '@/lib/ai/types';
-import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
+import { assembleNoteSource, defaultEntityTitle } from '@/lib/note-sources';
 import { recordStudyActivity, xpForQuizScore } from '@/lib/pet-xp';
-import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import type {
   Quiz,
@@ -44,11 +43,12 @@ export type QuizAttemptWithResults = QuizAttempt & {
 };
 
 export type GenerateAndSaveQuizInput = {
-  noteId: string;
+  /** One or more owned notes the quiz is built from. */
+  noteIds: string[];
   userId: string;
+  /** Optional user-supplied title; a smart default is derived otherwise. */
+  title?: string;
   count?: number;
-  /** When true, remove prior AI-generated quiz batches for this note. */
-  replaceGenerated?: boolean;
   /** Optional live progress callback forwarded to the AI layer. */
   onProgress?: AiProgressCallback;
 };
@@ -57,6 +57,8 @@ export type GenerateAndSaveQuizResult = {
   quiz: QuizWithQuestions;
   generatedCount: number;
   provider: AiProviderName;
+  /** True when the combined source text was truncated to the cap. */
+  truncated: boolean;
 };
 
 export type SubmitQuizAttemptInput = {
@@ -79,16 +81,6 @@ export type SubmitQuizAttemptResult = {
   weakTopic: string | null;
 };
 
-async function deleteQuizzesForNote(
-  noteId: string,
-  userId: string
-): Promise<number> {
-  const result = await prisma.quiz.deleteMany({
-    where: { noteId, userId },
-  });
-  return result.count;
-}
-
 /**
  * Delete a single quiz the caller owns. Child questions, attempts, XP awards
  * and question results all cascade, so removing the Quiz row is enough.
@@ -106,43 +98,26 @@ export async function deleteOwnedQuiz(
   }
 }
 
-function questionKey(question: string, choices: string[]): string {
-  const normalizedChoices = choices
-    .map((choice) => choice.trim().toLowerCase())
-    .join('||');
-  return `${question.trim().toLowerCase()}::${normalizedChoices}`;
-}
-
 /**
- * Generate a quiz from a note's content and persist it.
+ * Generate a quiz from 1..N owned notes and persist it as a standalone entity.
  * Throws QuizServiceError for ownership / empty-content failures;
  * rethrows AiProviderError (and other errors) for the route to map.
  */
 export async function generateAndSaveQuiz(
   input: GenerateAndSaveQuizInput
 ): Promise<GenerateAndSaveQuizResult> {
-  const note = await getOwnedNote(input.noteId, input.userId);
-  if (!note) {
-    throw new QuizServiceError('NOT_FOUND', 'Note not found');
-  }
-
-  const sourceText = richTextToPlainText(note.content);
-
-  if (!hasVisibleRichText(note.content)) {
+  const assembled = await assembleNoteSource(input.noteIds, input.userId);
+  if (!assembled.ok) {
+    if (assembled.reason === 'NOT_FOUND') {
+      throw new QuizServiceError('NOT_FOUND', 'Note not found');
+    }
     throw new QuizServiceError(
       'EMPTY_CONTENT',
-      'Note has no content to generate a quiz from'
+      'Selected notes have no content to generate a quiz from'
     );
   }
 
-  let topicHint: string | undefined;
-  if (note.courseId) {
-    const course = await prisma.course.findFirst({
-      where: { id: note.courseId, userId: input.userId },
-      select: { name: true },
-    });
-    topicHint = course?.name;
-  }
+  const { notes, sourceText, truncated, courseId, topicHint } = assembled.value;
 
   const { items, provider } = await generateQuiz({
     sourceText,
@@ -160,47 +135,20 @@ export async function generateAndSaveQuiz(
     throw new Error('AI returned quiz questions that failed schema validation');
   }
 
-  let questions = parsed.data.questions;
-
-  if (input.replaceGenerated) {
-    await deleteQuizzesForNote(note.id, input.userId);
-  }
-
-  const existing = await prisma.quizQuestion.findMany({
-    where: { userId: input.userId, quiz: { noteId: note.id } },
-    select: { question: true, choices: true },
-  });
-  const existingKeys = new Set(
-    existing.map((row) => questionKey(row.question, row.choices))
-  );
-  questions = questions.filter(
-    (q) => !existingKeys.has(questionKey(q.question, q.choices))
-  );
-
-  if (questions.length === 0) {
-    const latest = await prisma.quiz.findFirst({
-      where: { noteId: note.id, userId: input.userId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        questions: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
-      },
-    });
-
-    if (!latest) {
-      throw new QuizServiceError(
-        'EMPTY_CONTENT',
-        'No new quiz questions could be generated from this note'
-      );
-    }
-
-    return { quiz: latest, generatedCount: 0, provider };
-  }
+  const questions = parsed.data.questions;
+  const title = defaultEntityTitle(notes, input.title);
+  // Keep the legacy single-note link populated when there's exactly one note.
+  const singleNoteId = notes.length === 1 ? notes[0]!.id : null;
 
   const quiz = await prisma.quiz.create({
     data: {
       userId: input.userId,
-      noteId: note.id,
-      courseId: note.courseId,
+      title,
+      noteId: singleNoteId,
+      courseId,
+      sourceNotes: {
+        create: notes.map((note) => ({ noteId: note.id })),
+      },
       questions: {
         create: questions.map((q) => ({
           userId: input.userId,
@@ -209,6 +157,7 @@ export async function generateAndSaveQuiz(
           choices: q.choices,
           correctIndex: q.answerIndex,
           explanation: q.explanation ?? null,
+          hint: q.hint,
         })),
       },
     },
@@ -217,26 +166,7 @@ export async function generateAndSaveQuiz(
     },
   });
 
-  return { quiz, generatedCount: questions.length, provider };
-}
-
-/** Latest quiz for a note owned by the user, with questions. */
-export async function getLatestQuizForNote(
-  noteId: string,
-  userId: string
-): Promise<QuizWithQuestions | null> {
-  const note = await getOwnedNote(noteId, userId);
-  if (!note) {
-    return null;
-  }
-
-  return prisma.quiz.findFirst({
-    where: { noteId, userId },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      questions: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
-    },
-  });
+  return { quiz, generatedCount: questions.length, provider, truncated };
 }
 
 export async function submitQuizAttempt(

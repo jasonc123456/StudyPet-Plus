@@ -4,7 +4,11 @@ import { AiProviderError } from '@/lib/ai/provider';
 import { streamGeneration } from '@/lib/ai/sse';
 import { jsonError, requireUser } from '@/lib/api-response';
 import { generateAndSaveQuiz, QuizServiceError } from '@/lib/quizzes';
-import { generateQuizRequestSchema, zodFirstError } from '@/lib/validators';
+import {
+  generateQuizRequestSchema,
+  resolveNoteIds,
+  zodFirstError,
+} from '@/lib/validators';
 
 /** Friendly message for an AI failure surfaced as an SSE `error` event. */
 function aiErrorMessage(error: AiProviderError): string {
@@ -32,7 +36,8 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { noteId, count, replaceGenerated } = parsed.data;
+  const { title, count } = parsed.data;
+  const noteIds = resolveNoteIds(parsed.data);
   const userId = authResult.user.id;
 
   // Everything below streams as SSE: progress events while the model works,
@@ -40,10 +45,10 @@ export async function POST(request: Request) {
   return streamGeneration(async (emit) => {
     try {
       const result = await generateAndSaveQuiz({
-        noteId,
+        noteIds,
         userId,
+        title,
         count,
-        replaceGenerated,
         onProgress: (p) => emit({ type: 'progress', ...p }),
       });
       emit({ type: 'done', result });

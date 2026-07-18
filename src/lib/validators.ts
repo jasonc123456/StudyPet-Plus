@@ -291,23 +291,58 @@ export const updateNoteSchema = updateNoteSchemaBase
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 
+/** At least one note id, via `noteIds[]` or the legacy single `noteId`. */
+const noteSelectionShape = {
+  noteId: z.string().cuid().optional(),
+  noteIds: z.array(z.string().cuid()).min(1).max(20).optional(),
+} as const;
+
+function requireAtLeastOneNote<
+  T extends { noteId?: string; noteIds?: string[] },
+>(data: T): boolean {
+  return Boolean(data.noteId) || Boolean(data.noteIds?.length);
+}
+
+/** Normalize either note-selection form to a de-duped id array. */
+export function resolveNoteIds(input: {
+  noteId?: string;
+  noteIds?: string[];
+}): string[] {
+  const ids = input.noteIds?.length
+    ? input.noteIds
+    : input.noteId
+      ? [input.noteId]
+      : [];
+  return [...new Set(ids)];
+}
+
 /** Body for POST /api/flashcards/generate (US-3.3). */
-export const generateFlashcardsRequestSchema = z.object({
-  noteId: z.string().cuid(),
-  count: z.coerce.number().int().min(1).max(20).optional(),
-  replaceGenerated: z.boolean().optional().default(false),
-});
+export const generateFlashcardsRequestSchema = z
+  .object({
+    ...noteSelectionShape,
+    title: z.string().trim().min(1).max(120).optional(),
+    count: z.coerce.number().int().min(1).max(20).optional(),
+  })
+  .refine(requireAtLeastOneNote, {
+    message: 'Select at least one note',
+    path: ['noteIds'],
+  });
 
 export type GenerateFlashcardsRequestInput = z.infer<
   typeof generateFlashcardsRequestSchema
 >;
 
 /** Body for POST /api/quizzes/generate (US-3.4). */
-export const generateQuizRequestSchema = z.object({
-  noteId: z.string().cuid(),
-  count: z.coerce.number().int().min(1).max(50).optional(),
-  replaceGenerated: z.boolean().optional().default(false),
-});
+export const generateQuizRequestSchema = z
+  .object({
+    ...noteSelectionShape,
+    title: z.string().trim().min(1).max(120).optional(),
+    count: z.coerce.number().int().min(1).max(50).optional(),
+  })
+  .refine(requireAtLeastOneNote, {
+    message: 'Select at least one note',
+    path: ['noteIds'],
+  });
 
 export type GenerateQuizRequestInput = z.infer<
   typeof generateQuizRequestSchema

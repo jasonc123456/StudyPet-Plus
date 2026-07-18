@@ -1,8 +1,7 @@
 // Flashcard generation + persistence (US-3.3).
 //
-// Loads a Note the caller owns, asks the AI layer for topic-tagged cards, then
-// bulk-inserts them. Optional replaceGenerated removes prior AI batches while
-// keeping manually created singleton cards.
+// Asks the AI layer for topic-tagged cards from 1..N owned notes, then persists
+// them as a new FlashcardSet (deck) with its source-note links.
 
 import { dedupeFlashcards, generateFlashcards } from '@/lib/ai';
 import {
@@ -10,10 +9,13 @@ import {
   type AiProgressCallback,
   type AiProviderName,
 } from '@/lib/ai/types';
-import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
+import { assembleNoteSource, defaultEntityTitle } from '@/lib/note-sources';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
-import type { Flashcard as FlashcardRow } from '@prisma/client';
+import type {
+  Flashcard as FlashcardRow,
+  FlashcardSet as FlashcardSetRow,
+} from '@prisma/client';
 
 export class FlashcardServiceError extends Error {
   constructor(
@@ -25,105 +27,52 @@ export class FlashcardServiceError extends Error {
   }
 }
 
-/** A note can hold at most this many flashcards (manual + AI-generated). */
-export const MAX_FLASHCARDS_PER_NOTE = 100;
+/** A single generated deck holds at most this many cards. */
+export const MAX_FLASHCARDS_PER_SET = 100;
 
 export type GenerateAndSaveFlashcardsInput = {
-  noteId: string;
+  /** One or more owned notes the deck is built from. */
+  noteIds: string[];
   userId: string;
+  /** Optional user-supplied title; a smart default is derived otherwise. */
+  title?: string;
   count?: number;
-  /** When true, remove prior AI-generated batches before inserting new cards. */
-  replaceGenerated?: boolean;
   /** Optional live progress callback forwarded to the AI layer. */
   onProgress?: AiProgressCallback;
 };
 
 export type GenerateAndSaveFlashcardsResult = {
-  /** All cards for the note after the operation (includes kept manual cards). */
+  /** The deck that was created. */
+  set: FlashcardSetRow;
+  /** The cards inserted into the deck. */
   flashcards: FlashcardRow[];
-  /** How many cards were inserted in this generation. */
+  /** How many cards were inserted. */
   generatedCount: number;
   provider: AiProviderName;
+  /** True when the combined source text was truncated to the cap. */
+  truncated: boolean;
 };
 
-const KNOWN_DEMO_FRONTS = new Set([
-  'what is spaced repetition?',
-  'why turn notes into flashcards?',
-  '(demo card) how do i get real cards?',
-]);
-
 /**
- * AI createMany batches share one createdAt. Manual cards are inserted one at a
- * time and almost always have unique timestamps. Also drop known demo fronts.
- */
-async function deleteAiGeneratedFlashcards(
-  noteId: string,
-  userId: string
-): Promise<number> {
-  const existing = await prisma.flashcard.findMany({
-    where: { noteId, userId },
-    select: { id: true, createdAt: true, front: true },
-  });
-
-  const countByTs = new Map<number, number>();
-  for (const card of existing) {
-    const ts = card.createdAt.getTime();
-    countByTs.set(ts, (countByTs.get(ts) ?? 0) + 1);
-  }
-
-  const ids = existing
-    .filter((card) => {
-      const batchSize = countByTs.get(card.createdAt.getTime()) ?? 0;
-      const isBatch = batchSize >= 2;
-      const isDemoFront = KNOWN_DEMO_FRONTS.has(
-        card.front.trim().toLowerCase()
-      );
-      return isBatch || isDemoFront;
-    })
-    .map((card) => card.id);
-
-  if (ids.length === 0) return 0;
-
-  const result = await prisma.flashcard.deleteMany({
-    where: { id: { in: ids }, userId },
-  });
-  return result.count;
-}
-
-function cardKey(front: string, back: string): string {
-  return `${front.trim().toLowerCase()}::${back.trim().toLowerCase()}`;
-}
-
-/**
- * Generate flashcards from a note's content and persist them.
+ * Generate flashcards from 1..N owned notes and persist them as a new deck.
  * Throws FlashcardServiceError for ownership / empty-content failures;
  * rethrows AiProviderError (and other errors) for the route to map.
  */
 export async function generateAndSaveFlashcards(
   input: GenerateAndSaveFlashcardsInput
 ): Promise<GenerateAndSaveFlashcardsResult> {
-  const note = await getOwnedNote(input.noteId, input.userId);
-  if (!note) {
-    throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
-  }
-
-  const sourceText = richTextToPlainText(note.content);
-
-  if (!hasVisibleRichText(note.content)) {
+  const assembled = await assembleNoteSource(input.noteIds, input.userId);
+  if (!assembled.ok) {
+    if (assembled.reason === 'NOT_FOUND') {
+      throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
+    }
     throw new FlashcardServiceError(
       'EMPTY_CONTENT',
-      'Note has no content to generate flashcards from'
+      'Selected notes have no content to generate flashcards from'
     );
   }
 
-  let topicHint: string | undefined;
-  if (note.courseId) {
-    const course = await prisma.course.findFirst({
-      where: { id: note.courseId, userId: input.userId },
-      select: { name: true },
-    });
-    topicHint = course?.name;
-  }
+  const { notes, sourceText, truncated, courseId, topicHint } = assembled.value;
 
   const { items, provider } = await generateFlashcards({
     sourceText,
@@ -144,67 +93,55 @@ export async function generateAndSaveFlashcards(
     throw new Error('AI returned flashcards that failed schema validation');
   }
 
-  let cards = dedupeFlashcards(parsed.data.cards);
+  const cards = dedupeFlashcards(parsed.data.cards).slice(
+    0,
+    MAX_FLASHCARDS_PER_SET
+  );
 
-  if (input.replaceGenerated) {
-    await deleteAiGeneratedFlashcards(note.id, input.userId);
-  }
-
-  // Skip cards that already exist on this note (manual or previous AI).
-  const existing = await prisma.flashcard.findMany({
-    where: { noteId: note.id, userId: input.userId },
-    select: { front: true, back: true },
-  });
-
-  // Cap total cards per note. Existing cards count toward the limit; if the
-  // note is already full, refuse rather than silently drop everything.
-  const remainingSlots = MAX_FLASHCARDS_PER_NOTE - existing.length;
-  if (remainingSlots <= 0) {
+  if (cards.length === 0) {
     throw new FlashcardServiceError(
-      'LIMIT_REACHED',
-      `This note already has the maximum of ${MAX_FLASHCARDS_PER_NOTE} flashcards. Delete some before generating more.`
+      'EMPTY_CONTENT',
+      'No flashcards could be generated from the selected notes'
     );
   }
 
-  const existingKeys = new Set(
-    existing.map((card) => cardKey(card.front, card.back))
-  );
-  cards = cards.filter(
-    (card) => !existingKeys.has(cardKey(card.front, card.back))
-  );
+  const title = defaultEntityTitle(notes, input.title);
+  // Keep the legacy single-note link populated when there's exactly one note.
+  const singleNoteId = notes.length === 1 ? notes[0]!.id : null;
 
-  // Never let a batch push the note over the per-note cap.
-  cards = cards.slice(0, remainingSlots);
-
-  if (cards.length === 0) {
-    const flashcards = await prisma.flashcard.findMany({
-      where: { noteId: note.id, userId: input.userId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-    });
-    return { flashcards, generatedCount: 0, provider };
-  }
-
-  // Shared timestamp marks this insert as an AI batch for later replace.
-  const createdAt = new Date();
-
-  await prisma.flashcard.createMany({
-    data: cards.map((card) => ({
+  const set = await prisma.flashcardSet.create({
+    data: {
       userId: input.userId,
-      noteId: note.id,
-      courseId: note.courseId,
-      topic: card.topic,
-      front: card.front,
-      back: card.back,
-      createdAt,
-    })),
+      title,
+      courseId,
+      sourceNotes: {
+        create: notes.map((note) => ({ noteId: note.id })),
+      },
+      cards: {
+        create: cards.map((card) => ({
+          userId: input.userId,
+          noteId: singleNoteId,
+          courseId,
+          topic: card.topic,
+          front: card.front,
+          back: card.back,
+        })),
+      },
+    },
   });
 
   const flashcards = await prisma.flashcard.findMany({
-    where: { noteId: note.id, userId: input.userId },
-    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    where: { setId: set.id, userId: input.userId },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
 
-  return { flashcards, generatedCount: cards.length, provider };
+  return {
+    set,
+    flashcards,
+    generatedCount: flashcards.length,
+    provider,
+    truncated,
+  };
 }
 
 /** All flashcards for a note owned by the user, newest first. */
@@ -261,8 +198,9 @@ export async function createNoteAndGenerateFlashcards(input: {
   });
 
   const result = await generateAndSaveFlashcards({
-    noteId: note.id,
+    noteIds: [note.id],
     userId: input.userId,
+    title: input.title,
     count: input.count,
     onProgress: input.onProgress,
   });
