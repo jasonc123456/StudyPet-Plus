@@ -1,6 +1,10 @@
 // AI provider abstraction with automatic fallback (US-3.2).
 //
-//   Gemini (primary)  ──fails──▶  DeepSeek (fallback)
+//   Local self-hosted LLM (primary)  ──fails──▶  Gemini (fallback)
+//
+// The "local" provider talks to any OpenAI-compatible endpoint (LM Studio,
+// vLLM, Ollama, …) configured via LOCAL_AI_BASE_URL. Gemini stays as a hosted
+// fallback for when the self-hosted box is unreachable.
 //
 // Demo material is only used when AI_DEMO_MODE=true (see src/lib/ai/index.ts).
 //
@@ -12,8 +16,8 @@
 
 import {
   AI_REQUEST_TIMEOUT_MS,
-  getDeepSeekConfig,
   getGeminiConfig,
+  getLocalConfig,
 } from '@/lib/ai/config';
 import type { AiProviderName } from '@/lib/ai/types';
 
@@ -147,19 +151,25 @@ const geminiProvider: AiProvider = {
 };
 
 // ---------------------------------------------------------------------------
-// DeepSeek (OpenAI-compatible chat completions)
+// Local self-hosted LLM (OpenAI-compatible chat completions)
 // ---------------------------------------------------------------------------
+//
+// Talks to LOCAL_AI_BASE_URL (e.g. an LM Studio / vLLM / Ollama server). We do
+// NOT send `response_format: json_object`: many local servers reject it (LM
+// Studio only accepts `json_schema`/`text`). The prompt already demands JSON,
+// reasoning models keep their chain-of-thought in a separate `reasoning_content`
+// field, and parseJsonObject strips any stray fences — so `content` is clean.
 
-const deepseekProvider: AiProvider = {
-  name: 'deepseek',
-  isConfigured: () => getDeepSeekConfig() !== null,
+const localProvider: AiProvider = {
+  name: 'local',
+  isConfigured: () => getLocalConfig() !== null,
   async generateJson({ system, user }) {
-    const config = getDeepSeekConfig();
-    if (!config) throw new AiProviderError('deepseek', 'no API key configured');
+    const config = getLocalConfig();
+    if (!config) throw new AiProviderError('local', 'not configured');
 
     const data = (await fetchJson(
-      'deepseek',
-      'https://api.deepseek.com/chat/completions',
+      'local',
+      `${config.baseUrl}/chat/completions`,
       {
         method: 'POST',
         headers: {
@@ -172,16 +182,15 @@ const deepseekProvider: AiProvider = {
             { role: 'system', content: system },
             { role: 'user', content: user },
           ],
-          response_format: { type: 'json_object' },
           temperature: 0.4,
         }),
       }
     )) as { choices?: { message?: { content?: string } }[] };
 
     const text = data.choices?.[0]?.message?.content;
-    if (!text) throw new AiProviderError('deepseek', 'no completion returned');
+    if (!text) throw new AiProviderError('local', 'no completion returned');
 
-    return parseJsonObject('deepseek', text);
+    return parseJsonObject('local', text);
   },
 };
 
@@ -189,8 +198,8 @@ const deepseekProvider: AiProvider = {
 // Fallback orchestration
 // ---------------------------------------------------------------------------
 
-/** Primary first, then fallback. Order is the US-3.2 requirement. */
-const PROVIDER_CHAIN: AiProvider[] = [geminiProvider, deepseekProvider];
+/** Primary first, then fallback: self-hosted LLM, then hosted Gemini. */
+const PROVIDER_CHAIN: AiProvider[] = [localProvider, geminiProvider];
 
 export interface ProviderRun {
   provider: AiProviderName;
@@ -212,8 +221,8 @@ export async function runWithFallback(
   const configured = PROVIDER_CHAIN.filter((p) => p.isConfigured());
   if (configured.length === 0) {
     throw new AiProviderError(
-      'gemini',
-      'AI generation is not configured. Set GEMINI_API_KEY on the server.'
+      'local',
+      'AI generation is not configured. Set LOCAL_AI_BASE_URL (or GEMINI_API_KEY) on the server.'
     );
   }
 
@@ -245,7 +254,7 @@ export async function runWithFallback(
   }
 
   throw new AiProviderError(
-    'gemini',
+    'local',
     `all providers failed — ${errors.join(' | ')}`
   );
 }

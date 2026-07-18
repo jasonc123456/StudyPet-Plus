@@ -28,6 +28,7 @@ const DEFAULT_COUNT = 8;
 
 function providerSuccessLabel(provider: string, count: number): string {
   const countLabel = `${count} question${count === 1 ? '' : 's'}`;
+  if (provider === 'local') return `Generated ${countLabel} with StudyPet+ AI.`;
   if (provider === 'gemini') return `Generated ${countLabel} with Gemini.`;
   if (provider === 'deepseek') return `Generated ${countLabel} with DeepSeek.`;
   if (provider === 'demo') {
