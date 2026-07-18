@@ -114,7 +114,7 @@ The following items were added during Week 3 outside the original AI/planner bac
 
 ## Initial Scrum Board
 | User Story | To Do | In Progress | Completed |
-|---|---|---|---|
+|------------|-------|-------------|-----------|
 | US-3.1 Notes Management | Notes model; paste/store UI; CRUD actions | — | — |
 | US-3.2 AI Provider Layer | Interface; Gemini; DeepSeek fallback; JSON validation; errors/rate limits | — | — |
 | US-3.3 Flashcard Generation | Generate cards; fields; persistence | — | — |
@@ -128,8 +128,8 @@ The following items were added during Week 3 outside the original AI/planner bac
 ## Burnup Plan
 | Date | Jul 7 | Jul 8 | Jul 9 | Jul 10 | Jul 11 | Jul 12 | Jul 13 | Jul 14 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Ideal completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 39 |
-| Actual completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 39 |
+| Ideal completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 41 |
+| Actual completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 41 |
 
 
 ## Definition of Done
