@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 
 import { Chip } from '@/components/common/Chip';
 import {
-  CLASS_ALL,
   CLASS_UNCATEGORIZED,
   ClassPicker,
   type ClassOption,
@@ -67,7 +66,7 @@ function providerSuccessLabel(provider: string, count: number): string {
 export function QuizzesPageClient({ notes, quizzes }: QuizzesPageClientProps) {
   const router = useRouter();
   const [session, setSession] = useState<ActiveQuizSession | null>(null);
-  const [classFilter, setClassFilter] = useState<string>(CLASS_ALL);
+  const [classFilter, setClassFilter] = useState<string>(CLASS_UNCATEGORIZED);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [count, setCount] = useState(DEFAULT_COUNT);
@@ -91,12 +90,19 @@ export function QuizzesPageClient({ notes, quizzes }: QuizzesPageClientProps) {
   );
 
   const visibleNotes = useMemo(() => {
-    if (classFilter === CLASS_ALL) return notesWithContent;
     if (classFilter === CLASS_UNCATEGORIZED) {
       return notesWithContent.filter((note) => !note.course);
     }
     return notesWithContent.filter((note) => note.course?.id === classFilter);
   }, [notesWithContent, classFilter]);
+
+  // Notes can only come from one class, so switching class clears the
+  // selection made under the previous one.
+  function handleClassChange(next: string) {
+    setClassFilter(next);
+    setSelectedNoteIds([]);
+    setError(null);
+  }
 
   const selectedNotes = useMemo(
     () => notes.filter((note) => selectedNoteIds.includes(note.id)),
@@ -240,7 +246,7 @@ export function QuizzesPageClient({ notes, quizzes }: QuizzesPageClientProps) {
         <div>
           <h2 className="text-base font-semibold">Generate a new quiz</h2>
           <p className="theme-muted mt-1 text-sm">
-            Filter by class, pick one or more notes, then create a fresh
+            Pick a class, then choose one or more of its notes to create a fresh
             multiple-choice quiz powered by AI.
           </p>
         </div>
@@ -249,7 +255,8 @@ export function QuizzesPageClient({ notes, quizzes }: QuizzesPageClientProps) {
           <ClassPicker
             courses={courses}
             value={classFilter}
-            onChange={setClassFilter}
+            onChange={handleClassChange}
+            includeAll={false}
           />
         )}
 
