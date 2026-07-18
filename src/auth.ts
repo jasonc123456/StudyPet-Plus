@@ -13,11 +13,7 @@
 //   EMAIL_SERVER_HOST/PORT/USER/PASSWORD - SMTP transport for the magic links
 //   EMAIL_FROM           - From: address on magic-link emails
 
-import {
-  getServerSession,
-  type NextAuthOptions,
-  type Provider,
-} from 'next-auth';
+import { getServerSession, type NextAuthOptions } from 'next-auth';
 import EmailProvider from 'next-auth/providers/email';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
@@ -31,7 +27,7 @@ export const googleOAuthEnabled = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
 );
 
-const providers: Provider[] = [
+const providers: NextAuthOptions['providers'] = [
   EmailProvider({
     // Build the SMTP transport from the discrete EMAIL_SERVER_* env vars
     // already set in .env (Office 365, STARTTLS on 587).
