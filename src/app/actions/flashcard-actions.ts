@@ -49,7 +49,7 @@ export type FlashcardMutationState =
   | { ok: true; flashcard?: FlashcardRow; deletedCount?: number }
   | { ok: false; error: string; code?: FlashcardActionErrorCode };
 
-function revalidateFlashcardPaths(noteId?: string) {
+function revalidateFlashcardPaths(noteId?: string | null) {
   revalidatePath('/dashboard/flashcards');
   revalidatePath('/flashcards');
   if (noteId) {

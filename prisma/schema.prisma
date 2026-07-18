@@ -85,6 +85,7 @@ model User {
   pet                   Pet?
   notes                 Note[]
   flashcards            Flashcard[]
+  flashcardSets         FlashcardSet[]
   flashcardReviewAwards FlashcardReviewAward[]
   quizzes               Quiz[]
   quizQuestions         QuizQuestion[]
@@ -214,6 +215,7 @@ model Course {
   assignments Assignment[]
   notes       Note[]
   flashcards  Flashcard[]
+  flashcardSets FlashcardSet[]
   quizzes     Quiz[]
   gradeCategories GradeCategory[]
 
@@ -487,6 +489,8 @@ model Note {
   course     Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
   flashcards Flashcard[]
   quizzes    Quiz[]
+  quizSources      QuizSourceNote[]
+  flashcardSources FlashcardSourceNote[]
 
   @@index([userId])
   @@index([courseId])
@@ -504,23 +508,62 @@ model Note {
 model Flashcard {
   id        String   @id @default(cuid())
   userId    String
-  noteId    String
-  courseId  String? // copied from Note at generation; null if uncategorized
+  // Legacy single-note link, kept nullable. The set's source notes are the
+  // source of truth (FlashcardSourceNote); a set may span several notes.
+  noteId    String?
+  setId     String? // owning deck; every card generated after the redesign has one
+  courseId  String? // copied from the deck at generation; null if uncategorized
   topic     String
   front     String // question side
   back      String // answer side
   createdAt DateTime @default(now())
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  note   Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note   Note?         @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  set    FlashcardSet? @relation(fields: [setId], references: [id], onDelete: Cascade)
+  course Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
   reviewAwards FlashcardReviewAward[]
 
   @@index([userId])
   @@index([noteId])
+  @@index([setId])
   @@index([courseId])
   @@index([topic])
+}
+
+// A flashcard deck: one generation batch built from 1..N source notes. Cards
+// hang off it via Flashcard.setId; the notes it was built from are recorded in
+// FlashcardSourceNote.
+model FlashcardSet {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  courseId  String? // shared course when all source notes agree, else null
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course      Course?               @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  cards       Flashcard[]
+  sourceNotes FlashcardSourceNote[]
+
+  @@index([userId])
+  @@index([courseId])
+}
+
+// Join row linking a FlashcardSet to one of its source notes.
+model FlashcardSourceNote {
+  id     String @id @default(cuid())
+  setId  String
+  noteId String
+
+  set  FlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  note Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, noteId])
+  @@index([setId])
+  @@index([noteId])
 }
 
 // Sprint 3 (US-3.6) — one row per flashcard-review XP grant. The unique
@@ -554,21 +597,39 @@ model FlashcardReviewAward {
 model Quiz {
   id        String   @id @default(cuid())
   userId    String
-  noteId    String
-  courseId  String? // copied from Note at generation; null if uncategorized
+  title     String? // user-editable label; smart default at generation
+  // Legacy single-note link, kept nullable. Source notes live in QuizSourceNote;
+  // a quiz may be built from several notes.
+  noteId    String?
+  courseId  String? // shared course when all source notes agree, else null
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  note      Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  course    Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  questions QuizQuestion[]
-  attempts  QuizAttempt[]
-  xpAwards  QuizXpAward[]
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note        Note?            @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  course      Course?          @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+  xpAwards    QuizXpAward[]
+  sourceNotes QuizSourceNote[]
 
   @@index([userId])
   @@index([noteId])
   @@index([courseId])
+}
+
+// Join row linking a Quiz to one of its source notes.
+model QuizSourceNote {
+  id     String @id @default(cuid())
+  quizId String
+  noteId String
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, noteId])
+  @@index([quizId])
+  @@index([noteId])
 }
 
 model QuizQuestion {
@@ -580,6 +641,7 @@ model QuizQuestion {
   choices      String[]
   correctIndex Int
   explanation  String?
+  hint         String? // AI-generated nudge; shown in Review/Practice modes
   createdAt    DateTime @default(now())
 
   user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
