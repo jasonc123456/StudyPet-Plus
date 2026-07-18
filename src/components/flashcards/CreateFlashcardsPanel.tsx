@@ -5,7 +5,6 @@ import { useMemo, useState, useTransition, type FormEvent } from 'react';
 
 import { Chip } from '@/components/common/Chip';
 import {
-  CLASS_ALL,
   CLASS_UNCATEGORIZED,
   ClassPicker,
   type ClassOption,
@@ -59,7 +58,7 @@ export function CreateFlashcardsPanel({
   const router = useRouter();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [tab, setTab] = useState<Tab>('notes');
-  const [classFilter, setClassFilter] = useState<string>(CLASS_ALL);
+  const [classFilter, setClassFilter] = useState<string>(CLASS_UNCATEGORIZED);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -83,12 +82,19 @@ export function CreateFlashcardsPanel({
   }, [notes]);
 
   const visibleNotes = useMemo(() => {
-    if (classFilter === CLASS_ALL) return notesWithContent;
     if (classFilter === CLASS_UNCATEGORIZED) {
       return notesWithContent.filter((note) => !note.course);
     }
     return notesWithContent.filter((note) => note.course?.id === classFilter);
   }, [notesWithContent, classFilter]);
+
+  // A deck's notes must all belong to one class, so changing the class
+  // clears any notes picked under the previous one.
+  function handleClassChange(next: string) {
+    setClassFilter(next);
+    setSelectedNoteIds([]);
+    setError(null);
+  }
 
   const smartTitle = useMemo(() => {
     const selected = notes.filter((n) => selectedNoteIds.includes(n.id));
@@ -253,7 +259,8 @@ export function CreateFlashcardsPanel({
               <ClassPicker
                 courses={courses}
                 value={classFilter}
-                onChange={setClassFilter}
+                onChange={handleClassChange}
+                includeAll={false}
               />
             )}
             <div className="flex flex-col gap-2">

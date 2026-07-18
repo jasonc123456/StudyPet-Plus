@@ -96,18 +96,31 @@ describe('CreateFlashcardsPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('only lists notes that have content', () => {
+  it('shows only uncategorized notes with content by default', () => {
     renderPanel();
 
-    expect(screen.getByText('Biology midterm')).toBeInTheDocument();
+    // Default class is Uncategorized: only the note with no course + content.
     expect(screen.getByText('Chemistry notes')).toBeInTheDocument();
+    expect(screen.queryByText('Biology midterm')).not.toBeInTheDocument();
     expect(screen.queryByText('Empty note')).not.toBeInTheDocument();
   });
 
-  it('generates a deck from the selected notes', async () => {
+  it("reveals a class's notes after picking the class", async () => {
     const user = userEvent.setup();
     renderPanel();
 
+    await user.click(screen.getByRole('button', { name: 'Biology' }));
+
+    expect(screen.getByText('Biology midterm')).toBeInTheDocument();
+    // Uncategorized notes are no longer selectable once a class is chosen.
+    expect(screen.queryByText('Chemistry notes')).not.toBeInTheDocument();
+  });
+
+  it('generates a deck from the selected class notes', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Biology' }));
     await user.click(screen.getByText('Biology midterm'));
     await user.click(
       screen.getByRole('button', { name: 'Generate flashcards' })

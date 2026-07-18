@@ -17,6 +17,8 @@ export type ClassPickerProps = {
   onChange: (value: string) => void;
   /** Show the "Uncategorized" chip (default true). */
   includeUncategorized?: boolean;
+  /** Show the "All" chip (default true). Hidden when selection must be scoped to a single class. */
+  includeAll?: boolean;
 };
 
 /**
@@ -28,6 +30,7 @@ export function ClassPicker({
   value,
   onChange,
   includeUncategorized = true,
+  includeAll = true,
 }: ClassPickerProps) {
   const [query, setQuery] = useState('');
 
@@ -50,12 +53,14 @@ export function ClassPicker({
         />
       )}
       <div className="flex flex-wrap gap-2">
-        <Chip
-          selected={value === CLASS_ALL}
-          onClick={() => onChange(CLASS_ALL)}
-        >
-          All
-        </Chip>
+        {includeAll && (
+          <Chip
+            selected={value === CLASS_ALL}
+            onClick={() => onChange(CLASS_ALL)}
+          >
+            All
+          </Chip>
+        )}
         {filtered.map((course) => (
           <Chip
             key={course.id}
