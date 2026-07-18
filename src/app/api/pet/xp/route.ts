@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
-import { awardFlashcardReviewXp, awardPetXp } from '@/lib/pet-xp';
+import { awardFlashcardReviewXp, recordStudyActivity } from '@/lib/pet-xp';
 import { awardPetXpSchema, zodFirstError } from '@/lib/validators';
 
 export async function POST(request: Request) {
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const { pet, xp: xpAwarded } =
     action === 'flashcard_review' && outcome === 'known'
       ? await awardFlashcardReviewXp(authResult.user.id, cardId)
-      : { pet: await awardPetXp(authResult.user.id, 0), xp: 0 };
+      : { pet: await recordStudyActivity(authResult.user.id), xp: 0 };
 
   return jsonOk({
     pet: {

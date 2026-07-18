@@ -17,6 +17,124 @@ export {
   type PetXpAction,
 } from '@/lib/pet-xp.constants';
 
+const STREAK_RESET_MS = 24 * 60 * 60 * 1000;
+
+type PetActivityDbClient = Pick<typeof prisma, 'pet' | 'user'>;
+
+function studyDayKey(date: Date, timeZone?: string | null): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone || undefined,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function deriveNextStreakCount(args: {
+  lastStudyDate: Date | null;
+  streakCount: number;
+  now: Date;
+  timeZone?: string | null;
+}) {
+  const { lastStudyDate, streakCount, now, timeZone } = args;
+
+  if (!lastStudyDate) {
+    return 1;
+  }
+
+  const elapsed = now.getTime() - lastStudyDate.getTime();
+  if (elapsed > STREAK_RESET_MS) {
+    return 1;
+  }
+
+  if (studyDayKey(lastStudyDate, timeZone) === studyDayKey(now, timeZone)) {
+    return Math.max(streakCount, 1);
+  }
+
+  return Math.max(streakCount, 0) + 1;
+}
+
+export function getVisibleStreakCount(args: {
+  lastStudyDate: Date | null;
+  streakCount: number;
+  now?: Date;
+}) {
+  const { lastStudyDate, streakCount, now = new Date() } = args;
+
+  if (!lastStudyDate) {
+    return 0;
+  }
+
+  return now.getTime() - lastStudyDate.getTime() > STREAK_RESET_MS
+    ? 0
+    : streakCount;
+}
+
+/**
+ * Persist a study activity and optionally award XP. The streak increments at
+ * most once per study day and resets to 0 in the dashboard after 24 hours of
+ * inactivity. A later activity starts a fresh streak at 1.
+ */
+export async function recordStudyActivity(
+  userId: string,
+  options?: {
+    xp?: number;
+    client?: PetActivityDbClient;
+  }
+): Promise<Pet> {
+  const db = options?.client ?? prisma;
+  const xp = Math.max(0, options?.xp ?? 0);
+  const now = new Date();
+
+  const [pet, user] = await Promise.all([
+    db.pet.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        xp: true,
+        level: true,
+        stage: true,
+        streakCount: true,
+        lastStudyDate: true,
+      },
+    }),
+    db.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    }),
+  ]);
+
+  const nextXp = (pet?.xp ?? 0) + xp;
+  const nextStreakCount = deriveNextStreakCount({
+    lastStudyDate: pet?.lastStudyDate ?? null,
+    streakCount: pet?.streakCount ?? 0,
+    now,
+    timeZone: user?.timezone ?? null,
+  });
+  const { level, stage } = derivePetLevelAndStage(nextXp);
+
+  return db.pet.upsert({
+    where: { userId },
+    update: {
+      xp: nextXp,
+      level,
+      stage,
+      streakCount: nextStreakCount,
+      lastStudyDate: now,
+    },
+    create: {
+      userId,
+      name: 'StudyPet',
+      xp: nextXp,
+      level,
+      stage,
+      streakCount: nextStreakCount,
+      lastStudyDate: now,
+    },
+  });
+}
+
 /** Persist an XP grant and refresh level/stage from the new total. */
 export async function awardPetXp(userId: string, amount: number): Promise<Pet> {
   if (amount <= 0) {
@@ -31,29 +149,7 @@ export async function awardPetXp(userId: string, amount: number): Promise<Pet> {
     });
   }
 
-  const pet = await prisma.pet.upsert({
-    where: { userId },
-    update: {
-      xp: { increment: amount },
-      lastStudyDate: new Date(),
-    },
-    create: {
-      userId,
-      name: 'StudyPet',
-      xp: amount,
-      lastStudyDate: new Date(),
-    },
-  });
-
-  const { level, stage } = derivePetLevelAndStage(pet.xp);
-  if (level === pet.level && stage === pet.stage) {
-    return pet;
-  }
-
-  return prisma.pet.update({
-    where: { id: pet.id },
-    data: { level, stage },
-  });
+  return recordStudyActivity(userId, { xp: amount });
 }
 
 /** UTC calendar day ("YYYY-MM-DD") — the anti-farming granularity for review XP. */
@@ -84,7 +180,7 @@ export async function awardFlashcardReviewXp(
     select: { id: true },
   });
   if (!owned) {
-    return { pet: await awardPetXp(userId, 0), awarded: false, xp: 0 };
+    return { pet: await recordStudyActivity(userId), awarded: false, xp: 0 };
   }
 
   try {
@@ -102,11 +198,11 @@ export async function awardFlashcardReviewXp(
       error.code === 'P2002'
     ) {
       // Already rewarded this card today — return the current pet, no XP.
-      return { pet: await awardPetXp(userId, 0), awarded: false, xp: 0 };
+      return { pet: await recordStudyActivity(userId), awarded: false, xp: 0 };
     }
     throw error;
   }
 
-  const pet = await awardPetXp(userId, FLASHCARD_REVIEW_XP);
+  const pet = await recordStudyActivity(userId, { xp: FLASHCARD_REVIEW_XP });
   return { pet, awarded: true, xp: FLASHCARD_REVIEW_XP };
 }

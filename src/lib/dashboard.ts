@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getVisibleStreakCount } from '@/lib/pet-xp';
 
 export type DashboardPet = {
   name: string;
@@ -6,6 +7,7 @@ export type DashboardPet = {
   level: number;
   stage: string;
   streakCount: number;
+  lastStudyDate: Date | null;
 };
 
 export type DashboardStats = {
@@ -132,17 +134,34 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         level: true,
         stage: true,
         streakCount: true,
+        lastStudyDate: true,
       },
     }),
   ]);
 
-  const pet = petRow
+  const basePet = petRow
     ? {
         name: petRow.name,
         xp: petRow.xp,
         level: petRow.level,
         stage: petRow.stage,
         streakCount: petRow.streakCount,
+        lastStudyDate: petRow.lastStudyDate,
+      }
+    : null;
+
+  const visibleStudyStreak = basePet
+    ? getVisibleStreakCount({
+        lastStudyDate: basePet.lastStudyDate,
+        streakCount: basePet.streakCount,
+        now,
+      })
+    : 0;
+
+  const pet = basePet
+    ? {
+        ...basePet,
+        streakCount: visibleStudyStreak,
       }
     : null;
 
@@ -150,8 +169,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     courses,
     stats: {
       openQuests: openQuestCount,
-      // No pet row yet — streak defaults to 0 until Sprint 4 creates/updates pets.
-      studyStreak: pet?.streakCount ?? 0,
+      studyStreak: visibleStudyStreak,
       dueThisWeek,
     },
     upcomingAssignments,

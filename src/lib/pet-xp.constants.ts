@@ -12,7 +12,7 @@ export const PET_STAGE_KEYS = [
 /** XP required to reach each stage (index-aligned with PET_STAGE_KEYS). */
 export const PET_STAGE_XP_THRESHOLDS = [0, 90, 200, 500, 1000] as const;
 
-export type PetXpAction = 'flashcard_review';
+export type PetXpAction = 'flashcard_review' | 'quiz_session';
 
 export type FlashcardReviewOutcome = 'known' | 'unknown';
 

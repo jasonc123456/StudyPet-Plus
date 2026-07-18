@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { recordStudyActivity } from '@/lib/pet-xp';
 import { getOwnedAssignment } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import { updateAssignmentSchema, zodFirstError } from '@/lib/validators';
@@ -46,6 +47,8 @@ export async function PUT(request: Request, { params }: RouteContext) {
       ...(type !== undefined && { type }),
     },
   });
+
+  await recordStudyActivity(authResult.user.id);
 
   return jsonOk(assignment);
 }

@@ -10,9 +10,11 @@ import { prisma } from '@/lib/prisma';
 function isMissingQuizTable(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2021' &&
+    (error.code === 'P2021' || error.code === 'P2022') &&
     typeof error.message === 'string' &&
-    (error.message.includes('Quiz') || error.message.includes('QuizQuestion'))
+    (error.message.includes('Quiz') ||
+      error.message.includes('QuizQuestion') ||
+      error.message.includes('Quiz.noteId'))
   );
 }
 
@@ -76,8 +78,8 @@ export default async function DashboardQuizzesPage() {
   } catch (error) {
     if (isMissingQuizTable(error)) {
       schemaError =
-        'The Quiz tables are missing from the database. Apply pending Prisma migrations on this environment (`npx prisma migrate deploy` with DATABASE_URL set).';
-      console.error('Quizzes page schema mismatch (P2021):', error);
+        'The quiz database schema is out of date on this environment. Apply the pending Prisma migrations, then refresh this page.';
+      console.error('Quizzes page schema mismatch:', error);
     } else {
       throw error;
     }
