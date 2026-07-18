@@ -17,6 +17,10 @@ export type QuizNoteOption = {
     id: string;
     completed: boolean;
     questions: QuizQuestionData[];
+    /** How many times this quiz has been submitted. */
+    attemptCount: number;
+    /** Score (0–100) of the most recent attempt, or null if never taken. */
+    lastScorePercent: number | null;
   } | null;
 };
 
