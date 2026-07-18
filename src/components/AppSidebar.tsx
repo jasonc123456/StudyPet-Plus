@@ -183,6 +183,26 @@ function GroupsIcon({ className }: { className?: string }) {
   );
 }
 
+function AnalyticsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 3v18h18" />
+      <rect x="7" y="12" width="3" height="6" />
+      <rect x="12" y="8" width="3" height="10" />
+      <rect x="17" y="5" width="3" height="13" />
+    </svg>
+  );
+}
+
 function GradesIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -319,6 +339,7 @@ const NAV_LINKS = [
   { href: '/dashboard/groups', label: 'Groups', Icon: GroupsIcon },
   { href: '/dashboard/flashcards', label: 'Flashcards', Icon: FlashcardsIcon },
   { href: '/dashboard/quizzes', label: 'Quizzes', Icon: QuizzesIcon },
+  { href: '/dashboard/analytics', label: 'Analytics', Icon: AnalyticsIcon },
 ];
 
 type AppChromeUser = {
