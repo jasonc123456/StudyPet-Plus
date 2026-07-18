@@ -50,7 +50,7 @@ export function QuizAttemptHistory({ attempts }: QuizAttemptHistoryProps) {
                 />
               ) : null}
               <span className="truncate text-sm font-semibold text-slate-900">
-                {attempt.noteTitle}
+                {attempt.quizTitle}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-slate-500">
@@ -72,14 +72,6 @@ export function QuizAttemptHistory({ attempts }: QuizAttemptHistoryProps) {
                 {attempt.correctCount}/{attempt.totalQuestions}
               </p>
             </div>
-            {attempt.noteId ? (
-              <Link
-                href={`/dashboard/quizzes?noteId=${attempt.noteId}&retake=latest`}
-                className="btn-secondary px-3 py-1.5 text-xs"
-              >
-                Retake
-              </Link>
-            ) : null}
           </div>
         </li>
       ))}
