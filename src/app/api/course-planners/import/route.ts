@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 
 import { AiProviderError } from '@/lib/ai/provider';
 import { parseCoursePlanText } from '@/lib/ai/planner-import';
-import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { streamGeneration } from '@/lib/ai/sse';
+import { jsonError, requireUser } from '@/lib/api-response';
 import { getOwnedCoursePlanner } from '@/lib/planner';
 import {
   parseCoursePlannerImportSchema,
@@ -15,6 +16,11 @@ import {
  * Parse pasted / CSV plan text into a draft. Does not write to the database —
  * the client must call /api/course-planners/import/confirm after preview.
  * Incoming text is validated + sanitized server-side (never trust the client).
+ *
+ * Auth / validation failures return ordinary JSON so the client can surface a
+ * proper error before any stream starts. Once parsing begins the response is an
+ * SSE stream (like flashcards / quizzes) so the UI can show live progress —
+ * a self-hosted reasoning model can take a while on a complex plan.
  */
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -49,30 +55,51 @@ export async function POST(request: Request) {
     return jsonError('Planner not found', 404);
   }
 
-  try {
-    const result = await parseCoursePlanText(parsed.data.text);
+  return streamGeneration(async (emit) => {
+    try {
+      const result = await parseCoursePlanText(parsed.data.text, (p) =>
+        emit({ type: 'progress', ...p })
+      );
 
-    if (result.draft.sections.length === 0) {
-      return jsonError('No courses detected.', 422);
-    }
-
-    return jsonOk({
-      draft: result.draft,
-      provider: result.provider,
-      stats: result.stats,
-    });
-  } catch (error) {
-    if (error instanceof AiProviderError) {
-      return jsonError(error.message, 503);
-    }
-    if (error instanceof Error) {
-      const message = error.message;
-      if (/no courses detected/i.test(message)) {
-        return jsonError('No courses detected.', 422);
+      if (result.draft.sections.length === 0) {
+        emit({ type: 'error', message: 'No courses detected.' });
+        return;
       }
-      return jsonError(message, 400);
+
+      emit({
+        type: 'done',
+        result: {
+          draft: result.draft,
+          provider: result.provider,
+          stats: result.stats,
+        },
+      });
+    } catch (error) {
+      emitPlannerImportError(emit, error);
     }
-    console.error('POST /api/course-planners/import', error);
-    return jsonError('Failed to parse course plan', 500);
+  });
+}
+
+function emitPlannerImportError(
+  emit: (event: { type: 'error'; message: string }) => void,
+  error: unknown
+) {
+  if (error instanceof AiProviderError) {
+    console.error(
+      '[ai] POST /api/course-planners/import',
+      error.message.slice(0, 300)
+    );
+    emit({ type: 'error', message: error.message });
+    return;
   }
+  if (error instanceof Error) {
+    if (/no courses detected/i.test(error.message)) {
+      emit({ type: 'error', message: 'No courses detected.' });
+      return;
+    }
+    emit({ type: 'error', message: error.message });
+    return;
+  }
+  console.error('POST /api/course-planners/import', error);
+  emit({ type: 'error', message: 'Failed to parse course plan' });
 }

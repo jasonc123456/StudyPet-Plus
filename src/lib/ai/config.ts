@@ -83,11 +83,12 @@ export function getAiRuntimeStatus(): {
 /**
  * How long to wait on a single provider before giving up and falling over.
  * Overridable via AI_REQUEST_TIMEOUT_MS — a self-hosted reasoning model can
- * spend far longer than a hosted API, so the default is generous.
+ * spend far longer than a hosted API, so the default is generous (3 minutes).
+ * A complex course plan can take a reasoning model well past two minutes.
  */
 export const AI_REQUEST_TIMEOUT_MS = (() => {
   const raw = Number(readEnv('AI_REQUEST_TIMEOUT_MS'));
-  return Number.isFinite(raw) && raw > 0 ? raw : 120_000;
+  return Number.isFinite(raw) && raw > 0 ? raw : 180_000;
 })();
 
 /** User-facing message when no provider is configured (and demo is off). */
