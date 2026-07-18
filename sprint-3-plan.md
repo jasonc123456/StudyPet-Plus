@@ -4,11 +4,16 @@
 ## Sprint Goal
 Students can paste course notes and explicitly generate validated, topic-tagged flashcards and multiple-choice quizzes that persist to the database. They can review flashcards with a flip and known/unknown flow, earning initial XP reflected in the pet widget.
 
-## Scope and Capacity
+## Team Capacity
+- Team members: 5
+- Planned available hours: 65h (5 members × 13h/sprint)
+- Capacity buffer (15%): 10h
+- Committed work hours: 55h
+
+## Scope
 - **Core committed scope:** 21 story points (US-3.1 through US-3.5)
 - **Added scope recorded during the sprint:** 20 story points (US-3.6 through US-3.9)
-- **Combined recorded scope:** 39 story points
-- **Capacity note:** The source plan does not provide team hours or a buffer. This plan uses story points rather than inventing hour estimates.
+- **Combined recorded scope:** 41 story points
 - **MVP priority:** Complete the notes-to-validated-study-material path first. Park non-core work if it threatens the demo; back-fill tests, polish, and Definition-of-Done checks before review.
 
 ## Team Roles
@@ -32,10 +37,10 @@ Students can paste course notes and explicitly generate validated, topic-tagged 
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
-| Create notes data model scoped to course and user | Angela | Included in 3 pts |
-| Build paste/store and notes management UI | Angela | Included in 3 pts |
-| Implement create, view, edit, and delete actions | Angela | Included in 3 pts |
-| **Story Total** |  | **3 pts** |
+| Create notes data model scoped to course and user | Angela | 3h |
+| Build paste/store and notes management UI | Angela | 3h |
+| Implement create, view, edit, and delete actions | Angela | 2h |
+| **Story Total** |  | **8h** |
 
 ### US-3.2: AI Provider Layer — 5 points
 **User story:** As a student, I want reliable AI generation from my notes so that generated study material has a consistent, safe data shape.
@@ -48,11 +53,11 @@ Students can paste course notes and explicitly generate validated, topic-tagged 
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
-| Define `generateFlashcards` and `generateQuiz` provider interfaces | Jason | Included in 5 pts |
-| Implement Gemini provider and environment-key configuration | Jason | Included in 5 pts |
-| Implement DeepSeek fallback | Jason | Included in 5 pts |
-| Add JSON validation and error/rate-limit handling | Jason | Included in 5 pts |
-| **Story Total** |  | **5 pts** |
+| Define `generateFlashcards` and `generateQuiz` provider interfaces | Jason | 3h |
+| Implement Gemini provider and environment-key configuration | Jason | 4h |
+| Implement DeepSeek fallback | Jason | 3h |
+| Add JSON validation and error/rate-limit handling | Jason | 4h |
+| **Story Total** |  | **14h** |
 
 ### US-3.3: Flashcard Generation — 5 points
 **User story:** As a student, I want topic-tagged flashcards generated from notes so that I can study concepts in organized sets.
@@ -64,10 +69,10 @@ Students can paste course notes and explicitly generate validated, topic-tagged 
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
-| Implement topic-tagged flashcard generation | Mia | Included in 5 pts |
-| Add question, answer, and topic fields | Mia | Included in 5 pts |
-| Persist validated flashcards to the database | Mia | Included in 5 pts |
-| **Story Total** |  | **5 pts** |
+| Implement topic-tagged flashcard generation | Mia | 4h |
+| Add question, answer, and topic fields | Mia | 2h |
+| Persist validated flashcards to the database | Mia | 4h |
+| **Story Total** |  | **10h** |
 
 ### US-3.4: Quiz Generation — 5 points
 **User story:** As a student, I want a multiple-choice quiz generated from notes so that I can check my understanding.
@@ -79,10 +84,10 @@ Students can paste course notes and explicitly generate validated, topic-tagged 
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
-| Implement MCQ quiz generation | Aadithya | Included in 5 pts |
-| Store options, `correctIndex`, and topic | Aadithya | Included in 5 pts |
-| Persist validated generated quizzes | Aadithya | Included in 5 pts |
-| **Story Total** |  | **5 pts** |
+| Implement MCQ quiz generation | Aadithya | 5h |
+| Store options, `correctIndex`, and topic | Aadithya | 3h |
+| Persist validated generated quizzes | Aadithya | 4h |
+| **Story Total** |  | **12h** |
 
 ### US-3.5: Flashcard Review and XP — 3 points
 **User story:** As a student, I want to flip cards and mark them known or unknown so that I can actively review material and receive early XP feedback.
@@ -94,12 +99,12 @@ Students can paste course notes and explicitly generate validated, topic-tagged 
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
-| Build flip-card UI | Aadithya | Included in 3 pts |
-| Add known/unknown controls | Aadithya | Included in 3 pts |
-| Award XP for completed reviews | Aadithya | Included in 3 pts |
-| **Story Total** |  | **3 pts** |
+| Build flip-card UI | Aadithya | 4h |
+| Add known/unknown controls | Aadithya | 3h |
+| Award XP for completed reviews | Aadithya | 4h |
+| **Story Total** |  | **11h** |
 
-**Core committed total: 21 story points**
+**Core committed total: 21 story points / 55h**
 
 ## Added Sprint Scope
 The following items were added during Week 3 outside the original AI/planner backlog. They are recorded for transparency but are not higher priority than the core MVP.
@@ -127,7 +132,7 @@ The following items were added during Week 3 outside the original AI/planner bac
 
 ## Burnup Plan
 | Date | Jul 7 | Jul 8 | Jul 9 | Jul 10 | Jul 11 | Jul 12 | Jul 13 | Jul 14 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
+|------|-------|-------|-------|--------|--------|--------|--------|--------|
 | Ideal completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 41 |
 | Actual completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 41 |
 
