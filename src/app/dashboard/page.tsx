@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CalendarTaskChecklist } from '@/components/calendar/CalendarTaskChecklist';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { ReviewNext } from '@/components/dashboard/ReviewNext';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { PetSummary } from '@/components/dashboard/PetSummary';
 import { PomodoroTimer } from '@/components/dashboard/PomodoroTimer';
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
   }
 
   const [
-    { courses, stats, upcomingAssignments, openQuests, pet },
+    { courses, stats, upcomingAssignments, openQuests, pet, reviewNext },
     calendarTasks,
   ] = await Promise.all([
     getDashboardData(session.user.id),
@@ -97,6 +98,7 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-8 lg:col-span-2">
           <UpcomingAssignments assignments={upcomingAssignments} />
           <StudyQuests quests={openQuests} />
+          <ReviewNext recommendation={reviewNext} />
           <CalendarTaskChecklist tasks={calendarTasks} />
         </div>
         <div className="flex flex-col gap-8 lg:sticky lg:top-8 lg:self-start">

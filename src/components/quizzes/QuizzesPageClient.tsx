@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useMemo, useState, useTransition } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 import { QuizSession } from '@/components/quizzes/QuizSession';
 import type {
@@ -39,6 +39,7 @@ function providerSuccessLabel(provider: string, count: number): string {
 
 export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<ActiveQuizSession | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState('');
   const [count, setCount] = useState(DEFAULT_COUNT);
@@ -47,6 +48,7 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const autoStartedRef = useRef(false);
 
   const notesWithContent = useMemo(
     () => notes.filter((note) => note.hasContent),
@@ -58,8 +60,13 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
     [notes, selectedNoteId]
   );
 
-  function startSession(noteTitle: string, questions: QuizQuestionData[]) {
-    setSession({ noteTitle, questions });
+  function startSession(
+    noteId: string,
+    quizId: string,
+    noteTitle: string,
+    questions: QuizQuestionData[]
+  ) {
+    setSession({ noteId, quizId, noteTitle, questions });
     setError(null);
     setStatusMessage(null);
   }
@@ -70,12 +77,13 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
   }
 
   function handleTakeExisting(note: QuizNoteOption) {
-    const questions = note.latestQuiz?.questions ?? [];
+    const latestQuiz = note.latestQuiz;
+    const questions = latestQuiz?.questions ?? [];
     if (questions.length === 0) {
       setError('This note does not have a saved quiz yet. Generate one first.');
       return;
     }
-    startSession(note.title, questions);
+    startSession(note.id, latestQuiz!.id, note.title, questions);
   }
 
   function handleGenerate(note: QuizNoteOption) {
@@ -122,7 +130,7 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
             data.generatedCount ?? questions.length
           )
         );
-        startSession(note.title, questions);
+        startSession(note.id, data.quiz!.id, note.title, questions);
         router.refresh();
       } catch {
         setError('Network error while generating quiz. Please try again.');
@@ -132,9 +140,29 @@ export function QuizzesPageClient({ notes }: QuizzesPageClientProps) {
     });
   }
 
+  useEffect(() => {
+    if (autoStartedRef.current || session) return;
+
+    const requestedNoteId = searchParams.get('noteId');
+    const shouldRetake = searchParams.get('retake') === 'latest';
+    if (!requestedNoteId || !shouldRetake) return;
+
+    const note = notes.find((candidate) => candidate.id === requestedNoteId);
+    if (!note?.latestQuiz?.questions.length) return;
+
+    autoStartedRef.current = true;
+    startSession(
+      note.id,
+      note.latestQuiz.id,
+      note.title,
+      note.latestQuiz.questions
+    );
+  }, [notes, searchParams, session]);
+
   if (session) {
     return (
       <QuizSession
+        quizId={session.quizId}
         noteTitle={session.noteTitle}
         questions={session.questions}
         onExit={handleExitSession}
