@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+
+import { ImportPlanPanel } from '@/components/planners/ImportPlanPanel';
 
 type PlannedCourse = {
   id: string;
@@ -50,6 +52,7 @@ export function CoursePlannerPageClient({
     planners[0]?.id ?? ''
   );
   const [error, setError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [plannerForm, setPlannerForm] = useState({
     title: '',
     system: 'SEMESTER',
@@ -77,6 +80,21 @@ export function CoursePlannerPageClient({
     >
   >({});
 
+  // Keep selection valid after create/delete/refresh. Without this, a newly
+  // created first planner leaves selectedPlannerId as '' and Import stays disabled.
+  useEffect(() => {
+    if (planners.length === 0) {
+      if (selectedPlannerId) setSelectedPlannerId('');
+      return;
+    }
+    const stillExists = planners.some(
+      (planner) => planner.id === selectedPlannerId
+    );
+    if (!stillExists) {
+      setSelectedPlannerId(planners[0]!.id);
+    }
+  }, [planners, selectedPlannerId]);
+
   const selectedPlanner =
     planners.find((planner) => planner.id === selectedPlannerId) ?? null;
 
@@ -101,6 +119,7 @@ export function CoursePlannerPageClient({
 
   function runAction(action: () => Promise<void>) {
     setError(null);
+    setImportSuccess(null);
     startTransition(async () => {
       try {
         await action();
@@ -185,6 +204,12 @@ export function CoursePlannerPageClient({
         </p>
       ) : null}
 
+      {importSuccess ? (
+        <p className="rounded-lg bg-mint-50 px-3 py-2 text-sm text-mint-800">
+          {importSuccess}
+        </p>
+      ) : null}
+
       <section className="card p-6">
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold text-slate-900">
@@ -227,7 +252,21 @@ export function CoursePlannerPageClient({
             disabled={isPending || migrationRequired}
             onClick={() =>
               runAction(async () => {
-                await submitJson('/api/course-planners', 'POST', plannerForm);
+                const res = await fetch('/api/course-planners', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(plannerForm),
+                });
+                const data = (await res.json().catch(() => null)) as {
+                  error?: string;
+                  id?: string;
+                } | null;
+                if (!res.ok) {
+                  throw new Error(data?.error ?? 'Failed to create planner');
+                }
+                if (data?.id) {
+                  setSelectedPlannerId(data.id);
+                }
                 setPlannerForm({ title: '', system: 'SEMESTER' });
               })
             }
@@ -237,6 +276,32 @@ export function CoursePlannerPageClient({
           </button>
         </div>
       </section>
+
+      <ImportPlanPanel
+        plannerId={selectedPlanner?.id ?? null}
+        plannerTitle={selectedPlanner?.title}
+        planners={planners.map((planner) => ({
+          id: planner.id,
+          title: planner.title,
+        }))}
+        onSelectPlanner={setSelectedPlannerId}
+        disabled={migrationRequired || isPending}
+        onImported={({ coursesCreated, sectionsCreated }) => {
+          setError(null);
+          const coursePart =
+            coursesCreated === 1 ? '1 course' : `${coursesCreated} courses`;
+          const sectionPart =
+            sectionsCreated > 0
+              ? sectionsCreated === 1
+                ? ' (1 new term)'
+                : ` (${sectionsCreated} new terms)`
+              : '';
+          setImportSuccess(
+            `Imported ${coursePart}${sectionPart} into your planner.`
+          );
+          router.refresh();
+        }}
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <section className="card p-5">

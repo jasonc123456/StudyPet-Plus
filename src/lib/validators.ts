@@ -608,6 +608,83 @@ export type UpdatePlannedCourseInput = z.infer<
   typeof updatePlannedCourseSchema
 >;
 
+// ---------------------------------------------------------------------------
+// Course Planner Import v1 — parse request + confirm payload
+// ---------------------------------------------------------------------------
+
+export const parseCoursePlannerImportSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, 'Paste plan text or upload a .txt/.csv file')
+    .max(20000, 'Plan text is too long (max 20,000 characters)'),
+  /** Required so we verify ownership before spending an AI call. */
+  plannerId: z.string().trim().min(1, 'Select a planner to import into'),
+});
+
+export const confirmCoursePlannerImportCourseSchema = z.object({
+  title: z.string().trim().min(1, 'Class name is required').max(150),
+  courseNumber: z.string().trim().max(50).optional().nullable(),
+  units: z
+    .union([z.number(), z.string(), z.null(), z.undefined()])
+    .optional()
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const num = typeof value === 'number' ? value : Number(value);
+      if (!Number.isFinite(num) || num < 0 || num > 30) return null;
+      return num;
+    }),
+  professor: z.string().trim().max(100).optional().nullable(),
+  lectureDays: z.string().trim().max(50).optional().nullable(),
+  lectureTime: z.string().trim().max(100).optional().nullable(),
+  lectureLocation: z.string().trim().max(150).optional().nullable(),
+  notes: z.string().trim().max(1000).optional().nullable(),
+  isAlternate: z.boolean().optional().default(false),
+});
+
+export const confirmCoursePlannerImportSectionSchema = z.object({
+  label: z.string().trim().min(1, 'Section name is required').max(100),
+  courses: z
+    .array(confirmCoursePlannerImportCourseSchema)
+    .min(1, 'Each section needs at least one course'),
+});
+
+export const confirmCoursePlannerImportSchema = z.object({
+  plannerId: z.string().trim().min(1, 'Select a planner to import into'),
+  sections: z
+    .array(confirmCoursePlannerImportSectionSchema)
+    .min(1, 'No courses to import'),
+});
+
+/** Client-safe draft shape returned by POST /api/course-planners/import. */
+export type PlannerImportDraftCourse = {
+  title: string;
+  courseNumber: string | null;
+  units: number | null;
+  professor: string | null;
+  lectureDays: string | null;
+  lectureTime: string | null;
+  lectureLocation: string | null;
+  notes: string | null;
+  isAlternate: boolean;
+};
+
+export type PlannerImportDraftSection = {
+  label: string;
+  courses: PlannerImportDraftCourse[];
+};
+
+export type PlannerImportDraft = {
+  sections: PlannerImportDraftSection[];
+};
+
+export type ParseCoursePlannerImportInput = z.infer<
+  typeof parseCoursePlannerImportSchema
+>;
+export type ConfirmCoursePlannerImportInput = z.infer<
+  typeof confirmCoursePlannerImportSchema
+>;
+
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
   email: z.string().trim().email('Valid email is required').max(255),
