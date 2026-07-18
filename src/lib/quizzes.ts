@@ -9,6 +9,7 @@ import {
   type AiProgressCallback,
   type AiProviderName,
 } from '@/lib/ai/types';
+import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
 import { recordStudyActivity } from '@/lib/pet-xp';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
@@ -116,7 +117,9 @@ export async function generateAndSaveQuiz(
     throw new QuizServiceError('NOT_FOUND', 'Note not found');
   }
 
-  if (!note.content.trim()) {
+  const sourceText = richTextToPlainText(note.content);
+
+  if (!hasVisibleRichText(note.content)) {
     throw new QuizServiceError(
       'EMPTY_CONTENT',
       'Note has no content to generate a quiz from'
@@ -133,7 +136,7 @@ export async function generateAndSaveQuiz(
   }
 
   const { items, provider } = await generateQuiz({
-    sourceText: note.content,
+    sourceText,
     count: input.count,
     topicHint,
     onProgress: input.onProgress,

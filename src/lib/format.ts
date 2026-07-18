@@ -3,6 +3,7 @@ import {
   ASSIGNMENT_TYPES,
   QUEST_DIFFICULTIES,
 } from '@/lib/constants';
+import { richTextToPlainText } from '@/lib/note-rich-text';
 
 // Shared date-display options. formatDueDate/formatUpdatedAt apply these in UTC
 // for SSR; formatDueDateLocal/formatUpdatedAtLocal apply them in the user's zone
@@ -65,14 +66,14 @@ export function formatUpdatedAtLocal(
 }
 
 export function notePreview(content: string, maxLength = 120): string {
-  const singleLine = content.replace(/\s+/g, ' ').trim();
+  const singleLine = richTextToPlainText(content).replace(/\s+/g, ' ').trim();
   if (!singleLine) return 'No content yet';
   if (singleLine.length <= maxLength) return singleLine;
   return `${singleLine.slice(0, maxLength)}…`;
 }
 
 export function wordCount(text: string): number {
-  const trimmed = text.trim();
+  const trimmed = richTextToPlainText(text).trim();
   if (!trimmed) return 0;
   return trimmed.split(/\s+/).length;
 }

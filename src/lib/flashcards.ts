@@ -10,6 +10,7 @@ import {
   type AiProgressCallback,
   type AiProviderName,
 } from '@/lib/ai/types';
+import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
 import { getOwnedNote } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import type { Flashcard as FlashcardRow } from '@prisma/client';
@@ -103,7 +104,9 @@ export async function generateAndSaveFlashcards(
     throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
   }
 
-  if (!note.content.trim()) {
+  const sourceText = richTextToPlainText(note.content);
+
+  if (!hasVisibleRichText(note.content)) {
     throw new FlashcardServiceError(
       'EMPTY_CONTENT',
       'Note has no content to generate flashcards from'
@@ -120,7 +123,7 @@ export async function generateAndSaveFlashcards(
   }
 
   const { items, provider } = await generateFlashcards({
-    sourceText: note.content,
+    sourceText,
     count: input.count,
     topicHint,
     onProgress: input.onProgress,

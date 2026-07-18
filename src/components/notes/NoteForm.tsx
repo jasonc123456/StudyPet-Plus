@@ -2,9 +2,14 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { wordCount } from '@/lib/format';
+import {
+  hasVisibleRichText,
+  richTextToPlainText,
+  sanitizeRichTextHtml,
+} from '@/lib/note-rich-text';
 
 type CourseOption = {
   id: string;
@@ -45,9 +50,38 @@ const NOTE_PDF_SECURITY_MESSAGE =
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
 
+const editorClass =
+  'min-h-[32rem] w-full rounded-b-2xl border border-t-0 border-slate-300 bg-white px-5 py-4 text-[15px] leading-7 text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+
+const fontSizeCommandByLabel: Record<string, string> = {
+  '12': '2',
+  '14': '3',
+  '16': '4',
+  '18': '5',
+  '24': '6',
+};
+
+type ToolbarButtonProps = {
+  label: string;
+  onClick: () => void;
+};
+
+function ToolbarButton({ label, onClick }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+    >
+      {label}
+    </button>
+  );
+}
+
 export function NoteForm(props: NoteFormProps) {
   const router = useRouter();
   const isEdit = props.mode === 'edit';
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   const [title, setTitle] = useState(isEdit ? props.initialValues.title : '');
   const [content, setContent] = useState(
@@ -74,6 +108,45 @@ export function NoteForm(props: NoteFormProps) {
   }>({});
   const [saving, setSaving] = useState(false);
 
+  const plainTextContent = useMemo(
+    () => richTextToPlainText(content),
+    [content]
+  );
+
+  useEffect(() => {
+    if (!editorRef.current) return;
+
+    document.execCommand('styleWithCSS', false, 'true');
+    if (editorRef.current.innerHTML !== content) {
+      editorRef.current.innerHTML = content;
+    }
+  }, [content]);
+
+  function syncEditorContent(nextHtml?: string) {
+    const resolvedHtml =
+      nextHtml ?? sanitizeRichTextHtml(editorRef.current?.innerHTML ?? '');
+    setContent(resolvedHtml);
+    if (fieldErrors.content) {
+      setFieldErrors((current) => ({
+        ...current,
+        content: undefined,
+      }));
+    }
+  }
+
+  function runEditorCommand(command: string, value?: string) {
+    editorRef.current?.focus();
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(command, false, value);
+    syncEditorContent(editorRef.current?.innerHTML ?? '');
+  }
+
+  function handleFontSizeChange(size: string) {
+    const commandValue = fontSizeCommandByLabel[size];
+    if (!commandValue) return;
+    runEditorCommand('fontSize', commandValue);
+  }
+
   function validateFields(): boolean {
     const nextErrors: { title?: string; content?: string } = {};
     const trimmedTitle = title.trim();
@@ -84,7 +157,7 @@ export function NoteForm(props: NoteFormProps) {
       nextErrors.title = `Title must be ${TITLE_MAX} characters or fewer.`;
     }
 
-    if (content.length > CONTENT_MAX) {
+    if (plainTextContent.length > CONTENT_MAX) {
       nextErrors.content = `Content must be ${CONTENT_MAX} characters or fewer.`;
     }
 
@@ -102,9 +175,12 @@ export function NoteForm(props: NoteFormProps) {
 
     setSaving(true);
 
+    const sanitizedContent = sanitizeRichTextHtml(content);
+    setContent(sanitizedContent);
+
     const payload = {
       title: title.trim(),
-      content,
+      content: sanitizedContent,
       courseId: courseId || null,
       pdfName,
       pdfUrl,
@@ -210,7 +286,7 @@ export function NoteForm(props: NoteFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card max-w-2xl p-6">
+    <form onSubmit={handleSubmit} className="card w-full max-w-none p-6">
       <div className="space-y-5">
         <div>
           <label
@@ -275,40 +351,87 @@ export function NoteForm(props: NoteFormProps) {
         </div>
 
         <div>
-          <label
-            htmlFor="note-content"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
-          >
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">
             Content
           </label>
-          <textarea
-            id="note-content"
-            rows={12}
-            maxLength={CONTENT_MAX}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              if (fieldErrors.content) {
-                setFieldErrors((current) => ({
-                  ...current,
-                  content: undefined,
-                }));
-              }
-            }}
-            placeholder="Paste or type your study notes here. This text will be used for AI flashcard and quiz generation in a future sprint."
-            className={inputClass}
-            aria-invalid={Boolean(fieldErrors.content)}
-            aria-describedby={
-              fieldErrors.content ? 'note-content-error' : undefined
-            }
-          />
+          <div className="rounded-2xl border border-slate-300 bg-slate-50">
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-3">
+              <ToolbarButton
+                label="Bold"
+                onClick={() => runEditorCommand('bold')}
+              />
+              <ToolbarButton
+                label="Italic"
+                onClick={() => runEditorCommand('italic')}
+              />
+              <ToolbarButton
+                label="Underline"
+                onClick={() => runEditorCommand('underline')}
+              />
+              <ToolbarButton
+                label="Bullets"
+                onClick={() => runEditorCommand('insertUnorderedList')}
+              />
+
+              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                <span>Color</span>
+                <input
+                  type="color"
+                  defaultValue="#1e293b"
+                  onChange={(e) =>
+                    runEditorCommand('foreColor', e.target.value)
+                  }
+                  className="h-6 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
+                />
+              </label>
+
+              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                <span>Size</span>
+                <select
+                  defaultValue="16"
+                  onChange={(e) => handleFontSizeChange(e.target.value)}
+                  className="bg-transparent text-sm outline-none"
+                >
+                  <option value="12">12</option>
+                  <option value="14">14</option>
+                  <option value="16">16</option>
+                  <option value="18">18</option>
+                  <option value="24">24</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="relative">
+              {!hasVisibleRichText(content) ? (
+                <p className="pointer-events-none absolute left-5 top-4 text-sm text-slate-400">
+                  Paste or type your study notes here. Use the toolbar to add
+                  bold, italics, underline, bullets, color, and font size.
+                </p>
+              ) : null}
+              <div
+                id="note-content"
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={() =>
+                  syncEditorContent(editorRef.current?.innerHTML ?? '')
+                }
+                onBlur={() => syncEditorContent()}
+                className={editorClass}
+                aria-invalid={Boolean(fieldErrors.content)}
+                aria-describedby={
+                  fieldErrors.content ? 'note-content-error' : undefined
+                }
+              />
+            </div>
+          </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
             <span>
               {wordCount(content)} word{wordCount(content) === 1 ? '' : 's'}
             </span>
             <span>
-              {content.length.toLocaleString()}/{CONTENT_MAX.toLocaleString()}{' '}
-              characters
+              {plainTextContent.length.toLocaleString()}/
+              {CONTENT_MAX.toLocaleString()} characters
             </span>
           </div>
           {fieldErrors.content && (
