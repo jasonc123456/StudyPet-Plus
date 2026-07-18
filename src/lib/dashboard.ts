@@ -69,8 +69,20 @@ function weekWindowFrom(now: Date): { start: Date; end: Date } {
 }
 
 async function getWeakTopicResults(userId: string) {
+  const quizQuestionResultDelegate = (
+    prisma as typeof prisma & {
+      quizQuestionResult?: {
+        findMany: typeof prisma.$queryRaw;
+      };
+    }
+  ).quizQuestionResult;
+
+  if (!quizQuestionResultDelegate) {
+    return [];
+  }
+
   try {
-    return await prisma.quizQuestionResult.findMany({
+    return await quizQuestionResultDelegate.findMany({
       where: {
         userId,
         isCorrect: false,
