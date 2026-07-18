@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { QuizzesPageClient } from '@/components/quizzes/QuizzesPageClient';
-import type { QuizNoteOption } from '@/components/quizzes/types';
+import type { QuizEntity, QuizNoteOption } from '@/components/quizzes/types';
 import { hasVisibleRichText } from '@/lib/note-rich-text';
 import { prisma } from '@/lib/prisma';
 
@@ -15,7 +15,7 @@ function isMissingQuizTable(error: unknown): boolean {
     typeof error.message === 'string' &&
     (error.message.includes('Quiz') ||
       error.message.includes('QuizQuestion') ||
-      error.message.includes('Quiz.noteId'))
+      error.message.includes('QuizSourceNote'))
   );
 }
 
@@ -28,67 +28,78 @@ export default async function DashboardQuizzesPage() {
   const userId = session.user.id;
 
   let notes: QuizNoteOption[] = [];
+  let quizzes: QuizEntity[] = [];
   let schemaError: string | null = null;
 
   try {
-    const rows = await prisma.note.findMany({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        course: { select: { id: true, name: true, color: true } },
-        quizzes: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: {
-            id: true,
-            xpAwards: {
-              where: { userId },
-              take: 1,
-              select: { id: true },
-            },
-            _count: { select: { attempts: true } },
-            attempts: {
-              orderBy: { createdAt: 'desc' },
-              take: 1,
-              select: { scorePercent: true, createdAt: true },
-            },
-            questions: {
-              orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-              select: {
-                id: true,
-                topic: true,
-                question: true,
-                choices: true,
-                correctIndex: true,
-                explanation: true,
-              },
+    const [noteRows, quizRows] = await Promise.all([
+      prisma.note.findMany({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          course: { select: { id: true, name: true, color: true } },
+        },
+      }),
+      prisma.quiz.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          course: { select: { id: true, name: true, color: true } },
+          note: { select: { id: true, title: true } },
+          sourceNotes: {
+            select: { note: { select: { id: true, title: true } } },
+          },
+          _count: { select: { attempts: true } },
+          xpAwards: { where: { userId }, take: 1, select: { id: true } },
+          attempts: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { scorePercent: true },
+          },
+          questions: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: {
+              id: true,
+              topic: true,
+              question: true,
+              choices: true,
+              correctIndex: true,
+              explanation: true,
+              hint: true,
             },
           },
         },
-      },
-    });
+      }),
+    ]);
 
-    notes = rows.map((note) => {
-      const latestQuiz = note.quizzes[0] ?? null;
-      const lastAttempt = latestQuiz?.attempts[0] ?? null;
+    notes = noteRows.map((note) => ({
+      id: note.id,
+      title: note.title,
+      hasContent: hasVisibleRichText(note.content),
+      course: note.course,
+    }));
+
+    quizzes = quizRows.map((quiz) => {
+      const sourceNotes =
+        quiz.sourceNotes.length > 0
+          ? quiz.sourceNotes.map((row) => row.note)
+          : quiz.note
+            ? [quiz.note]
+            : [];
       return {
-        id: note.id,
-        title: note.title,
-        hasContent: hasVisibleRichText(note.content),
-        questionCount: latestQuiz?.questions.length ?? 0,
-        course: note.course,
-        latestQuiz: latestQuiz
-          ? {
-              id: latestQuiz.id,
-              completed: latestQuiz.xpAwards.length > 0,
-              questions: latestQuiz.questions,
-              attemptCount: latestQuiz._count.attempts,
-              lastScorePercent: lastAttempt?.scorePercent ?? null,
-            }
-          : null,
+        id: quiz.id,
+        title: quiz.title ?? quiz.note?.title ?? 'Untitled quiz',
+        course: quiz.course,
+        sourceNotes,
+        questions: quiz.questions,
+        attemptCount: quiz._count.attempts,
+        lastScorePercent: quiz.attempts[0]?.scorePercent ?? null,
+        completed: quiz.xpAwards.length > 0,
       };
     });
   } catch (error) {
@@ -105,7 +116,7 @@ export default async function DashboardQuizzesPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Quizzes"
-        description="Generate multiple-choice quizzes from your notes, then test yourself one question at a time."
+        description="Generate multiple-choice quizzes from one or more notes, then test yourself in Review, Practice, or Exam mode."
         action={{ label: 'Go to notes', href: '/dashboard/notes' }}
       />
 
@@ -118,7 +129,7 @@ export default async function DashboardQuizzesPage() {
           <p className="mt-1">{schemaError}</p>
         </div>
       ) : (
-        <QuizzesPageClient notes={notes} />
+        <QuizzesPageClient notes={notes} quizzes={quizzes} />
       )}
     </div>
   );
