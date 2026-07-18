@@ -27,7 +27,9 @@ import {
 
 const DEFAULT_COUNT = 8;
 const MIN_COUNT = 1;
-const MAX_COUNT = 20;
+// Upper bound for a single generation request. Quizzes allow up to 50 questions;
+// flashcard requests are separately capped lower by their request validator.
+const MAX_COUNT = 50;
 const MAX_SOURCE_CHARS = 12_000;
 
 function clampCount(count: number | undefined): number {

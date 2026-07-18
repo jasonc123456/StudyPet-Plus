@@ -305,7 +305,7 @@ export type GenerateFlashcardsRequestInput = z.infer<
 /** Body for POST /api/quizzes/generate (US-3.4). */
 export const generateQuizRequestSchema = z.object({
   noteId: z.string().cuid(),
-  count: z.coerce.number().int().min(1).max(20).optional(),
+  count: z.coerce.number().int().min(1).max(50).optional(),
   replaceGenerated: z.boolean().optional().default(false),
 });
 
