@@ -3,16 +3,18 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AnalyticsClassFilter } from '@/components/analytics/AnalyticsClassFilter';
 import { QuizAttemptHistory } from '@/components/analytics/QuizAttemptHistory';
+import { ReviewNextCard } from '@/components/analytics/ReviewNextCard';
 import { TopicPerformanceList } from '@/components/analytics/TopicPerformanceList';
 import { StatTile } from '@/components/common/StatTile';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { getQuizAnalytics } from '@/lib/quiz-analytics';
+import { getReviewNextRecommendations } from '@/lib/review-next';
 
 /**
  * Quiz analytics dashboard (US-4.02 results history + US-4.03 weak-topic
- * analytics), with a class filter plus flashcard-progress tiles. Aggregates
- * every saved quiz attempt into per-topic accuracy and a reverse-chronological
- * attempt history.
+ * analytics + US-4.04 review-next), with a class filter plus flashcard-progress
+ * tiles. Aggregates every saved quiz attempt into per-topic accuracy and a
+ * reverse-chronological attempt history.
  */
 export default async function DashboardAnalyticsPage({
   searchParams,
@@ -25,7 +27,10 @@ export default async function DashboardAnalyticsPage({
   }
 
   const courseId = searchParams.course || undefined;
-  const analytics = await getQuizAnalytics(session.user.id, 20, courseId);
+  const [analytics, reviewNext] = await Promise.all([
+    getQuizAnalytics(session.user.id, 20, courseId),
+    getReviewNextRecommendations(session.user.id, { courseId, limit: 3 }),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,6 +68,8 @@ export default async function DashboardAnalyticsPage({
           tone="warning"
         />
       </div>
+
+      <ReviewNextCard recommendations={reviewNext} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section aria-labelledby="topic-performance-heading">

@@ -55,6 +55,8 @@ export type DashboardReviewNext = {
   recommendedAction: 'flashcards' | 'notes' | 'quiz';
   recommendationReason: string;
   rankingScore: number;
+  /** Owning flashcard set id when available (study route needs setId). */
+  flashcardSetId: string | null;
 };
 
 export type DashboardData = {
@@ -191,7 +193,7 @@ async function getWeakTopicResults(userId: string) {
                     content: true,
                     flashcards: {
                       where: { userId },
-                      select: { id: true, topic: true },
+                      select: { id: true, topic: true, setId: true },
                     },
                   },
                 },
@@ -330,6 +332,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       noteTitle: string;
       quizId: string;
       flashcardCount: number;
+      flashcardSetId: string | null;
       latestIncorrectAt: Date;
       noteWordCount: number;
       rankingScore: number;
@@ -345,13 +348,16 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
 
     const key = `${note.id}:${topic.toLowerCase()}`;
     const existing = reviewNextMap.get(key);
-    const topicFlashcardCount = note.flashcards.filter(
+    const topicFlashcards = note.flashcards.filter(
       (flashcard) =>
         flashcard.topic.trim().toLowerCase() === topic.toLowerCase()
-    ).length;
+    );
+    const topicFlashcardCount = topicFlashcards.length;
     const totalFlashcardCount = note.flashcards.length;
     const flashcardCount =
       topicFlashcardCount > 0 ? topicFlashcardCount : totalFlashcardCount;
+    const flashcardSetId =
+      topicFlashcards[0]?.setId ?? note.flashcards[0]?.setId ?? null;
     const noteWordCount = hasVisibleRichText(note.content)
       ? richTextToPlainText(note.content).split(/\s+/).filter(Boolean).length
       : 0;
@@ -385,6 +391,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         noteTitle: note.title,
         quizId: result.question.quiz.id,
         flashcardCount,
+        flashcardSetId,
         latestIncorrectAt: result.createdAt,
         noteWordCount,
         rankingScore,
@@ -403,6 +410,9 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     if (result.createdAt > existing.latestIncorrectAt) {
       existing.latestIncorrectAt = result.createdAt;
       existing.quizId = result.question.quiz.id;
+    }
+    if (!existing.flashcardSetId && flashcardSetId) {
+      existing.flashcardSetId = flashcardSetId;
     }
 
     const actionScores = scoreStudyActions({
@@ -463,6 +473,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
           recommendedAction: reviewNext.recommendedAction,
           recommendationReason: reviewNext.recommendationReason,
           rankingScore: reviewNext.rankingScore,
+          flashcardSetId: reviewNext.flashcardSetId,
         }
       : null,
   };

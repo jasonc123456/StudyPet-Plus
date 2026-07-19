@@ -7,6 +7,12 @@ type ReviewNextProps = {
   recommendation: DashboardReviewNext | null;
 };
 
+function flashcardStudyHref(recommendation: DashboardReviewNext): string {
+  return recommendation.flashcardSetId
+    ? `/dashboard/flashcards/study/${recommendation.flashcardSetId}`
+    : '/dashboard/flashcards';
+}
+
 export function ReviewNext({ recommendation }: ReviewNextProps) {
   const incorrectSummary = recommendation
     ? `This topic has tripped you up ${recommendation.incorrectCount} time${
@@ -26,7 +32,7 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
 
   const primaryActionHref = recommendation
     ? recommendation.recommendedAction === 'flashcards'
-      ? `/dashboard/flashcards/study/${recommendation.noteId}`
+      ? flashcardStudyHref(recommendation)
       : recommendation.recommendedAction === 'notes'
         ? `/dashboard/notes/${recommendation.noteId}`
         : `/dashboard/quizzes?noteId=${recommendation.noteId}&retake=latest`
@@ -55,8 +61,8 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
               No weak topic yet
             </h2>
             <p className="mt-2 text-sm text-slate-500">
-              Finish a few quizzes and StudyPet+ will suggest what to review
-              next.
+              No recommendations yet. Take a quiz or review flashcards to get
+              personalized suggestions.
             </p>
           </>
         )}
@@ -101,7 +107,7 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
             {recommendation.recommendedAction !== 'flashcards' &&
             recommendation.flashcardCount > 0 ? (
               <Link
-                href={`/dashboard/flashcards/study/${recommendation.noteId}`}
+                href={flashcardStudyHref(recommendation)}
                 className="btn-secondary px-4 py-2 text-sm"
               >
                 Review flashcards
