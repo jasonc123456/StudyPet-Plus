@@ -7,8 +7,8 @@ import { ProgressBar } from '@/components/common/ProgressBar';
 import { ResultRow } from '@/components/common/ResultRow';
 import type { QuizMode, QuizQuestionData } from '@/components/quizzes/types';
 import {
+  buildPracticeHint,
   buildQuizResultFeedback,
-  formatImmediateQuizFeedback,
 } from '@/lib/quiz-explanation';
 import Link from 'next/link';
 
@@ -41,17 +41,17 @@ const MODE_META: Record<
   review: {
     icon: '📖',
     title: 'Review',
-    subtitle: 'Instant feedback and explanations, no timer.',
+    subtitle: 'Instant tutor feedback after each question, no timer.',
   },
   practice: {
     icon: '✏️',
     title: 'Practice',
-    subtitle: 'Answer freely with hints and a soft timer.',
+    subtitle: 'Layered hints, then full reasoning after you answer.',
   },
   exam: {
     icon: '⏱️',
     title: 'Exam',
-    subtitle: 'No hints, hard timer, graded at the end.',
+    subtitle: 'No hints during the run; strong review after submit.',
   },
 };
 
@@ -80,7 +80,7 @@ export function QuizSession({
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [revealed, setRevealed] = useState(false);
-  const [showHint, setShowHint] = useState(false);
+  const [hintLevel, setHintLevel] = useState(0);
 
   const [elapsed, setElapsed] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState<number | null>(null);
@@ -138,7 +138,7 @@ export function QuizSession({
       setIndex(0);
       setAnswers({});
       setRevealed(false);
-      setShowHint(false);
+      setHintLevel(0);
       setElapsed(0);
       setAttemptSynced(false);
       setAttemptError(null);
@@ -219,18 +219,27 @@ export function QuizSession({
   const handleChoice = useCallback(
     (choiceIndex: number) => {
       if (!current) return;
-      if (mode === 'review' && revealed) return;
+      // Review + Practice lock after first pick so feedback stays coherent.
+      if ((mode === 'review' || mode === 'practice') && revealed) return;
       setAnswers((a) => ({ ...a, [current.id]: choiceIndex }));
-      if (mode === 'review') setRevealed(true);
+      if (mode === 'review' || mode === 'practice') setRevealed(true);
     },
     [current, mode, revealed]
   );
 
-  const goTo = useCallback((nextIndex: number) => {
-    setIndex(nextIndex);
-    setRevealed(false);
-    setShowHint(false);
-  }, []);
+  const goTo = useCallback(
+    (nextIndex: number) => {
+      setIndex(nextIndex);
+      setHintLevel(0);
+      const nextQuestion = runQuestions[nextIndex];
+      const alreadyAnswered =
+        nextQuestion !== undefined && answers[nextQuestion.id] !== undefined;
+      setRevealed(
+        (mode === 'review' || mode === 'practice') && alreadyAnswered
+      );
+    },
+    [runQuestions, answers, mode]
+  );
 
   // ---- Setup screen ---------------------------------------------------------
   if (phase === 'setup') {
@@ -437,7 +446,7 @@ export function QuizSession({
   // ---- Active screen --------------------------------------------------------
   const isLast = index === total - 1;
   const answeredAll = runQuestions.every((q) => answers[q.id] !== undefined);
-  const canAdvance = mode === 'review' ? revealed : true;
+  const canAdvance = mode === 'review' || mode === 'practice' ? revealed : true;
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
@@ -507,10 +516,12 @@ export function QuizSession({
           {current.choices.map((choice, choiceIndex) => {
             const isSelected = answers[current.id] === choiceIndex;
             const isCorrect = choiceIndex === current.correctIndex;
+            const showReveal =
+              (mode === 'review' || mode === 'practice') && revealed;
             let choiceClass =
               'btn-secondary w-full justify-start px-4 py-3 text-left text-sm';
 
-            if (mode === 'review' && revealed) {
+            if (showReveal) {
               if (isCorrect) {
                 choiceClass +=
                   ' border-emerald-400 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-300';
@@ -530,7 +541,7 @@ export function QuizSession({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                disabled={mode === 'review' && revealed}
+                disabled={showReveal}
                 onClick={() => handleChoice(choiceIndex)}
                 className={choiceClass}
               >
@@ -543,61 +554,112 @@ export function QuizSession({
           })}
         </div>
 
-        {/* Hint — available in Review + Practice, hidden in Exam. */}
-        {mode !== 'exam' && current.hint ? (
-          showHint ? (
-            <div
-              className="rounded-lg px-4 py-3 text-sm"
-              style={{
-                background: 'var(--warning-soft)',
-                color: 'var(--warning)',
-              }}
-            >
-              💡 {current.hint}
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="btn-secondary w-fit text-sm"
-              onClick={() => setShowHint(true)}
-            >
-              Show hint
-            </button>
-          )
+        {/* Hints — Review + Practice only; Exam never shows hints. */}
+        {mode !== 'exam' && !revealed ? (
+          <div className="flex flex-col gap-2">
+            {hintLevel >= 1 ? (
+              <div
+                className="rounded-lg px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--warning-soft)',
+                  color: 'var(--warning)',
+                }}
+              >
+                💡 Hint 1:{' '}
+                {buildPracticeHint({
+                  level: 1,
+                  storedHint: current.hint,
+                  choices: current.choices,
+                  correctIndex: current.correctIndex,
+                  topic: current.topic,
+                })}
+              </div>
+            ) : null}
+            {hintLevel >= 2 ? (
+              <div
+                className="rounded-lg px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--warning-soft)',
+                  color: 'var(--warning)',
+                }}
+              >
+                💡 Hint 2:{' '}
+                {buildPracticeHint({
+                  level: 2,
+                  storedHint: current.hint,
+                  choices: current.choices,
+                  correctIndex: current.correctIndex,
+                  topic: current.topic,
+                })}
+              </div>
+            ) : null}
+            {hintLevel < 2 && (current.hint || mode === 'practice') ? (
+              <button
+                type="button"
+                className="btn-secondary w-fit text-sm"
+                onClick={() => setHintLevel((level) => Math.min(2, level + 1))}
+              >
+                {hintLevel === 0 ? 'Show hint' : 'Need another hint?'}
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
-        {/* Review-mode instant explanation. */}
-        {mode === 'review' && revealed ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <p
-              className="text-sm font-semibold"
-              style={{
-                color:
-                  answers[current.id] === current.correctIndex
-                    ? 'var(--success)'
-                    : 'var(--danger)',
-              }}
-            >
-              {answers[current.id] === current.correctIndex
-                ? 'Correct!'
-                : 'Not quite — see the explanation below.'}
-            </p>
-            <p className="theme-muted mt-2 text-sm leading-relaxed">
-              {formatImmediateQuizFeedback({
-                correct: answers[current.id] === current.correctIndex,
-                userAnswer:
-                  answers[current.id] !== undefined &&
-                  answers[current.id]! >= 0 &&
-                  answers[current.id]! < current.choices.length
-                    ? (current.choices[answers[current.id]!] ?? 'No answer')
-                    : 'No answer',
+        {/* Review + Practice: tutor-style feedback right after answering. */}
+        {(mode === 'review' || mode === 'practice') && revealed
+          ? (() => {
+              const selected = answers[current.id];
+              const isCorrect = selected === current.correctIndex;
+              const userAnswer =
+                selected !== undefined &&
+                selected >= 0 &&
+                selected < current.choices.length
+                  ? (current.choices[selected] ?? 'No answer')
+                  : 'No answer';
+              const feedback = buildQuizResultFeedback({
+                correct: isCorrect,
+                userAnswer,
                 correctAnswer: current.choices[current.correctIndex] ?? '',
                 explanation: current.explanation,
                 topic: current.topic,
-              })}
-            </p>
-          </div>
-        ) : null}
+              });
+              return (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p
+                    className="text-sm font-semibold"
+                    style={{
+                      color: isCorrect ? 'var(--success)' : 'var(--danger)',
+                    }}
+                  >
+                    {isCorrect
+                      ? 'Correct!'
+                      : 'Not quite — compare your idea with the right concept.'}
+                  </p>
+                  <div className="theme-muted mt-2 space-y-1.5 text-sm leading-relaxed">
+                    {!isCorrect && feedback.whyWrong ? (
+                      <p>
+                        <span className="font-medium text-slate-700">
+                          Why your answer misses:{' '}
+                        </span>
+                        {feedback.whyWrong}
+                      </p>
+                    ) : null}
+                    <p>
+                      <span className="font-medium text-slate-700">
+                        {isCorrect
+                          ? 'Concept: '
+                          : 'Why the correct answer fits: '}
+                      </span>
+                      {feedback.whyCorrect}
+                    </p>
+                    {!isCorrect && feedback.concept ? (
+                      <p>{feedback.concept}</p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })()
+          : null}
 
         <div className="flex items-center justify-between gap-2">
           <button
@@ -614,15 +676,13 @@ export function QuizSession({
               type="button"
               className="btn-primary text-sm disabled:opacity-50"
               disabled={
-                mode === 'review'
+                mode === 'review' || mode === 'practice'
                   ? !canAdvance
-                  : mode === 'practice'
-                    ? false
-                    : !answeredAll
+                  : !answeredAll
               }
               onClick={finish}
             >
-              {mode === 'review' ? 'See results' : 'Submit'}
+              {mode === 'exam' ? 'Submit' : 'See results'}
             </button>
           ) : (
             <button

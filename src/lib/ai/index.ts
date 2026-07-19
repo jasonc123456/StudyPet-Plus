@@ -198,12 +198,12 @@ function quizPrompt(
     : '';
   return {
     system:
-      'You are a study coach writing fair multiple-choice quiz questions from ' +
-      "a student's notes and attachments. Only use facts present in the source; " +
-      'never invent material. Explanations must TEACH the concept in plain ' +
-      'language — why the answer is right and why a likely distractor is wrong. ' +
-      'Do NOT start explanations with "The notes say/state/define" or "According ' +
-      'to the source." The notes are background evidence only. Respond with JSON only.',
+      'You are an AI tutor writing fair multiple-choice quiz questions from ' +
+      "a student's notes and attachments. Ground answers in the source, but " +
+      'teach like a tutor: reason about the concept, compare common mix-ups, ' +
+      'and give practical intuition. Never invent material. Never make ' +
+      '"The notes say/state/define" or "According to the source" the main ' +
+      'explanation. Respond with JSON only.',
     user:
       `Write ${count} multiple-choice questions from the source material.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
@@ -212,14 +212,21 @@ function quizPrompt(
       '"hint": string } ] }\n' +
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
-      '- "explanation" (1–3 sentences) must:\n' +
-      '  * Explain the concept logically and practically.\n' +
-      '  * Say why the correct choice makes sense.\n' +
-      '  * When helpful, name the misconception behind a likely wrong choice.\n' +
-      '  * Stay accurate to the source, but NEVER make "the notes say X" the main reasoning.\n' +
-      '  * Bad: "The notes explicitly define an algorithm as…"\n' +
-      '  * Good: "An algorithm is a precise, finite sequence of steps that takes input and produces output — that is why this choice is best."\n' +
-      '- "hint" nudges toward the answer WITHOUT revealing which choice is correct.' +
+      '- "topic" is a short concept tag (e.g. "Growth Families", "Algorithms").\n' +
+      '- "explanation" (2–4 sentences) must:\n' +
+      '  * Teach WHY the correct choice is right with real reasoning.\n' +
+      '  * Briefly contrast a likely wrong choice / misconception when useful.\n' +
+      '  * Add practical intuition or a tiny example for technical ideas.\n' +
+      '  * Stay accurate to the source, but do NOT cite the notes as the reason.\n' +
+      '  * Bad: "The notes say logarithmic growth is log n."\n' +
+      '  * Good: "Logarithmic growth is written log n: work grows slowly as n ' +
+      'increases. n log n has an extra n factor, so it is linearithmic, not logarithmic."\n' +
+      '- "hint" is a helpful nudge that does NOT reveal the answer:\n' +
+      '  * Point at the concept or a detail to check (factors in notation, ' +
+      'definitions, scope).\n' +
+      '  * Never say which choice is correct or "the answer is…".\n' +
+      '  * Good: "For growth families, look carefully at every factor in the notation."\n' +
+      '  * Bad: "The answer is linearithmic."' +
       sourceSection(source, attachments?.length ?? 0),
     attachments,
   };
@@ -302,7 +309,7 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
   const topic = topicHint?.trim() || 'Demo';
   const base: QuizQuestion[] = [
     {
-      topic,
+      topic: topic === 'Demo' ? 'Study methods' : topic,
       question: 'Which study technique this quiz demonstrates?',
       choices: ['Cramming', 'Active recall', 'Highlighting', 'Re-reading'],
       answerIndex: 1,
@@ -313,7 +320,19 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
       hint: 'Think about retrieving the answer from memory, not reviewing it.',
     },
     {
-      topic,
+      topic: 'Growth Families',
+      question: 'Which growth family describes n log n?',
+      choices: ['Constant', 'Logarithmic', 'Linearithmic', 'Quadratic'],
+      answerIndex: 2,
+      explanation:
+        'n log n has an extra n factor on top of a logarithm. That means ' +
+        'roughly linear work is repeated across logarithmic levels, so it ' +
+        'belongs to the linearithmic family — not pure logarithmic growth ' +
+        '(log n), which grows much more slowly.',
+      hint: 'For growth families, look carefully at every factor in the notation. log n and n log n are related, but the extra n changes the category.',
+    },
+    {
+      topic: topic === 'Demo' ? 'Setup' : topic,
       question: '(Demo) How do you enable real AI quizzes?',
       choices: [
         'Nothing is needed',
@@ -326,7 +345,7 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'Real quiz generation needs a configured AI provider. Set ' +
         'LOCAL_AI_BASE_URL or GEMINI_API_KEY and turn AI_DEMO_MODE off so the ' +
         'app can call the model instead of returning canned demo questions.',
-      hint: 'It involves configuration, not hardware.',
+      hint: 'Think about software configuration rather than hardware changes.',
     },
   ];
   return Array.from({ length: count }, (_, i) => base[i % base.length]);

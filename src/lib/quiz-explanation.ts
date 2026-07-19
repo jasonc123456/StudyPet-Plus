@@ -16,56 +16,70 @@ export type QuizResultFeedback = {
   concept: string | null;
 };
 
-/** Common asymptotic / growth-rate notations seen in CS course notes. */
+/** Common asymptotic / growth-rate notations and family names. */
 const GROWTH_MEANINGS: Array<{
   match: RegExp;
   label: string;
+  family: string;
   meaning: string;
 }> = [
   {
-    match: /^(?:o?\(?\s*)?1(?:\s*\)?)?$/i,
+    match: /^(?:o?\(?\s*)?1(?:\s*\)?)?$|^constant(?:\s+growth)?$/i,
     label: '1',
+    family: 'constant',
     meaning:
       'constant growth — the amount of work stays the same even as input size n increases',
   },
   {
-    match: /^(?:o?\(?\s*)?n(?:\s*\)?)?$/i,
+    match: /^(?:o?\(?\s*)?n(?:\s*\)?)?$|^linear(?:\s+growth)?$/i,
     label: 'n',
+    family: 'linear',
     meaning: 'linear growth — work increases in proportion to the input size n',
   },
   {
-    match: /^(?:o?\(?\s*)?(?:n\^?2|n²)(?:\s*\)?)?$/i,
+    match: /^(?:o?\(?\s*)?(?:n\^?2|n²)(?:\s*\)?)?$|^quadratic(?:\s+growth)?$/i,
     label: 'n²',
+    family: 'quadratic',
     meaning:
       'quadratic growth — work increases with the square of the input size',
   },
   {
-    match: /^(?:o?\(?\s*)?(?:n\^?3|n³)(?:\s*\)?)?$/i,
+    match: /^(?:o?\(?\s*)?(?:n\^?3|n³)(?:\s*\)?)?$|^cubic(?:\s+growth)?$/i,
     label: 'n³',
+    family: 'cubic',
     meaning: 'cubic growth — work grows with the cube of the input size',
   },
   {
-    match: /^(?:o?\(?\s*)?(?:log\s*n|lg\s*n)(?:\s*\)?)?$/i,
+    match:
+      /^(?:o?\(?\s*)?(?:log\s*n|lg\s*n)(?:\s*\)?)?$|^logarithmic(?:\s+growth)?$/i,
     label: 'log n',
+    family: 'logarithmic',
     meaning:
-      'logarithmic growth — work grows slowly as the input size increases',
+      'logarithmic growth — work grows slowly as the input size increases (written log n)',
   },
   {
-    match: /^(?:o?\(?\s*)?n\s*log\s*n(?:\s*\)?)?$/i,
+    match:
+      /^(?:o?\(?\s*)?n\s*log\s*n(?:\s*\)?)?$|^linearithmic(?:\s+growth)?$/i,
     label: 'n log n',
+    family: 'linearithmic',
     meaning:
-      'linearithmic growth — work grows faster than linear but slower than quadratic',
+      'linearithmic growth — roughly linear work repeated across logarithmic levels (written n log n)',
   },
 ];
 
 function growthMeaning(answer: string): {
   label: string;
+  family: string;
   meaning: string;
 } | null {
   const cleaned = answer.trim();
   for (const entry of GROWTH_MEANINGS) {
     if (entry.match.test(cleaned)) {
-      return { label: entry.label, meaning: entry.meaning };
+      return {
+        label: entry.label,
+        family: entry.family,
+        meaning: entry.meaning,
+      };
     }
   }
   return null;
@@ -172,7 +186,9 @@ function buildWhyCorrect(args: {
   const { correctAnswer, explanation, correctGrowth } = args;
 
   if (correctGrowth) {
-    return ensurePeriod(`${correctAnswer} represents ${correctGrowth.meaning}`);
+    return ensurePeriod(
+      `${correctAnswer} belongs to the ${correctGrowth.family} family: ${correctGrowth.meaning}`
+    );
   }
 
   const taught = normalizeGeneratedExplanation(explanation, correctAnswer);
@@ -207,8 +223,29 @@ function buildWhyWrong(args: {
   }
 
   if (userGrowth && correctGrowth && userGrowth.label !== correctGrowth.label) {
+    if (
+      userGrowth.family === 'logarithmic' &&
+      correctGrowth.family === 'linearithmic'
+    ) {
+      return ensurePeriod(
+        `Logarithmic growth is written as log n, where the work grows slowly as the input size increases. n log n has an extra n factor, meaning there is roughly linear work repeated across logarithmic levels, so it belongs to the linearithmic family — not purely logarithmic`
+      );
+    }
+    if (
+      userGrowth.family === 'linearithmic' &&
+      correctGrowth.family === 'logarithmic'
+    ) {
+      return ensurePeriod(
+        `n log n is linearithmic because of the extra n factor. Pure logarithmic growth is just log n — it increases much more slowly and does not multiply by n`
+      );
+    }
+    if (userGrowth.family === 'linear' && correctGrowth.family === 'constant') {
+      return ensurePeriod(
+        `Your answer points to linear growth (work scales with n). Constant growth stays the same even as n increases, so it is written as 1 rather than n`
+      );
+    }
     return ensurePeriod(
-      `Your answer “${userAnswer}” represents ${userGrowth.meaning}, while the question asked about ${correctGrowth.meaning}`
+      `Your answer “${userAnswer}” is ${userGrowth.family} (${userGrowth.meaning}). The question was asking for ${correctGrowth.family} growth (${correctGrowth.meaning})`
     );
   }
 
@@ -305,7 +342,7 @@ export function buildQuizResultFeedback(args: {
 }
 
 /**
- * Short paragraph for in-quiz review mode (shown right after answering).
+ * Short paragraph for in-quiz review / practice feedback after answering.
  */
 export function formatImmediateQuizFeedback(args: {
   correct: boolean;
@@ -316,10 +353,78 @@ export function formatImmediateQuizFeedback(args: {
 }): string {
   const feedback = buildQuizResultFeedback(args);
   if (args.correct) {
-    return feedback.whyCorrect;
+    return `Correct — ${feedback.whyCorrect}`;
   }
-  const parts = [feedback.whyWrong, feedback.whyCorrect].filter(Boolean);
+  const parts = [
+    feedback.whyWrong ? `Not quite. ${feedback.whyWrong}` : 'Not quite.',
+    feedback.whyCorrect,
+  ].filter(Boolean);
   return parts.join(' ');
+}
+
+/**
+ * Layered Practice-mode hints that nudge without naming the answer.
+ * Level 1 = gentle concept nudge; level 2 = compare related distractors.
+ */
+export function buildPracticeHint(args: {
+  level: 1 | 2;
+  storedHint?: string | null;
+  choices: string[];
+  correctIndex: number;
+  topic?: string | null;
+}): string {
+  const topic = args.topic?.trim() || 'this concept';
+  const stored = normalizeGeneratedHint(args.storedHint);
+
+  if (args.level === 1) {
+    if (stored) return stored;
+    return ensurePeriod(
+      `Focus on the core idea behind “${topic}” before matching it to a choice — what relationship or definition must be true?`
+    );
+  }
+
+  // Level 2: compare two similar growth choices when present, else generic compare.
+  const labeled = args.choices
+    .map((choice, index) => ({ choice, growth: growthMeaning(choice), index }))
+    .filter((row) => row.growth);
+
+  if (labeled.length >= 2) {
+    const a = labeled[0]!;
+    const b = labeled[1]!;
+    return ensurePeriod(
+      `Look carefully at every factor in the notation. “${a.choice}” and “${b.choice}” are related, but small differences (like an extra n) can move an answer into a different growth family`
+    );
+  }
+
+  const correct = args.choices[args.correctIndex] ?? '';
+  const distractor = args.choices.find((_, i) => i !== args.correctIndex) ?? '';
+  if (correct && distractor) {
+    return ensurePeriod(
+      `Compare the strongest two options you are considering — what precise detail would make one fit “${topic}” and the other miss it?`
+    );
+  }
+
+  return ensurePeriod(
+    `Eliminate choices that are related but too narrow or too broad for “${topic}”`
+  );
+}
+
+/** Keep hints helpful but scrub explicit answer leaks. */
+export function normalizeGeneratedHint(
+  hint: string | null | undefined
+): string {
+  const raw = (hint ?? '').trim();
+  if (!raw) return '';
+  if (
+    /\b(the\s+)?answer\s+is\b/i.test(raw) ||
+    /\bcorrect\s+choice\s+is\b/i.test(raw) ||
+    /\bpick\s+[“"]?[A-D]/i.test(raw)
+  ) {
+    return ensurePeriod(
+      'Think about the underlying definition first, then match it to the choice that captures the whole idea'
+    );
+  }
+  return ensurePeriod(sentenceCase(stripCitationPhrases(raw)));
 }
 
 /**
@@ -341,17 +446,22 @@ export function buildWeakTopicMisconceptionReason(args: {
     if (
       userGrowth &&
       correctGrowth &&
-      userGrowth.label !== correctGrowth.label
+      userGrowth.family !== correctGrowth.family
     ) {
-      if (correctGrowth.label === '1' && userGrowth.label === 'n') {
-        return (
-          'You confused constant growth with linear growth. Constant growth ' +
-          'stays the same as input size grows, while linear growth increases with n.'
-        );
+      if (
+        userGrowth.family === 'logarithmic' &&
+        correctGrowth.family === 'linearithmic'
+      ) {
+        return 'You confused logarithmic growth with linearithmic growth. Focus on how adding an n factor changes log n into n log n.';
+      }
+      if (
+        correctGrowth.family === 'constant' &&
+        userGrowth.family === 'linear'
+      ) {
+        return 'You confused constant growth with linear growth. Constant growth stays the same as input size grows, while linear growth increases with n.';
       }
       return (
-        `You confused ${correctGrowth.meaning.split('—')[0]!.trim()} ` +
-        `with ${userGrowth.meaning.split('—')[0]!.trim()}. ` +
+        `You confused ${correctGrowth.family} growth with ${userGrowth.family} growth. ` +
         `Review what “${correctAnswer}” means versus “${userAnswer}”.`
       );
     }
@@ -360,7 +470,7 @@ export function buildWeakTopicMisconceptionReason(args: {
       /formula|equation|calculation/i.test(userAnswer) &&
       /algorithm|sequence|process|step/i.test(correctAnswer)
     ) {
-      return `You confused an algorithm with a formula. Review how algorithms describe a complete step-by-step process, not just a single calculation.`;
+      return 'You confused an algorithm with a formula. Review how algorithms describe a complete step-by-step process, not just a single calculation.';
     }
 
     return `You mixed up “${userAnswer}” with “${correctAnswer}” on ${topic}. Review what makes the correct idea different.`;
