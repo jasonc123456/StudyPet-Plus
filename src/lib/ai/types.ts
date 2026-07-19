@@ -81,7 +81,7 @@ export const quizQuestionSchema = z
     choices: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
     // 0-based index into `choices`.
     answerIndex: z.number().int().min(0),
-    explanation: z.string().trim().max(1000).optional(),
+    explanation: z.string().trim().max(1500).optional(),
     // A nudge toward the answer without giving it away. Required in the contract;
     // stored nullable so pre-redesign rows (there are none) wouldn't break.
     hint: z.string().trim().min(1).max(500),

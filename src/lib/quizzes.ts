@@ -79,6 +79,11 @@ export type SubmitQuizAttemptResult = {
   xpAwarded: number;
   completed: boolean;
   weakTopic: string | null;
+  /** Human-readable reason the weak topic was recommended. */
+  weakTopicReason: string | null;
+  /** Best next study destination for the weak topic. */
+  reviewHref: string | null;
+  reviewLabel: string | null;
 };
 
 /**
@@ -241,9 +246,19 @@ export async function submitQuizAttempt(
     );
   }
 
-  const weakTopic =
-    [...incorrectTopicCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ??
-    null;
+  const weakTopicEntry = [...incorrectTopicCounts.entries()].sort(
+    (a, b) => b[1] - a[1]
+  )[0];
+  const weakTopic = weakTopicEntry?.[0] ?? null;
+  const weakMissCount = weakTopicEntry?.[1] ?? 0;
+
+  const reviewNext = await resolveWeakTopicReviewTarget({
+    userId: input.userId,
+    quizId: quiz.id,
+    noteId: quiz.noteId,
+    weakTopic,
+    weakMissCount,
+  });
 
   const previousAttempt = await prisma.quizAttempt.findUnique({
     where: {
@@ -286,6 +301,9 @@ export async function submitQuizAttempt(
       xpAwarded: previousAttempt.xpAwarded,
       completed,
       weakTopic,
+      weakTopicReason: reviewNext.reason,
+      reviewHref: reviewNext.href,
+      reviewLabel: reviewNext.label,
     };
   }
 
@@ -369,5 +387,77 @@ export async function submitQuizAttempt(
     xpAwarded,
     completed,
     weakTopic,
+    weakTopicReason: reviewNext.reason,
+    reviewHref: reviewNext.href,
+    reviewLabel: reviewNext.label,
+  };
+}
+
+async function resolveWeakTopicReviewTarget(args: {
+  userId: string;
+  quizId: string;
+  noteId: string | null;
+  weakTopic: string | null;
+  weakMissCount: number;
+}): Promise<{
+  reason: string | null;
+  href: string | null;
+  label: string | null;
+}> {
+  const { userId, quizId, noteId, weakTopic, weakMissCount } = args;
+  if (!weakTopic) {
+    return { reason: null, href: null, label: null };
+  }
+
+  const reason =
+    weakMissCount === 1
+      ? `You missed a question on “${weakTopic}” in this quiz.`
+      : `You missed ${weakMissCount} questions on “${weakTopic}” — your weakest topic this run.`;
+
+  // Prefer a flashcard deck that covers the weak topic.
+  const matchingCard = await prisma.flashcard.findFirst({
+    where: {
+      userId,
+      topic: { equals: weakTopic, mode: 'insensitive' },
+      setId: { not: null },
+    },
+    select: { setId: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (matchingCard?.setId) {
+    return {
+      reason,
+      href: `/dashboard/flashcards/study/${matchingCard.setId}`,
+      label: 'Review flashcards',
+    };
+  }
+
+  if (noteId) {
+    return {
+      reason,
+      href: `/dashboard/notes/${noteId}`,
+      label: 'Review notes',
+    };
+  }
+
+  // Fall back to source notes linked through the quiz join table.
+  const sourceNote = await prisma.quizSourceNote.findFirst({
+    where: { quizId },
+    select: { noteId: true },
+    orderBy: { noteId: 'asc' },
+  });
+  if (sourceNote?.noteId) {
+    return {
+      reason,
+      href: `/dashboard/notes/${sourceNote.noteId}`,
+      label: 'Review notes',
+    };
+  }
+
+  return {
+    reason,
+    href: '/dashboard/quizzes',
+    label: 'Practice again',
   };
 }
