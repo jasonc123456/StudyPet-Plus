@@ -569,6 +569,7 @@ export function ImportPlanPanel({
             state={progress.state}
             noun="course plan"
             source="your course plan"
+            sourcePlural="plans"
           />
         </div>
       ) : null}
