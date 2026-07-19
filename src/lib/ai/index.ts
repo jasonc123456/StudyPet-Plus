@@ -214,15 +214,15 @@ function quizPrompt(
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
       '- "topic" is a short concept tag (e.g. "Growth Families", "Algorithms").\n' +
-      '- "explanation" (2–4 sentences) must TEACH:\n' +
-      '  * Explain the concept in plain language.\n' +
+      '- "explanation" (2–3 short sentences) must TEACH:\n' +
+      '  * Explain the concept in plain language with short sentences.\n' +
       '  * Say why the correct choice makes sense (reasoning, not citation).\n' +
-      '  * Add practical intuition or a tiny example when helpful.\n' +
+      '  * Add practical intuition when helpful.\n' +
+      '  * No run-on sentences. No "notes say" / "source identifies" phrasing.\n' +
       '  * Bad: "The source material identifies c^n as exponential growth."\n' +
-      '  * Good: "Exponential growth is written c^n because the value repeatedly ' +
-      'multiplies by a constant factor as n increases — much faster than linear n."\n' +
-      '- "misconception" (1–2 sentences): explain a likely wrong choice without ' +
-      'naming letter indexes; compare concepts (e.g. why n is linear while c^n is exponential).\n' +
+      '  * Good: "Exponential growth is written c^n. The value multiplies by a ' +
+      'constant factor as n increases. That grows much faster than linear n."\n' +
+      '- "misconception" (1–2 short sentences): contrast a likely wrong choice.\n' +
       '- "hint" nudges without revealing the answer:\n' +
       '  * Good: "Compare how each expression changes when n gets bigger."\n' +
       '  * Bad: "The answer is c^n."' +
