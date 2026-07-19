@@ -198,35 +198,34 @@ function quizPrompt(
     : '';
   return {
     system:
-      'You are an AI tutor writing fair multiple-choice quiz questions from ' +
-      "a student's notes and attachments. Ground answers in the source, but " +
-      'teach like a tutor: reason about the concept, compare common mix-ups, ' +
-      'and give practical intuition. Never invent material. Never make ' +
-      '"The notes say/state/define" or "According to the source" the main ' +
-      'explanation. Respond with JSON only.',
+      'You are an AI tutor writing multiple-choice quiz questions from a ' +
+      "student's notes and attachments. Teach concepts with reasoning and " +
+      'practical intuition. Ground facts in the source, but NEVER justify an ' +
+      'answer by citing the notes. Banned phrasing includes: "The notes say…", ' +
+      '"The source material identifies…", "According to the source…", ' +
+      '"This is a common mix-up…", "points at a related idea", and ' +
+      '"the concept this question is testing". Respond with JSON only.',
     user:
-      `Write ${count} multiple-choice questions from the source material.${hint}\n\n` +
+      `Write ${count} multiple-choice questions from the study material.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
       '{ "questions": [ { "topic": string, "question": string, ' +
       '"choices": string[], "answerIndex": number, "explanation": string, ' +
-      '"hint": string } ] }\n' +
+      '"misconception": string, "hint": string } ] }\n' +
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
       '- "topic" is a short concept tag (e.g. "Growth Families", "Algorithms").\n' +
-      '- "explanation" (2–4 sentences) must:\n' +
-      '  * Teach WHY the correct choice is right with real reasoning.\n' +
-      '  * Briefly contrast a likely wrong choice / misconception when useful.\n' +
-      '  * Add practical intuition or a tiny example for technical ideas.\n' +
-      '  * Stay accurate to the source, but do NOT cite the notes as the reason.\n' +
-      '  * Bad: "The notes say logarithmic growth is log n."\n' +
-      '  * Good: "Logarithmic growth is written log n: work grows slowly as n ' +
-      'increases. n log n has an extra n factor, so it is linearithmic, not logarithmic."\n' +
-      '- "hint" is a helpful nudge that does NOT reveal the answer:\n' +
-      '  * Point at the concept or a detail to check (factors in notation, ' +
-      'definitions, scope).\n' +
-      '  * Never say which choice is correct or "the answer is…".\n' +
-      '  * Good: "For growth families, look carefully at every factor in the notation."\n' +
-      '  * Bad: "The answer is linearithmic."' +
+      '- "explanation" (2–4 sentences) must TEACH:\n' +
+      '  * Explain the concept in plain language.\n' +
+      '  * Say why the correct choice makes sense (reasoning, not citation).\n' +
+      '  * Add practical intuition or a tiny example when helpful.\n' +
+      '  * Bad: "The source material identifies c^n as exponential growth."\n' +
+      '  * Good: "Exponential growth is written c^n because the value repeatedly ' +
+      'multiplies by a constant factor as n increases — much faster than linear n."\n' +
+      '- "misconception" (1–2 sentences): explain a likely wrong choice without ' +
+      'naming letter indexes; compare concepts (e.g. why n is linear while c^n is exponential).\n' +
+      '- "hint" nudges without revealing the answer:\n' +
+      '  * Good: "Compare how each expression changes when n gets bigger."\n' +
+      '  * Bad: "The answer is c^n."' +
       sourceSection(source, attachments?.length ?? 0),
     attachments,
   };
@@ -317,7 +316,22 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'Active recall means retrieving an answer from memory instead of ' +
         're-reading it. That retrieval practice strengthens long-term memory, ' +
         'unlike cramming or highlighting which feel familiar but check less.',
+      misconception:
+        'Cramming packs exposure into a short window, so it feels productive but does not strengthen retrieval the way active recall does.',
       hint: 'Think about retrieving the answer from memory, not reviewing it.',
+    },
+    {
+      topic: 'Growth Families',
+      question: 'Which expression represents exponential growth?',
+      choices: ['1', 'n', 'n log n', 'c^n'],
+      answerIndex: 3,
+      explanation:
+        'Exponential growth is written like c^n because the quantity repeatedly ' +
+        'multiplies by a constant factor as n increases. That grows much faster ' +
+        'than linear growth, where work only increases in proportion to n.',
+      misconception:
+        'n represents linear growth: work grows by a roughly fixed amount per step in input size. It does not multiply by a constant factor the way c^n does.',
+      hint: 'Compare how each expression changes when n gets bigger. Linear growth adds a steady amount, while exponential growth repeatedly multiplies.',
     },
     {
       topic: 'Growth Families',
@@ -329,7 +343,9 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'roughly linear work is repeated across logarithmic levels, so it ' +
         'belongs to the linearithmic family — not pure logarithmic growth ' +
         '(log n), which grows much more slowly.',
-      hint: 'For growth families, look carefully at every factor in the notation. log n and n log n are related, but the extra n changes the category.',
+      misconception:
+        'Logarithmic (log n) grows slowly; adding the n factor moves the expression into the linearithmic family.',
+      hint: 'Look carefully at every factor in the notation. log n and n log n are related, but the extra n changes the category.',
     },
     {
       topic: topic === 'Demo' ? 'Setup' : topic,

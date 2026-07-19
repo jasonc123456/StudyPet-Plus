@@ -425,6 +425,8 @@ export function QuizSession({
               correctAnswer: correctAnswer ?? '',
               explanation: question.explanation,
               topic: question.topic,
+              question: question.question,
+              choices: question.choices,
             });
 
             return (
@@ -572,6 +574,7 @@ export function QuizSession({
                   choices: current.choices,
                   correctIndex: current.correctIndex,
                   topic: current.topic,
+                  question: current.question,
                 })}
               </div>
             ) : null}
@@ -590,6 +593,7 @@ export function QuizSession({
                   choices: current.choices,
                   correctIndex: current.correctIndex,
                   topic: current.topic,
+                  question: current.question,
                 })}
               </div>
             ) : null}
@@ -622,6 +626,8 @@ export function QuizSession({
                 correctAnswer: current.choices[current.correctIndex] ?? '',
                 explanation: current.explanation,
                 topic: current.topic,
+                question: current.question,
+                choices: current.choices,
               });
               return (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
