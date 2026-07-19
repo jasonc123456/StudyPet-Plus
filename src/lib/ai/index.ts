@@ -198,12 +198,12 @@ function quizPrompt(
     : '';
   return {
     system:
-      'You are a study assistant that writes fair multiple-choice quiz ' +
-      "questions from a student's notes and attached documents. Only use facts " +
-      'present in the source; never invent material. Do not ask meta questions ' +
-      'about study skills or AI. Write teaching-style explanations that reason ' +
-      'about the concept — do not say only that "the notes say" an answer. ' +
-      'Respond with JSON only.',
+      'You are a study coach writing fair multiple-choice quiz questions from ' +
+      "a student's notes and attachments. Only use facts present in the source; " +
+      'never invent material. Explanations must TEACH the concept in plain ' +
+      'language — why the answer is right and why a likely distractor is wrong. ' +
+      'Do NOT start explanations with "The notes say/state/define" or "According ' +
+      'to the source." The notes are background evidence only. Respond with JSON only.',
     user:
       `Write ${count} multiple-choice questions from the source material.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
@@ -212,12 +212,14 @@ function quizPrompt(
       '"hint": string } ] }\n' +
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
-      '- "explanation" must teach in 1–3 sentences: why the correct choice is ' +
-      'right, what concept it illustrates, and (when helpful) the common ' +
-      'misconception behind a likely wrong distractor. Use the notes as evidence, ' +
-      'but never make the whole explanation "the notes list/state X".\n' +
-      '- "hint" nudges the student toward the answer WITHOUT revealing which ' +
-      'choice is correct (point at the relevant concept, not the option).' +
+      '- "explanation" (1–3 sentences) must:\n' +
+      '  * Explain the concept logically and practically.\n' +
+      '  * Say why the correct choice makes sense.\n' +
+      '  * When helpful, name the misconception behind a likely wrong choice.\n' +
+      '  * Stay accurate to the source, but NEVER make "the notes say X" the main reasoning.\n' +
+      '  * Bad: "The notes explicitly define an algorithm as…"\n' +
+      '  * Good: "An algorithm is a precise, finite sequence of steps that takes input and produces output — that is why this choice is best."\n' +
+      '- "hint" nudges toward the answer WITHOUT revealing which choice is correct.' +
       sourceSection(source, attachments?.length ?? 0),
     attachments,
   };

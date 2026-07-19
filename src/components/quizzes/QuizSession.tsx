@@ -6,7 +6,10 @@ import { ModeCard } from '@/components/common/ModeCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ResultRow } from '@/components/common/ResultRow';
 import type { QuizMode, QuizQuestionData } from '@/components/quizzes/types';
-import { buildQuizResultFeedback } from '@/lib/quiz-explanation';
+import {
+  buildQuizResultFeedback,
+  formatImmediateQuizFeedback,
+} from '@/lib/quiz-explanation';
 import Link from 'next/link';
 
 type QuizSessionProps = {
@@ -580,10 +583,18 @@ export function QuizSession({
                 : 'Not quite — see the explanation below.'}
             </p>
             <p className="theme-muted mt-2 text-sm leading-relaxed">
-              {current.explanation ??
-                `The correct answer is ${String.fromCharCode(
-                  65 + current.correctIndex
-                )}. ${current.choices[current.correctIndex]}.`}
+              {formatImmediateQuizFeedback({
+                correct: answers[current.id] === current.correctIndex,
+                userAnswer:
+                  answers[current.id] !== undefined &&
+                  answers[current.id]! >= 0 &&
+                  answers[current.id]! < current.choices.length
+                    ? (current.choices[answers[current.id]!] ?? 'No answer')
+                    : 'No answer',
+                correctAnswer: current.choices[current.correctIndex] ?? '',
+                explanation: current.explanation,
+                topic: current.topic,
+              })}
             </p>
           </div>
         ) : null}
