@@ -123,12 +123,16 @@ function estimateFraction(state: ProgressState): number {
   return 0.6 + 0.37 * (1 - Math.exp(-w / 30));
 }
 
-function helperCopy(seconds: number): string {
+function helperCopy(
+  seconds: number,
+  source: string,
+  sourcePlural: string
+): string {
   if (seconds >= VERY_SLOW_SECONDS) {
-    return "Still working — longer notes take more time. It hasn't stalled; the model is finishing up.";
+    return `Still working — longer ${sourcePlural} take more time. It hasn't stalled; the model is finishing up.`;
   }
   if (seconds >= SLOW_SECONDS) {
-    return 'This is taking a little longer than usual, but the model is still working hard on your notes.';
+    return `This is taking a little longer than usual, but the model is still working hard on ${source}.`;
   }
   return 'Local AI reasons before it answers, so this can take a bit longer than a hosted model.';
 }
@@ -137,12 +141,15 @@ export function GenerationProgress({
   state,
   noun = 'flashcards',
   source = 'your notes',
+  sourcePlural = 'notes',
 }: {
   state: ProgressState;
   /** What's being written, e.g. "flashcards" or "quiz questions". */
   noun?: string;
   /** The source material, e.g. "your notes" or "your course plan". */
   source?: string;
+  /** Plural source material for slow-run copy, e.g. "notes" or "plans". */
+  sourcePlural?: string;
 }) {
   if (!state.active) return null;
 
@@ -182,7 +189,7 @@ export function GenerationProgress({
             : 'text-xs text-brand-700/80'
         }
       >
-        {helperCopy(seconds)}
+        {helperCopy(seconds, source, sourcePlural)}
       </p>
 
       <style jsx>{`
