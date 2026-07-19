@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 
 import { useLoader } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { Box3, Group, Vector3 } from 'three';
 
 import type { PetStage } from '@/lib/pet-progress';
@@ -34,7 +35,11 @@ const STAGE_MODEL_SCALE: Record<PetStage, number> = {
 
 export function PetModel({ stage }: PetModelProps) {
   const path = STAGE_MODEL_PATHS[stage];
-  const gltf = useLoader(GLTFLoader, path);
+  // Models are meshopt-compressed (EXT_meshopt_compression) to keep the
+  // per-load download tiny — the decoder must be registered or they won't parse.
+  const gltf = useLoader(GLTFLoader, path, (loader) => {
+    loader.setMeshoptDecoder(MeshoptDecoder);
+  });
   const scene = useMemo(() => gltf.scene.clone(true) as Group, [gltf.scene]);
   const centeredScene = useMemo(() => {
     const clone = scene.clone(true) as Group;
