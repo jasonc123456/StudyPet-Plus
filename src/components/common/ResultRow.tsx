@@ -69,18 +69,18 @@ export function ResultRow({
 
         {hasStructured ? (
           <div className="space-y-1.5 pt-1">
-            {feedback?.whyCorrect ? (
-              <p>
-                <span className="theme-muted">Why this is correct: </span>
-                <span>{feedback.whyCorrect}</span>
-              </p>
-            ) : null}
             {!correct && feedback?.whyWrong ? (
               <p>
                 <span className="theme-muted">
                   Why your answer was not correct:{' '}
                 </span>
                 <span>{feedback.whyWrong}</span>
+              </p>
+            ) : null}
+            {feedback?.whyCorrect ? (
+              <p>
+                <span className="theme-muted">Why this is correct: </span>
+                <span>{feedback.whyCorrect}</span>
               </p>
             ) : null}
             {feedback?.concept ? (
