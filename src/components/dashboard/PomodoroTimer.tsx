@@ -109,7 +109,7 @@ export function PomodoroTimer() {
                 cy="90"
                 r={circleRadius}
                 fill="none"
-                stroke="rgb(var(--color-brand-500, 79 70 229) / 1)"
+                stroke="var(--accent)"
                 strokeWidth="12"
                 strokeLinecap="round"
                 strokeDasharray={circleCircumference}
