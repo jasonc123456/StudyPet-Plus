@@ -1,15 +1,26 @@
 import { getPetStageDisplay } from '@/lib/pet-display';
+import { derivePetLevelAndStage } from '@/lib/pet-xp';
 
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import type { DashboardPet } from '@/lib/dashboard';
 
 type PetSummaryProps = {
+  /** Live Pet row from Prisma via getDashboardData — never demo useState. */
   pet: DashboardPet | null;
 };
 
+/**
+ * US-4.10 — authenticated dashboard StudyPet widget.
+ * Values come from the database Pet model (name, XP, level, stage, streak).
+ * StudyPetHero on the marketing landing page remains a separate demo widget.
+ */
 export function PetSummary({ pet }: PetSummaryProps) {
-  const stage = pet ? getPetStageDisplay(pet.stage) : null;
+  // Prefer XP-derived stage/level so the widget always matches pet-xp thresholds,
+  // even if a row was seeded with mismatched stage text.
+  const derived = pet ? derivePetLevelAndStage(pet.xp) : null;
+  const stage = derived ? getPetStageDisplay(derived.stage) : null;
+  const level = derived?.level ?? pet?.level ?? 1;
 
   return (
     <section>
@@ -21,7 +32,8 @@ export function PetSummary({ pet }: PetSummaryProps) {
             🥚
           </span>
           <p className="mt-4 text-sm font-normal text-slate-500">
-            No StudyPet yet. Complete quests to hatch your companion.
+            No StudyPet yet. Review flashcards, finish a quiz, or complete a
+            quest to hatch your companion.
           </p>
         </DashboardPanel>
       ) : (
@@ -38,7 +50,7 @@ export function PetSummary({ pet }: PetSummaryProps) {
                 {pet.name}
               </p>
               <p className="mt-0.5 text-xs font-normal text-slate-500">
-                Lv {pet.level} · {stage.label}
+                Lv {level} · {stage.label}
               </p>
             </div>
           </div>
