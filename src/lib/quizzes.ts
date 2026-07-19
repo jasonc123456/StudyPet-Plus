@@ -14,7 +14,7 @@ import { recordStudyActivity, xpForQuizScore } from '@/lib/pet-xp';
 import { prisma } from '@/lib/prisma';
 import {
   buildWeakTopicMisconceptionReason,
-  normalizeGeneratedExplanation,
+  mergeTeachingExplanation,
   normalizeGeneratedHint,
 } from '@/lib/quiz-explanation';
 import type {
@@ -168,10 +168,13 @@ export async function generateAndSaveQuiz(
           question: q.question,
           choices: q.choices,
           correctIndex: q.answerIndex,
-          explanation: normalizeGeneratedExplanation(
-            q.explanation ?? null,
-            q.choices[q.answerIndex] ?? ''
-          ),
+          explanation: mergeTeachingExplanation({
+            explanation: q.explanation ?? null,
+            misconception: q.misconception ?? null,
+            correctAnswer: q.choices[q.answerIndex] ?? '',
+            question: q.question,
+            topic: q.topic,
+          }),
           hint: normalizeGeneratedHint(q.hint) || q.hint,
         })),
       },
@@ -286,6 +289,7 @@ export async function submitQuizAttempt(
     correctAnswer: sampleQuestion
       ? (sampleQuestion.choices[sampleQuestion.correctIndex] ?? null)
       : null,
+    question: sampleQuestion?.question ?? null,
   });
 
   const previousAttempt = await prisma.quizAttempt.findUnique({
@@ -429,6 +433,7 @@ async function resolveWeakTopicReviewTarget(args: {
   weakMissCount: number;
   userAnswer?: string | null;
   correctAnswer?: string | null;
+  question?: string | null;
 }): Promise<{
   reason: string | null;
   href: string | null;
@@ -442,6 +447,7 @@ async function resolveWeakTopicReviewTarget(args: {
     weakMissCount,
     userAnswer,
     correctAnswer,
+    question,
   } = args;
   if (!weakTopic) {
     return { reason: null, href: null, label: null };
@@ -452,6 +458,7 @@ async function resolveWeakTopicReviewTarget(args: {
     missCount: weakMissCount,
     userAnswer,
     correctAnswer,
+    question,
   });
 
   // Prefer a flashcard deck that covers the weak topic.

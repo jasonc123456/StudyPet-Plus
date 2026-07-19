@@ -82,8 +82,12 @@ export const quizQuestionSchema = z
     // 0-based index into `choices`.
     answerIndex: z.number().int().min(0),
     explanation: z.string().trim().max(1500).optional(),
-    // A nudge toward the answer without giving it away. Required in the contract;
-    // stored nullable so pre-redesign rows (there are none) wouldn't break.
+    /**
+     * Optional contrast for a likely wrong choice. Not stored as its own DB
+     * column — merged into `explanation` on save.
+     */
+    misconception: z.string().trim().max(800).optional(),
+    // A nudge toward the answer without giving it away.
     hint: z.string().trim().min(1).max(500),
   })
   .refine((q) => q.answerIndex < q.choices.length, {
