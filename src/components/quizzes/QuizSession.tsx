@@ -6,6 +6,8 @@ import { ModeCard } from '@/components/common/ModeCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ResultRow } from '@/components/common/ResultRow';
 import type { QuizMode, QuizQuestionData } from '@/components/quizzes/types';
+import { buildQuizResultFeedback } from '@/lib/quiz-explanation';
+import Link from 'next/link';
 
 type QuizSessionProps = {
   quizId: string;
@@ -21,6 +23,9 @@ type SubmitQuizAttemptResponse = {
   xpAwarded: number;
   completed: boolean;
   weakTopic: string | null;
+  weakTopicReason?: string | null;
+  reviewHref?: string | null;
+  reviewLabel?: string | null;
   error?: string;
 };
 
@@ -336,10 +341,30 @@ export function QuizSession({
           <ProgressBar value={correctCount} max={total} />
 
           {attemptSummary?.weakTopic ? (
-            <p className="theme-muted text-center text-sm">
-              Review next:{' '}
-              <span className="font-semibold">{attemptSummary.weakTopic}</span>
-            </p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm">
+              <p className="theme-muted text-xs font-medium uppercase tracking-wide">
+                Review next
+              </p>
+              <p className="mt-1 font-semibold text-slate-900">
+                {attemptSummary.weakTopic}
+              </p>
+              <p className="theme-muted mt-1">
+                {attemptSummary.weakTopicReason ??
+                  'This was your weakest topic in the quiz.'}
+              </p>
+              {attemptSummary.reviewHref ? (
+                <Link
+                  href={attemptSummary.reviewHref}
+                  className="btn-secondary mt-3 inline-flex px-3 py-1.5 text-sm"
+                >
+                  {attemptSummary.reviewLabel ?? 'Review topic'}
+                </Link>
+              ) : (
+                <p className="theme-muted mt-2 text-xs">
+                  Review your notes for this topic, then try the quiz again.
+                </p>
+              )}
+            </div>
           ) : null}
           {attemptSummary && attemptSummary.xpAwarded > 0 ? (
             <p className="text-center text-sm text-brand-600">
@@ -376,20 +401,31 @@ export function QuizSession({
         </div>
 
         <div className="flex flex-col gap-3">
-          {results.map(({ question, selected, correct }) => (
-            <ResultRow
-              key={question.id}
-              correct={correct}
-              question={question.question}
-              userAnswer={
-                selected !== undefined && selected >= 0
-                  ? question.choices[selected]
-                  : 'No answer'
-              }
-              correctAnswer={question.choices[question.correctIndex]}
-              explanation={question.explanation ?? undefined}
-            />
-          ))}
+          {results.map(({ question, selected, correct }) => {
+            const userAnswer =
+              selected !== undefined && selected >= 0
+                ? question.choices[selected]
+                : 'No answer';
+            const correctAnswer = question.choices[question.correctIndex];
+            const feedback = buildQuizResultFeedback({
+              correct,
+              userAnswer: userAnswer ?? 'No answer',
+              correctAnswer: correctAnswer ?? '',
+              explanation: question.explanation,
+              topic: question.topic,
+            });
+
+            return (
+              <ResultRow
+                key={question.id}
+                correct={correct}
+                question={question.question}
+                userAnswer={userAnswer}
+                correctAnswer={correctAnswer}
+                feedback={feedback}
+              />
+            );
+          })}
         </div>
       </div>
     );

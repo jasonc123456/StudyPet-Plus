@@ -8,8 +8,15 @@ export type ResultRowProps = {
   userAnswer: ReactNode;
   /** The right answer; shown when the user was wrong. */
   correctAnswer?: ReactNode;
-  /** Optional explanation / hint shown under the answers. */
+  /** Optional legacy single-paragraph explanation. */
   explanation?: ReactNode;
+  /** Structured teaching feedback (preferred over bare explanation). */
+  feedback?: {
+    verdict?: string;
+    whyCorrect?: string | null;
+    whyWrong?: string | null;
+    concept?: string | null;
+  };
 };
 
 /**
@@ -23,9 +30,15 @@ export function ResultRow({
   userAnswer,
   correctAnswer,
   explanation,
+  feedback,
 }: ResultRowProps) {
   const tone = correct ? 'var(--success)' : 'var(--danger)';
   const soft = correct ? 'var(--success-soft)' : 'var(--danger-soft)';
+  const hasStructured =
+    Boolean(feedback?.whyCorrect) ||
+    Boolean(feedback?.whyWrong) ||
+    Boolean(feedback?.concept);
+
   return (
     <div
       className="rounded-xl border p-4"
@@ -42,7 +55,7 @@ export function ResultRow({
           {correct ? '✓' : '✗'}
         </span>
       </div>
-      <div className="mt-2 space-y-1 text-sm">
+      <div className="mt-2 space-y-1.5 text-sm">
         <p>
           <span className="theme-muted">Your answer: </span>
           <span style={{ color: tone }}>{userAnswer}</span>
@@ -53,7 +66,30 @@ export function ResultRow({
             <span style={{ color: 'var(--success)' }}>{correctAnswer}</span>
           </p>
         )}
-        {explanation && <p className="theme-muted pt-1">{explanation}</p>}
+
+        {hasStructured ? (
+          <div className="space-y-1.5 pt-1">
+            {feedback?.whyCorrect ? (
+              <p>
+                <span className="theme-muted">Why this is correct: </span>
+                <span>{feedback.whyCorrect}</span>
+              </p>
+            ) : null}
+            {!correct && feedback?.whyWrong ? (
+              <p>
+                <span className="theme-muted">
+                  Why your answer was not correct:{' '}
+                </span>
+                <span>{feedback.whyWrong}</span>
+              </p>
+            ) : null}
+            {feedback?.concept ? (
+              <p className="theme-muted">{feedback.concept}</p>
+            ) : null}
+          </div>
+        ) : explanation ? (
+          <p className="theme-muted pt-1">{explanation}</p>
+        ) : null}
       </div>
     </div>
   );

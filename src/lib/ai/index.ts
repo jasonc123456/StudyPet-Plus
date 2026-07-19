@@ -201,7 +201,9 @@ function quizPrompt(
       'You are a study assistant that writes fair multiple-choice quiz ' +
       "questions from a student's notes and attached documents. Only use facts " +
       'present in the source; never invent material. Do not ask meta questions ' +
-      'about study skills or AI. Respond with JSON only.',
+      'about study skills or AI. Write teaching-style explanations that reason ' +
+      'about the concept — do not say only that "the notes say" an answer. ' +
+      'Respond with JSON only.',
     user:
       `Write ${count} multiple-choice questions from the source material.${hint}\n\n` +
       'Return a JSON object of the exact shape:\n' +
@@ -210,7 +212,10 @@ function quizPrompt(
       '"hint": string } ] }\n' +
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
-      '- "explanation" briefly says why the answer is correct.\n' +
+      '- "explanation" must teach in 1–3 sentences: why the correct choice is ' +
+      'right, what concept it illustrates, and (when helpful) the common ' +
+      'misconception behind a likely wrong distractor. Use the notes as evidence, ' +
+      'but never make the whole explanation "the notes list/state X".\n' +
       '- "hint" nudges the student toward the answer WITHOUT revealing which ' +
       'choice is correct (point at the relevant concept, not the option).' +
       sourceSection(source, attachments?.length ?? 0),
@@ -299,7 +304,10 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
       question: 'Which study technique this quiz demonstrates?',
       choices: ['Cramming', 'Active recall', 'Highlighting', 'Re-reading'],
       answerIndex: 1,
-      explanation: 'Answering questions from memory is active recall.',
+      explanation:
+        'Active recall means retrieving an answer from memory instead of ' +
+        're-reading it. That retrieval practice strengthens long-term memory, ' +
+        'unlike cramming or highlighting which feel familiar but check less.',
       hint: 'Think about retrieving the answer from memory, not reviewing it.',
     },
     {
@@ -312,7 +320,10 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'Upgrade Postgres',
       ],
       answerIndex: 1,
-      explanation: 'Configure LOCAL_AI_BASE_URL or GEMINI_API_KEY, demo off.',
+      explanation:
+        'Real quiz generation needs a configured AI provider. Set ' +
+        'LOCAL_AI_BASE_URL or GEMINI_API_KEY and turn AI_DEMO_MODE off so the ' +
+        'app can call the model instead of returning canned demo questions.',
       hint: 'It involves configuration, not hardware.',
     },
   ];
