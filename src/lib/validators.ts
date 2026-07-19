@@ -364,6 +364,34 @@ export const submitQuizAttemptSchema = z.object({
 
 export type SubmitQuizAttemptInput = z.infer<typeof submitQuizAttemptSchema>;
 
+/** Body for POST /api/quizzes/feedback (AI tutor hints/explanations). */
+export const quizFeedbackRequestSchema = z.object({
+  mode: z.enum(['review', 'practice', 'exam']),
+  sourceSnippet: z.string().trim().max(4000).optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        id: z.string().trim().max(80).optional(),
+        question: z.string().trim().min(1).max(500),
+        choices: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
+        selectedAnswer: z.string().trim().max(300).nullable().optional(),
+        correctAnswer: z.string().trim().min(1).max(300),
+        topic: z.string().trim().max(80).nullable().optional(),
+        correct: z.boolean().nullable().optional(),
+        purpose: z
+          .enum(['hint', 'feedback', 'both'])
+          .optional()
+          .default('feedback'),
+      })
+    )
+    .min(1)
+    .max(20),
+});
+
+export type QuizFeedbackRequestInput = z.infer<
+  typeof quizFeedbackRequestSchema
+>;
+
 // ---- Multi-factor auth (US-4.S1) ----
 
 /** A 6-digit TOTP code, tolerant of a space in the middle. */
