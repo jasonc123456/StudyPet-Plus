@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getVisibleStreakCount } from '@/lib/pet-xp';
 import { Prisma } from '@prisma/client';
+import { richTextToPlainText, hasVisibleRichText } from '@/lib/note-rich-text';
 
 export type DashboardPet = {
   name: string;
@@ -50,7 +51,10 @@ export type DashboardReviewNext = {
   noteId: string;
   noteTitle: string;
   quizId: string;
-  hasFlashcards: boolean;
+  flashcardCount: number;
+  recommendedAction: 'flashcards' | 'notes' | 'quiz';
+  recommendationReason: string;
+  rankingScore: number;
 };
 
 export type DashboardData = {
@@ -66,6 +70,89 @@ function weekWindowFrom(now: Date): { start: Date; end: Date } {
   const end = new Date(now);
   end.setDate(end.getDate() + 7);
   return { start: now, end };
+}
+
+function recencyScore(latestIncorrectAt: Date, now: Date): number {
+  const elapsedHours =
+    (now.getTime() - latestIncorrectAt.getTime()) / (1000 * 60 * 60);
+
+  if (elapsedHours <= 24) return 15;
+  if (elapsedHours <= 72) return 10;
+  if (elapsedHours <= 168) return 5;
+  return 2;
+}
+
+function scoreStudyActions(args: {
+  incorrectCount: number;
+  latestIncorrectAt: Date;
+  flashcardCount: number;
+  noteWordCount: number;
+  now: Date;
+}) {
+  const {
+    incorrectCount,
+    latestIncorrectAt,
+    flashcardCount,
+    noteWordCount,
+    now,
+  } = args;
+
+  const weaknessScore = incorrectCount * 12;
+  const freshnessScore = recencyScore(latestIncorrectAt, now);
+  const noteDepthScore =
+    noteWordCount >= 250 ? 6 : noteWordCount >= 100 ? 4 : 2;
+
+  const flashcards =
+    flashcardCount > 0
+      ? 26 +
+        weaknessScore +
+        freshnessScore +
+        Math.min(flashcardCount, 5) * 3 +
+        (incorrectCount >= 2 ? 8 : 0)
+      : Number.NEGATIVE_INFINITY;
+
+  const notes =
+    24 +
+    weaknessScore +
+    freshnessScore +
+    noteDepthScore +
+    (flashcardCount === 0 ? 8 : 0) +
+    (incorrectCount >= 3 ? 6 : 0);
+
+  const quiz =
+    20 +
+    weaknessScore +
+    Math.max(0, 10 - freshnessScore) +
+    (incorrectCount === 1 ? 10 : 4);
+
+  return { flashcards, notes, quiz };
+}
+
+function recommendationReason(args: {
+  action: DashboardReviewNext['recommendedAction'];
+  incorrectCount: number;
+  flashcardCount: number;
+  noteTitle: string;
+}) {
+  const { action, incorrectCount, flashcardCount, noteTitle } = args;
+
+  if (action === 'flashcards') {
+    return `You already have ${flashcardCount} flashcard${
+      flashcardCount === 1 ? '' : 's'
+    } in “${noteTitle}”, so quick active recall is the fastest way to patch ${incorrectCount} missed question${
+      incorrectCount === 1 ? '' : 's'
+    }.`;
+  }
+
+  if (action === 'notes') {
+    return `Go back through “${noteTitle}” first because this topic has caused ${incorrectCount} missed question${
+      incorrectCount === 1 ? '' : 's'
+    } and the underlying concept needs a fuller read-through before retesting.`;
+  }
+
+  return `Retake the quiz next to check whether this weak spot sticks after review. This topic has already missed ${incorrectCount} question${
+    incorrectCount === 1 ? '' : 's'
+  }.`;
 }
 
 async function getWeakTopicResults(userId: string) {
@@ -101,10 +188,10 @@ async function getWeakTopicResults(userId: string) {
                   select: {
                     id: true,
                     title: true,
+                    content: true,
                     flashcards: {
                       where: { userId },
-                      select: { id: true },
-                      take: 1,
+                      select: { id: true, topic: true },
                     },
                   },
                 },
@@ -236,7 +323,19 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
 
   const reviewNextMap = new Map<
     string,
-    DashboardReviewNext & { latestIncorrectAt: Date }
+    {
+      topic: string;
+      incorrectCount: number;
+      noteId: string;
+      noteTitle: string;
+      quizId: string;
+      flashcardCount: number;
+      latestIncorrectAt: Date;
+      noteWordCount: number;
+      rankingScore: number;
+      recommendedAction: DashboardReviewNext['recommendedAction'];
+      recommendationReason: string;
+    }
   >();
 
   for (const result of weakTopicResults) {
@@ -246,16 +345,56 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
 
     const key = `${note.id}:${topic.toLowerCase()}`;
     const existing = reviewNextMap.get(key);
+    const topicFlashcardCount = note.flashcards.filter(
+      (flashcard) =>
+        flashcard.topic.trim().toLowerCase() === topic.toLowerCase()
+    ).length;
+    const totalFlashcardCount = note.flashcards.length;
+    const flashcardCount =
+      topicFlashcardCount > 0 ? topicFlashcardCount : totalFlashcardCount;
+    const noteWordCount = hasVisibleRichText(note.content)
+      ? richTextToPlainText(note.content).split(/\s+/).filter(Boolean).length
+      : 0;
 
     if (!existing) {
+      const actionScores = scoreStudyActions({
+        incorrectCount: 1,
+        latestIncorrectAt: result.createdAt,
+        flashcardCount,
+        noteWordCount,
+        now,
+      });
+      const recommendedAction =
+        actionScores.flashcards >= actionScores.notes &&
+        actionScores.flashcards >= actionScores.quiz
+          ? 'flashcards'
+          : actionScores.notes >= actionScores.quiz
+            ? 'notes'
+            : 'quiz';
+      const rankingScore =
+        recommendedAction === 'flashcards'
+          ? actionScores.flashcards
+          : recommendedAction === 'notes'
+            ? actionScores.notes
+            : actionScores.quiz;
+
       reviewNextMap.set(key, {
         topic,
         incorrectCount: 1,
         noteId: note.id,
         noteTitle: note.title,
         quizId: result.question.quiz.id,
-        hasFlashcards: note.flashcards.length > 0,
+        flashcardCount,
         latestIncorrectAt: result.createdAt,
+        noteWordCount,
+        rankingScore,
+        recommendedAction,
+        recommendationReason: recommendationReason({
+          action: recommendedAction,
+          incorrectCount: 1,
+          flashcardCount,
+          noteTitle: note.title,
+        }),
       });
       continue;
     }
@@ -265,12 +404,39 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       existing.latestIncorrectAt = result.createdAt;
       existing.quizId = result.question.quiz.id;
     }
+
+    const actionScores = scoreStudyActions({
+      incorrectCount: existing.incorrectCount,
+      latestIncorrectAt: existing.latestIncorrectAt,
+      flashcardCount: existing.flashcardCount,
+      noteWordCount: existing.noteWordCount,
+      now,
+    });
+    existing.recommendedAction =
+      actionScores.flashcards >= actionScores.notes &&
+      actionScores.flashcards >= actionScores.quiz
+        ? 'flashcards'
+        : actionScores.notes >= actionScores.quiz
+          ? 'notes'
+          : 'quiz';
+    existing.rankingScore =
+      existing.recommendedAction === 'flashcards'
+        ? actionScores.flashcards
+        : existing.recommendedAction === 'notes'
+          ? actionScores.notes
+          : actionScores.quiz;
+    existing.recommendationReason = recommendationReason({
+      action: existing.recommendedAction,
+      incorrectCount: existing.incorrectCount,
+      flashcardCount: existing.flashcardCount,
+      noteTitle: existing.noteTitle,
+    });
   }
 
   const reviewNext =
     [...reviewNextMap.values()].sort((a, b) => {
-      if (b.incorrectCount !== a.incorrectCount) {
-        return b.incorrectCount - a.incorrectCount;
+      if (b.rankingScore !== a.rankingScore) {
+        return b.rankingScore - a.rankingScore;
       }
 
       return b.latestIncorrectAt.getTime() - a.latestIncorrectAt.getTime();
@@ -293,7 +459,10 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
           noteId: reviewNext.noteId,
           noteTitle: reviewNext.noteTitle,
           quizId: reviewNext.quizId,
-          hasFlashcards: reviewNext.hasFlashcards,
+          flashcardCount: reviewNext.flashcardCount,
+          recommendedAction: reviewNext.recommendedAction,
+          recommendationReason: reviewNext.recommendationReason,
+          rankingScore: reviewNext.rankingScore,
         }
       : null,
   };

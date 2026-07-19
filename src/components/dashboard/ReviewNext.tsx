@@ -11,7 +11,25 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
   const incorrectSummary = recommendation
     ? `This topic has tripped you up ${recommendation.incorrectCount} time${
         recommendation.incorrectCount === 1 ? '' : 's'
-      } across saved quiz attempts. Jump back into the matching study materials.`
+      } across saved quiz attempts.`
+    : null;
+
+  const primaryActionLabel = recommendation
+    ? recommendation.recommendedAction === 'flashcards'
+      ? `Review ${recommendation.flashcardCount} flashcard${
+          recommendation.flashcardCount === 1 ? '' : 's'
+        }`
+      : recommendation.recommendedAction === 'notes'
+        ? 'Read through the note'
+        : 'Retake the quiz'
+    : null;
+
+  const primaryActionHref = recommendation
+    ? recommendation.recommendedAction === 'flashcards'
+      ? `/dashboard/flashcards/study/${recommendation.noteId}`
+      : recommendation.recommendedAction === 'notes'
+        ? `/dashboard/notes/${recommendation.noteId}`
+        : `/dashboard/quizzes?noteId=${recommendation.noteId}&retake=latest`
     : null;
 
   return (
@@ -26,6 +44,10 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
               {recommendation.topic}
             </h2>
             <p className="mt-2 text-sm text-slate-500">{incorrectSummary}</p>
+            <p className="mt-2 text-sm font-medium text-slate-700">
+              Recommended first:{' '}
+              <span className="text-brand-600">{primaryActionLabel}</span>
+            </p>
           </>
         ) : (
           <>
@@ -46,29 +68,45 @@ export function ReviewNext({ recommendation }: ReviewNextProps) {
             <p className="text-sm font-medium text-slate-900">
               From note: {recommendation.noteTitle}
             </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {recommendation.recommendationReason}
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/dashboard/notes/${recommendation.noteId}`}
-              className="btn-secondary px-4 py-2 text-sm"
-            >
-              Review notes
-            </Link>
-            <Link
-              href={`/dashboard/quizzes?noteId=${recommendation.noteId}&retake=latest`}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              Retake quiz
-            </Link>
-            <Link
-              href={`/dashboard/flashcards/study/${recommendation.noteId}`}
-              className="btn-secondary px-4 py-2 text-sm"
-            >
-              {recommendation.hasFlashcards
-                ? 'Review flashcards'
-                : 'Open flashcards'}
-            </Link>
+            {primaryActionHref ? (
+              <Link
+                href={primaryActionHref}
+                className="btn-primary px-4 py-2 text-sm"
+              >
+                {primaryActionLabel}
+              </Link>
+            ) : null}
+            {recommendation.recommendedAction !== 'notes' ? (
+              <Link
+                href={`/dashboard/notes/${recommendation.noteId}`}
+                className="btn-secondary px-4 py-2 text-sm"
+              >
+                Review notes
+              </Link>
+            ) : null}
+            {recommendation.recommendedAction !== 'quiz' ? (
+              <Link
+                href={`/dashboard/quizzes?noteId=${recommendation.noteId}&retake=latest`}
+                className="btn-secondary px-4 py-2 text-sm"
+              >
+                Retake quiz
+              </Link>
+            ) : null}
+            {recommendation.recommendedAction !== 'flashcards' &&
+            recommendation.flashcardCount > 0 ? (
+              <Link
+                href={`/dashboard/flashcards/study/${recommendation.noteId}`}
+                className="btn-secondary px-4 py-2 text-sm"
+              >
+                Review flashcards
+              </Link>
+            ) : null}
           </div>
         </>
       ) : null}
