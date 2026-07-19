@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { richTextToPlainText, hasVisibleRichText } from '@/lib/note-rich-text';
 
 export type DashboardPet = {
+  id: string;
   name: string;
   xp: number;
   level: number;
@@ -286,6 +287,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     prisma.pet.findUnique({
       where: { userId },
       select: {
+        id: true,
         name: true,
         xp: true,
         level: true,
@@ -299,6 +301,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
 
   const basePet = petRow
     ? {
+        id: petRow.id,
         name: petRow.name,
         xp: petRow.xp,
         level: petRow.level,

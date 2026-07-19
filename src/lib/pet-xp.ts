@@ -11,7 +11,6 @@ export {
   derivePetLevelAndStage,
   FLASHCARD_REVIEW_XP,
   PET_STAGE_KEYS,
-  PET_STAGE_XP_THRESHOLDS,
   QUIZ_COMPLETION_XP_TIERS,
   xpForFlashcardReview,
   xpForQuizScore,

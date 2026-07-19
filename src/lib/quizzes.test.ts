@@ -229,8 +229,8 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
   });
 
   it('evolves the pet stage when quiz XP crosses a threshold', async () => {
-    // 80 previous + 15 = 95 ≥ 90 → hatchling (level 2).
-    txMock.pet.findUnique.mockResolvedValue(mockPetRow(80) as never);
+    // 370 previous + 15 = 385 → level 3 → hatchling.
+    txMock.pet.findUnique.mockResolvedValue(mockPetRow(370) as never);
 
     await submitQuizAttempt({
       userId: USER_ID,
@@ -242,8 +242,8 @@ describe('submitQuizAttempt — pet XP awarding (US-4.05)', () => {
     expect(txMock.pet.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({
-          xp: 95,
-          level: 2,
+          xp: 385,
+          level: 3,
           stage: 'hatchling',
         }),
       })

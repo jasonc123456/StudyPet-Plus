@@ -493,3 +493,74 @@ html[data-theme='dark'] [role='switch'] .bg-white {
   background-size: 200% 200%;
   animation: gradient-pan 12s ease infinite;
 }
+
+@keyframes pet-xp-float {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.92);
+  }
+  15% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-18px) scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-34px) scale(1.06);
+  }
+}
+
+@keyframes pet-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes pet-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-2deg);
+  }
+  75% {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes pet-bounce {
+  0% {
+    transform: translateY(0) scale(0.98);
+  }
+  30% {
+    transform: translateY(-12px) scale(1.05);
+  }
+  60% {
+    transform: translateY(0) scale(0.99);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pet-idle-breathe {
+  animation: pet-breathe 4.8s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.pet-hover-wiggle:hover {
+  animation: pet-wiggle 1.1s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.animate-pet-bounce {
+  animation: pet-bounce 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}

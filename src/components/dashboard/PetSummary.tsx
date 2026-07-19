@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 import { getPetStageDisplay } from '@/lib/pet-display';
 import { derivePetLevelAndStage } from '@/lib/pet-xp';
 
+=======
+>>>>>>> 3183be4 (adding pet models)
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
+import { StudyPetCard } from '@/components/dashboard/StudyPetCard';
+import { StudyPet } from '@/components/dashboard/pet/StudyPet';
 import type { DashboardPet } from '@/lib/dashboard';
 
 type PetSummaryProps = {
@@ -16,21 +21,24 @@ type PetSummaryProps = {
  * StudyPetHero on the marketing landing page remains a separate demo widget.
  */
 export function PetSummary({ pet }: PetSummaryProps) {
+<<<<<<< HEAD
   // Prefer XP-derived stage/level so the widget always matches pet-xp thresholds,
   // even if a row was seeded with mismatched stage text.
   const derived = pet ? derivePetLevelAndStage(pet.xp) : null;
   const stage = derived ? getPetStageDisplay(derived.stage) : null;
   const level = derived?.level ?? pet?.level ?? 1;
 
+=======
+>>>>>>> 3183be4 (adding pet models)
   return (
     <section>
       <DashboardSectionHeader title="StudyPet" />
 
-      {!pet || !stage ? (
+      {!pet ? (
         <DashboardPanel className="flex flex-col items-center text-center">
-          <span className="text-4xl opacity-80" aria-hidden>
-            🥚
-          </span>
+          <div className="h-44 w-44">
+            <StudyPet stage="egg" mood="happy" xpProgress={10} />
+          </div>
           <p className="mt-4 text-sm font-normal text-slate-500">
             No StudyPet yet. Review flashcards, finish a quiz, or complete a
             quest to hatch your companion.
@@ -38,6 +46,7 @@ export function PetSummary({ pet }: PetSummaryProps) {
         </DashboardPanel>
       ) : (
         <DashboardPanel>
+<<<<<<< HEAD
           <div className="flex items-center gap-4">
             <span
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50/90 to-violet-50/80 text-3xl ring-1 ring-inset ring-indigo-100/60"
@@ -76,6 +85,9 @@ export function PetSummary({ pet }: PetSummaryProps) {
               </dd>
             </div>
           </dl>
+=======
+          <StudyPetCard pet={pet} />
+>>>>>>> 3183be4 (adding pet models)
         </DashboardPanel>
       )}
     </section>
