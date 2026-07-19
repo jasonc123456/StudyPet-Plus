@@ -76,6 +76,10 @@ export function PomodoroTimer() {
     0,
     Math.min(100, (secondsLeft / (progressBase * 60)) * 100)
   );
+  const circleRadius = 72;
+  const circleCircumference = 2 * Math.PI * circleRadius;
+  const circleOffset =
+    circleCircumference - (progressPercent / 100) * circleCircumference;
 
   return (
     <section>
@@ -86,24 +90,43 @@ export function PomodoroTimer() {
         </p>
 
         <div className="mt-5 flex items-center justify-center">
-          <div className="flex h-40 w-40 items-center justify-center rounded-full border-[10px] border-slate-100 bg-white shadow-inner">
-            <div className="text-center">
-              <p className="text-[11px] font-medium uppercase tracking-widest text-neutral-400">
-                Focus
-              </p>
-              <p className="mt-2 text-4xl font-semibold tabular-nums tracking-tight text-slate-900">
-                {formatTime(secondsLeft)}
-              </p>
+          <div className="relative flex h-44 w-44 items-center justify-center">
+            <svg
+              viewBox="0 0 180 180"
+              className="absolute inset-0 h-full w-full -rotate-90"
+              aria-hidden="true"
+            >
+              <circle
+                cx="90"
+                cy="90"
+                r={circleRadius}
+                fill="none"
+                stroke="rgb(255 255 255 / 1)"
+                strokeWidth="12"
+              />
+              <circle
+                cx="90"
+                cy="90"
+                r={circleRadius}
+                fill="none"
+                stroke="rgb(var(--color-brand-500, 79 70 229) / 1)"
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={circleCircumference}
+                strokeDashoffset={circleOffset}
+                className="transition-all duration-1000 ease-linear"
+              />
+            </svg>
+            <div className="flex h-36 w-36 items-center justify-center rounded-full bg-white shadow-inner">
+              <div className="text-center">
+                <p className="text-[11px] font-medium uppercase tracking-widest text-neutral-400">
+                  Focus
+                </p>
+                <p className="mt-2 text-4xl font-semibold tabular-nums tracking-tight text-slate-900">
+                  {formatTime(secondsLeft)}
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-brand-500 transition-all duration-1000"
-              style={{ width: `${progressPercent}%` }}
-            />
           </div>
         </div>
 
