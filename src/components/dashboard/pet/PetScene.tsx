@@ -2,7 +2,6 @@
 
 import { Suspense } from 'react';
 
-import { OrbitControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 
 import { PetModel } from '@/components/dashboard/pet/PetModel';
@@ -81,14 +80,6 @@ function PetSceneCanvas({ stage }: Pick<PetSceneProps, 'stage'>) {
           <PetModel stage={stage} />
         </group>
       </Suspense>
-      <OrbitControls
-        enablePan={false}
-        enableZoom={false}
-        minPolarAngle={Math.PI / 2.35}
-        maxPolarAngle={Math.PI / 1.9}
-        minAzimuthAngle={-0.7}
-        maxAzimuthAngle={0.7}
-      />
     </Canvas>
   );
 }

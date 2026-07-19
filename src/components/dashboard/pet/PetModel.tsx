@@ -2,8 +2,9 @@
 
 import { useMemo } from 'react';
 
-import { Center, useGLTF } from '@react-three/drei';
-import type { Group } from 'three';
+import { useLoader } from '@react-three/fiber';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { Box3, Group, Vector3 } from 'three';
 
 import type { PetStage } from '@/lib/pet-progress';
 
@@ -33,20 +34,31 @@ const STAGE_MODEL_SCALE: Record<PetStage, number> = {
 
 export function PetModel({ stage }: PetModelProps) {
   const path = STAGE_MODEL_PATHS[stage];
-  const gltf = useGLTF(path);
+  const gltf = useLoader(GLTFLoader, path);
   const scene = useMemo(() => gltf.scene.clone(true) as Group, [gltf.scene]);
+  const centeredScene = useMemo(() => {
+    const clone = scene.clone(true) as Group;
+    const box = new Box3().setFromObject(clone);
+    const center = new Vector3();
+    const size = new Vector3();
+
+    box.getCenter(center);
+    box.getSize(size);
+
+    clone.position.set(-center.x, -box.min.y, -center.z);
+
+    return {
+      object: clone,
+      height: size.y || 1,
+    };
+  }, [scene]);
 
   return (
-    <Center>
-      <primitive object={scene} scale={STAGE_MODEL_SCALE[stage]} />
-    </Center>
+    <group
+      position={[0, -centeredScene.height * 0.08, 0]}
+      scale={STAGE_MODEL_SCALE[stage]}
+    >
+      <primitive object={centeredScene.object} />
+    </group>
   );
 }
-
-useGLTF.preload('/models/egg.glb');
-useGLTF.preload('/models/hatchling.glb');
-useGLTF.preload('/models/baby.glb');
-useGLTF.preload('/models/toddler.glb');
-useGLTF.preload('/models/teen.glb');
-useGLTF.preload('/models/adult.glb');
-useGLTF.preload('/models/beast.glb');
