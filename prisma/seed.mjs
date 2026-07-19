@@ -127,8 +127,8 @@ const demoQuests = [
 // Static placeholder pet (live XP/streak/evolution logic lands in Sprint 4).
 const demoPet = {
   name: 'Pixel',
-  xp: 120,
-  level: 2,
+  xp: 420,
+  level: 3,
   stage: 'hatchling',
   streakCount: 3,
   lastStudyDate: daysFromNow(0),

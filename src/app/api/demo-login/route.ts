@@ -115,8 +115,8 @@ const demoQuests = [
 
 const demoPet = {
   name: 'Pixel',
-  xp: 120,
-  level: 2,
+  xp: 420,
+  level: 3,
   stage: 'hatchling',
   streakCount: 3,
   lastStudyDate: daysFromNow(0),

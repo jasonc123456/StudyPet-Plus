@@ -281,7 +281,7 @@ model Pet {
   name          String    @default("StudyPet")
   xp            Int       @default(0)
   level         Int       @default(1)
-  stage         String    @default("egg") // egg | hatchling | chick | owl | dragon
+  stage         String    @default("egg") // egg | hatchling | baby | toddler | teen | adult | beast
   streakCount   Int       @default(0)
   lastStudyDate DateTime?
   createdAt     DateTime  @default(now())
