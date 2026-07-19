@@ -12,6 +12,10 @@ import {
 import { assembleNoteSource, defaultEntityTitle } from '@/lib/note-sources';
 import { recordStudyActivity, xpForQuizScore } from '@/lib/pet-xp';
 import { prisma } from '@/lib/prisma';
+import {
+  buildWeakTopicMisconceptionReason,
+  normalizeGeneratedExplanation,
+} from '@/lib/quiz-explanation';
 import type {
   Quiz,
   QuizAttempt,
@@ -163,7 +167,10 @@ export async function generateAndSaveQuiz(
           question: q.question,
           choices: q.choices,
           correctIndex: q.answerIndex,
-          explanation: q.explanation ?? null,
+          explanation: normalizeGeneratedExplanation(
+            q.explanation ?? null,
+            q.choices[q.answerIndex] ?? ''
+          ),
           hint: q.hint,
         })),
       },
@@ -252,12 +259,32 @@ export async function submitQuizAttempt(
   const weakTopic = weakTopicEntry?.[0] ?? null;
   const weakMissCount = weakTopicEntry?.[1] ?? 0;
 
+  const sampleMiss =
+    weakTopic == null
+      ? null
+      : (resultRows.find(
+          (result) => !result.isCorrect && result.topic === weakTopic
+        ) ?? null);
+  const sampleQuestion =
+    sampleMiss == null
+      ? null
+      : (quiz.questions.find(
+          (question) => question.id === sampleMiss.questionId
+        ) ?? null);
+
   const reviewNext = await resolveWeakTopicReviewTarget({
     userId: input.userId,
     quizId: quiz.id,
     noteId: quiz.noteId,
     weakTopic,
     weakMissCount,
+    userAnswer:
+      sampleMiss && sampleQuestion
+        ? (sampleQuestion.choices[sampleMiss.selectedIndex] ?? null)
+        : null,
+    correctAnswer: sampleQuestion
+      ? (sampleQuestion.choices[sampleQuestion.correctIndex] ?? null)
+      : null,
   });
 
   const previousAttempt = await prisma.quizAttempt.findUnique({
@@ -399,20 +426,32 @@ async function resolveWeakTopicReviewTarget(args: {
   noteId: string | null;
   weakTopic: string | null;
   weakMissCount: number;
+  userAnswer?: string | null;
+  correctAnswer?: string | null;
 }): Promise<{
   reason: string | null;
   href: string | null;
   label: string | null;
 }> {
-  const { userId, quizId, noteId, weakTopic, weakMissCount } = args;
+  const {
+    userId,
+    quizId,
+    noteId,
+    weakTopic,
+    weakMissCount,
+    userAnswer,
+    correctAnswer,
+  } = args;
   if (!weakTopic) {
     return { reason: null, href: null, label: null };
   }
 
-  const reason =
-    weakMissCount === 1
-      ? `You missed a question on “${weakTopic}” in this quiz.`
-      : `You missed ${weakMissCount} questions on “${weakTopic}” — your weakest topic this run.`;
+  const reason = buildWeakTopicMisconceptionReason({
+    topic: weakTopic,
+    missCount: weakMissCount,
+    userAnswer,
+    correctAnswer,
+  });
 
   // Prefer a flashcard deck that covers the weak topic.
   const matchingCard = await prisma.flashcard.findFirst({
