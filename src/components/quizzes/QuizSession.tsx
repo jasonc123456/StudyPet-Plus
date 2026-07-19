@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModeCard } from '@/components/common/ModeCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ResultRow } from '@/components/common/ResultRow';
+import { AiExplanationDisclaimer } from '@/components/quizzes/AiExplanationDisclaimer';
 import type { QuizMode, QuizQuestionData } from '@/components/quizzes/types';
 import {
   buildFallbackTutorFeedback,
@@ -546,6 +547,9 @@ export function QuizSession({
                   attemptSummary.weakTopicReason ??
                   'This was your weakest topic in the quiz.'}
               </p>
+              {reviewNextOverride ? (
+                <AiExplanationDisclaimer className="mt-2" />
+              ) : null}
               {attemptSummary.reviewHref ? (
                 <Link
                   href={attemptSummary.reviewHref}
@@ -595,6 +599,7 @@ export function QuizSession({
         </div>
 
         <div className="flex flex-col gap-3">
+          <AiExplanationDisclaimer />
           {results.map(({ question, selected, correct }) => {
             const userAnswer =
               selected !== undefined && selected >= 0
@@ -854,6 +859,7 @@ export function QuizSession({
                       <p>Concept to review: {tutor.conceptToReview}.</p>
                     ) : null}
                   </div>
+                  <AiExplanationDisclaimer className="mt-3" />
                 </div>
               );
             })()
