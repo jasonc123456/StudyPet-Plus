@@ -123,7 +123,7 @@ export function CalendarEventStatusControl({
               aria-checked={active}
               disabled={!editable || saving || active}
               onClick={() => selectStatus(assignmentStatus.value)}
-              className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-full px-3 py-0 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
                 active
                   ? (STATUS_ACTIVE_CLASSES[assignmentStatus.value] ??
                     'bg-slate-600 text-white shadow-sm')

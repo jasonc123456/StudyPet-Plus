@@ -58,7 +58,7 @@ export function CalendarStatusButtons({
             aria-checked={active}
             disabled={disabled || saving || active}
             onClick={() => onSelect(option.value)}
-            className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-full px-3 py-0 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+            className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
               active
                 ? (STATUS_ACTIVE_CLASSES[option.value.toLowerCase()] ??
                   'bg-slate-600 text-white shadow-sm')
