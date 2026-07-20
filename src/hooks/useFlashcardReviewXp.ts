@@ -2,7 +2,9 @@
 
 import { useCallback, useRef } from 'react';
 
+import { useLivePetOptional } from '@/components/LivePetProvider';
 import { FLASHCARD_REVIEW_XP } from '@/lib/pet-xp.constants';
+import type { PetSnapshot } from '@/lib/pet-snapshot';
 
 export { FLASHCARD_REVIEW_XP };
 
@@ -21,6 +23,7 @@ export type FlashcardReviewXpResult = {
 const XP_REQUEST_TIMEOUT_MS = 8_000;
 
 type PetXpResponse = {
+  pet?: PetSnapshot | null;
   xpAwarded?: number;
   error?: string;
 };
@@ -31,6 +34,7 @@ type PetXpResponse = {
  * Failures never throw — study flow is never interrupted.
  */
 export function useFlashcardReviewXp() {
+  const livePet = useLivePetOptional();
   const inFlightRef = useRef<Set<string>>(new Set());
   // Cards the server has already resolved this session (awarded, or already
   // earned today) — re-marking them must not refire a request or flash "+XP".
@@ -79,6 +83,10 @@ export function useFlashcardReviewXp() {
         }
 
         const data = (await response.json()) as PetXpResponse;
+        if (data.pet !== undefined) {
+          livePet?.applyPet(data.pet);
+        }
+
         const xp =
           typeof data.xpAwarded === 'number' && data.xpAwarded > 0
             ? data.xpAwarded
@@ -101,7 +109,7 @@ export function useFlashcardReviewXp() {
         inFlightRef.current.delete(event.cardId);
       }
     },
-    []
+    [livePet]
   );
 
   return { recordReview };
