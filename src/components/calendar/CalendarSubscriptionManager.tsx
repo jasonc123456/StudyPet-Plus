@@ -283,12 +283,12 @@ export function CalendarSubscriptionManager({
           </button>
         </div>
 
-        <label className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 lg:col-span-12">
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3.5 lg:col-span-12">
           <input
             type="checkbox"
             checked={autoSync}
             onChange={(event) => setAutoSync(event.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
           />
           <span className="text-sm">
             <span className="font-semibold text-slate-800">

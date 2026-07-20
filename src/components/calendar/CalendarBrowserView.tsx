@@ -169,6 +169,58 @@ function formatEventRange(event: ParsedEvent, timeZone?: string) {
   return `${start} – ${formatEventTime(event.endsAtDate, false, timeZone)}`;
 }
 
+/**
+ * Bucket a day's events by task status for the compact mobile summary. Anything
+ * without a to-do/in-progress/done status (quests, plain imported events) falls
+ * into `other` so nothing silently vanishes from the count.
+ */
+function statusCounts(events: ParsedEvent[]) {
+  const counts = { todo: 0, in_progress: 0, done: 0, other: 0 };
+  for (const event of events) {
+    const key = event.status?.toLowerCase();
+    if (key === 'todo' || key === 'in_progress' || key === 'done') {
+      counts[key] += 1;
+    } else {
+      counts.other += 1;
+    }
+  }
+  return counts;
+}
+
+/**
+ * Mobile-only per-day summary: one small glyph + number per status present, so a
+ * cramped phone cell shows how many things are to-do / in-progress / done
+ * instead of unreadable truncated event text. Tapping the day opens the full
+ * list in the agenda below.
+ */
+function DayStatusChips({ events }: { events: ParsedEvent[] }) {
+  const counts = statusCounts(events);
+  const buckets = (['todo', 'in_progress', 'done'] as const).filter(
+    (key) => counts[key] > 0
+  );
+
+  return (
+    <>
+      {buckets.map((key) => (
+        <span key={key} className="inline-flex items-center gap-0.5">
+          <EventStatusIcon status={key} className="h-3 w-3" />
+          <span className="text-[10px] font-semibold tabular-nums text-slate-600">
+            {counts[key]}
+          </span>
+        </span>
+      ))}
+      {counts.other > 0 && (
+        <span className="inline-flex items-center gap-0.5">
+          <span className="h-2 w-2 rounded-full bg-slate-300" aria-hidden />
+          <span className="text-[10px] font-semibold tabular-nums text-slate-600">
+            {counts.other}
+          </span>
+        </span>
+      )}
+    </>
+  );
+}
+
 /** The subtle uppercase pill on the right of an agenda card. */
 function SourceBadge({ event }: { event: ParsedEvent }) {
   if (event.ignored) {
@@ -539,101 +591,122 @@ export function CalendarBrowserView({
           </button>
         </div>
 
-        <div className="-mx-1 max-w-full overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
-          <div className="min-w-[36rem] sm:min-w-0">
-            <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:gap-2 sm:text-xs">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
-                (label) => (
-                  <div key={label} className="py-1 sm:py-2">
-                    <span className="sm:hidden">{label.slice(0, 1)}</span>
-                    <span className="hidden sm:inline">{label}</span>
-                  </div>
-                )
-              )}
+        <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:gap-2 sm:text-xs">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label) => (
+            <div key={label} className="py-1 sm:py-2">
+              <span className="sm:hidden">{label.slice(0, 1)}</span>
+              <span className="hidden sm:inline">{label}</span>
             </div>
+          ))}
+        </div>
 
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-              {monthDays.map((day) => {
-                const dayKey = toDayKey(day);
-                const dayEvents = eventsByDay[dayKey] ?? [];
-                const isSelected = dayKey === selectedDayKey;
-                const isCurrentMonth = day.getMonth() === monthDate.getMonth();
-                const isToday = dayKey === todayKey;
+        {/* On phones each cell shows per-status counts instead of event text;
+            this legend explains the glyphs. Hidden once the full agenda-style
+            cells return at sm. */}
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500 sm:hidden">
+          <span className="inline-flex items-center gap-1">
+            <EventStatusIcon status="todo" className="h-3 w-3" />
+            To do
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <EventStatusIcon status="in_progress" className="h-3 w-3" />
+            In progress
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <EventStatusIcon status="done" className="h-3 w-3" />
+            Done
+          </span>
+        </div>
 
-                return (
-                  <Link
-                    key={dayKey}
-                    href={buildCalendarHref(monthKey, dayKey)}
+        <div className="mt-3 grid grid-cols-7 gap-1 sm:mt-0 sm:gap-2">
+          {monthDays.map((day) => {
+            const dayKey = toDayKey(day);
+            const dayEvents = eventsByDay[dayKey] ?? [];
+            const isSelected = dayKey === selectedDayKey;
+            const isCurrentMonth = day.getMonth() === monthDate.getMonth();
+            const isToday = dayKey === todayKey;
+
+            return (
+              <Link
+                key={dayKey}
+                href={buildCalendarHref(monthKey, dayKey)}
+                className={[
+                  'min-h-16 rounded-xl border p-1 text-left transition sm:min-h-28 sm:rounded-2xl sm:p-3',
+                  isSelected
+                    ? 'border-brand-300 bg-brand-50'
+                    : 'border-slate-200 bg-white hover:border-brand-200',
+                  !isCurrentMonth ? 'opacity-55' : '',
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-between gap-1 sm:gap-2">
+                  <span
                     className={[
-                      'min-h-16 rounded-xl border p-1 text-left transition sm:min-h-28 sm:rounded-2xl sm:p-3',
-                      isSelected
-                        ? 'border-brand-300 bg-brand-50'
-                        : 'border-slate-200 bg-white hover:border-brand-200',
-                      !isCurrentMonth ? 'opacity-55' : '',
+                      'text-xs font-semibold sm:text-sm',
+                      isToday
+                        ? 'rounded-full bg-brand-600 px-1.5 py-0.5 text-white sm:px-2'
+                        : 'text-slate-700',
                     ].join(' ')}
                   >
-                    <div className="flex items-center justify-between gap-1 sm:gap-2">
-                      <span
-                        className={[
-                          'text-xs font-semibold sm:text-sm',
-                          isToday
-                            ? 'rounded-full bg-brand-600 px-1.5 py-0.5 text-white sm:px-2'
-                            : 'text-slate-700',
-                        ].join(' ')}
-                      >
-                        {day.getDate()}
-                      </span>
-                      {dayEvents.length > 0 && (
-                        <span className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
-                          {dayEvents.length}
-                        </span>
-                      )}
-                    </div>
+                    {day.getDate()}
+                  </span>
+                  {dayEvents.length > 0 && (
+                    <span className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
+                      {dayEvents.length}
+                    </span>
+                  )}
+                </div>
 
-                    <div className="mt-1 space-y-0.5 sm:mt-3 sm:space-y-1.5">
-                      {dayEvents.slice(0, 3).map((event) => (
-                        <div
-                          key={event.id}
-                          className={[
-                            'flex items-center gap-1 rounded-md py-0.5 pl-1.5 pr-1 text-[10px] font-medium leading-snug sm:gap-1.5 sm:rounded-lg sm:py-1 sm:pl-2 sm:pr-1.5 sm:text-[11px]',
-                            event.ignored
-                              ? 'text-slate-400 line-through'
-                              : 'text-slate-700',
-                          ].join(' ')}
-                          style={{
-                            borderLeft: `3px solid ${event.color}`,
-                            backgroundColor: `${event.color}18`,
-                          }}
-                        >
-                          <span className="min-w-0 flex-1 truncate">
-                            <span className="tabular-nums text-slate-500">
-                              {formatEventTime(
-                                event.startsAtDate,
-                                event.allDay,
-                                displayZone
-                              )}
-                            </span>{' '}
-                            {event.title}
-                          </span>
-                          {event.status && !event.ignored && (
-                            <EventStatusIcon
-                              status={event.status}
-                              className="h-3 w-3 shrink-0"
-                            />
+                {/* Mobile: compact per-status counts. Tap the day to open the
+                    full list in the agenda below. */}
+                {dayEvents.length > 0 && (
+                  <div className="mt-1 flex flex-wrap justify-center gap-x-1.5 gap-y-0.5 sm:hidden">
+                    <DayStatusChips events={dayEvents} />
+                  </div>
+                )}
+
+                {/* Desktop: the roomier inline event list. */}
+                <div className="mt-3 hidden space-y-1.5 sm:block">
+                  {dayEvents.slice(0, 3).map((event) => (
+                    <div
+                      key={event.id}
+                      className={[
+                        'flex items-center gap-1.5 rounded-lg py-1 pl-2 pr-1.5 text-[11px] font-medium',
+                        event.ignored
+                          ? 'text-slate-400 line-through'
+                          : 'text-slate-700',
+                      ].join(' ')}
+                      style={{
+                        borderLeft: `3px solid ${event.color}`,
+                        backgroundColor: `${event.color}18`,
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="tabular-nums text-slate-500">
+                          {formatEventTime(
+                            event.startsAtDate,
+                            event.allDay,
+                            displayZone
                           )}
-                        </div>
-                      ))}
-                      {dayEvents.length > 3 && (
-                        <p className="text-[10px] text-slate-400 sm:text-[11px]">
-                          +{dayEvents.length - 3} more
-                        </p>
+                        </span>{' '}
+                        {event.title}
+                      </span>
+                      {event.status && !event.ignored && (
+                        <EventStatusIcon
+                          status={event.status}
+                          className="h-3 w-3 shrink-0"
+                        />
                       )}
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
+                  ))}
+                  {dayEvents.length > 3 && (
+                    <p className="text-[11px] text-slate-400">
+                      +{dayEvents.length - 3} more
+                    </p>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
