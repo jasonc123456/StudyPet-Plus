@@ -12,14 +12,19 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const authResult = await requireUser();
   if (authResult instanceof NextResponse) return authResult;
 
-  const existing = await getOwnedGradeItem(params.itemId, authResult.user.id);
-  if (!existing) {
-    return jsonError('Grade item not found', 404);
+  try {
+    const existing = await getOwnedGradeItem(params.itemId, authResult.user.id);
+    if (!existing) {
+      return jsonError('Grade item not found', 404);
+    }
+
+    await prisma.gradeItem.delete({
+      where: { id: params.itemId },
+    });
+
+    return jsonOk({ success: true });
+  } catch (error) {
+    console.error('DELETE /api/grades/items/[itemId]', error);
+    return jsonError('Failed to delete grade item', 500);
   }
-
-  await prisma.gradeItem.delete({
-    where: { id: params.itemId },
-  });
-
-  return jsonOk({ success: true });
 }

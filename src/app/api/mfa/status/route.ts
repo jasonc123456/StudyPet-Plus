@@ -9,6 +9,11 @@ export async function GET() {
   const authResult = await requireUser();
   if (authResult instanceof NextResponse) return authResult;
 
-  const factors = await getMfaFactors(authResult.user.id);
-  return jsonOk(factors);
+  try {
+    const factors = await getMfaFactors(authResult.user.id);
+    return jsonOk(factors);
+  } catch (error) {
+    console.error('GET /api/mfa/status', error);
+    return jsonError('Failed to load MFA status', 500);
+  }
 }

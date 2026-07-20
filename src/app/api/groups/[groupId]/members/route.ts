@@ -10,38 +10,43 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const authResult = await requireUser();
   if (authResult instanceof Response) return authResult;
 
-  const membership = await getGroupMembership(
-    params.groupId,
-    authResult.user.id
-  );
-  if (!membership) {
-    return jsonError('Group not found', 404);
+  try {
+    const membership = await getGroupMembership(
+      params.groupId,
+      authResult.user.id
+    );
+    if (!membership) {
+      return jsonError('Group not found', 404);
+    }
+
+    const members = await prisma.groupMembership.findMany({
+      where: { groupId: params.groupId },
+      orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
+      select: {
+        id: true,
+        role: true,
+        customRole: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+        joinedAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    return jsonOk(members);
+  } catch (error) {
+    console.error('GET /api/groups/[groupId]/members', error);
+    return jsonError('Failed to load group members', 500);
   }
-
-  const members = await prisma.groupMembership.findMany({
-    where: { groupId: params.groupId },
-    orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
-    select: {
-      id: true,
-      role: true,
-      customRole: {
-        select: {
-          id: true,
-          name: true,
-          color: true,
-        },
-      },
-      joinedAt: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-        },
-      },
-    },
-  });
-
-  return jsonOk(members);
 }

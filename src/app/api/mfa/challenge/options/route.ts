@@ -17,29 +17,34 @@ export async function POST() {
   if (authResult instanceof NextResponse) return authResult;
   const userId = authResult.user.id;
 
-  const credentials = await prisma.authenticator.findMany({
-    where: { userId },
-    select: { credentialID: true, transports: true },
-  });
+  try {
+    const credentials = await prisma.authenticator.findMany({
+      where: { userId },
+      select: { credentialID: true, transports: true },
+    });
 
-  if (credentials.length === 0) {
-    return jsonError('No passkeys registered', 400);
+    if (credentials.length === 0) {
+      return jsonError('No passkeys registered', 400);
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID: rpID(),
+      userVerification: 'preferred',
+      allowCredentials: credentials.map((cred) => ({
+        id: cred.credentialID,
+        transports: parseTransports(cred.transports) as
+          AuthenticatorTransportFuture[] | undefined,
+      })),
+    });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { currentChallenge: options.challenge },
+    });
+
+    return jsonOk(options);
+  } catch (error) {
+    console.error('POST /api/mfa/challenge/options', error);
+    return jsonError('Failed to start passkey challenge', 500);
   }
-
-  const options = await generateAuthenticationOptions({
-    rpID: rpID(),
-    userVerification: 'preferred',
-    allowCredentials: credentials.map((cred) => ({
-      id: cred.credentialID,
-      transports: parseTransports(cred.transports) as
-        AuthenticatorTransportFuture[] | undefined,
-    })),
-  });
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { currentChallenge: options.challenge },
-  });
-
-  return jsonOk(options);
 }

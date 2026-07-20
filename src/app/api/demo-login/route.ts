@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 
+import { jsonError } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 
 // Always run on the server per request — never cache (it sets a cookie).
@@ -170,6 +171,15 @@ async function seedDemoPlanner(userId: string) {
 }
 
 export async function GET(request: Request) {
+  try {
+    return await handleDemoLogin(request);
+  } catch (error) {
+    console.error('GET /api/demo-login', error);
+    return jsonError('Demo login is temporarily unavailable', 500);
+  }
+}
+
+async function handleDemoLogin(request: Request) {
   // Upsert so the demo works even on a fresh DB that hasn't been seeded.
   const user = await prisma.user.upsert({
     where: { email: DEMO_EMAIL },
