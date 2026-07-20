@@ -20,3 +20,7 @@ prisma/dev.db
 prisma/dev.db-journal
 
 # public
+public/*
+
+#graphify
+graphify-out/*
