@@ -5,6 +5,7 @@ import {
   FLASHCARD_REVIEW_XP,
 } from '@/lib/pet-xp.constants';
 import { prisma } from '@/lib/prisma';
+import type { PetSnapshot } from '@/lib/pet-snapshot';
 import { Prisma, type Pet } from '@prisma/client';
 
 export {
@@ -69,6 +70,32 @@ export function getVisibleStreakCount(args: {
   return now.getTime() - lastStudyDate.getTime() > STREAK_RESET_MS
     ? 0
     : streakCount;
+}
+
+export type { PetSnapshot } from '@/lib/pet-snapshot';
+
+/** JSON-safe pet payload shared by GET/POST `/api/pet/xp`. */
+export function serializePetSnapshot(pet: Pet): PetSnapshot {
+  return {
+    id: pet.id,
+    name: pet.name,
+    xp: pet.xp,
+    level: pet.level,
+    stage: pet.stage,
+    streakCount: getVisibleStreakCount({
+      lastStudyDate: pet.lastStudyDate,
+      streakCount: pet.streakCount,
+    }),
+  };
+}
+
+/** Read the signed-in user's pet without mutating XP or streak. */
+export async function getLivePetSnapshot(
+  userId: string
+): Promise<PetSnapshot | null> {
+  const pet = await prisma.pet.findUnique({ where: { userId } });
+  if (!pet) return null;
+  return serializePetSnapshot(pet);
 }
 
 /**

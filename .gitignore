@@ -15,4 +15,8 @@ next-env.d.ts
 .DS_Store
 tsconfig.tsbuildinfo
 
+# local sqlite dev (temporary offline DB)
+prisma/dev.db
+prisma/dev.db-journal
+
 # public
