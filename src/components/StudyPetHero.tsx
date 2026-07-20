@@ -192,7 +192,7 @@ function LivePetWidget({
           <Link
             key={link.href}
             href={link.href}
-            className="btn-secondary px-3 py-1.5 text-sm transition hover:scale-[1.02] active:scale-95"
+            className="btn-secondary text-sm transition hover:scale-[1.02] active:scale-95"
           >
             {link.label}
           </Link>

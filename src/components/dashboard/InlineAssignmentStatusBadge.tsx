@@ -74,7 +74,7 @@ export function InlineAssignmentStatusBadge({
       disabled={saving}
       aria-label={`Change status for ${title}. Current: ${statusLabel(status)}`}
       title="Click to update status"
-      className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 hover:opacity-80 disabled:cursor-wait disabled:opacity-60 ${badgeStyle}`}
+      className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-full px-3 py-0 text-[11px] font-medium tracking-wide transition-all duration-200 hover:opacity-80 disabled:cursor-wait disabled:opacity-60 ${badgeStyle}`}
     >
       {statusLabel(status)}
     </button>

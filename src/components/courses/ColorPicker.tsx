@@ -18,7 +18,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
             <label
               key={color}
               className={[
-                'flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition',
+                'flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition',
                 selected
                   ? 'ring-2 ring-brand-600 ring-offset-2'
                   : 'ring-1 ring-slate-200 hover:ring-slate-300',
