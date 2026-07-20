@@ -32,73 +32,83 @@ async function readToken(request: Request): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
-  const token = await readToken(request);
+  try {
+    const token = await readToken(request);
 
-  if (!token) {
-    return resultRedirect('invalid');
-  }
+    if (!token) {
+      return resultRedirect('invalid');
+    }
 
-  const changeRequest = await prisma.emailChangeRequest.findUnique({
-    where: { tokenHash: hashEmailChangeToken(token) },
-  });
-
-  if (!changeRequest) {
-    return resultRedirect('invalid');
-  }
-
-  // Burn expired requests so a stale link can't be probed repeatedly.
-  if (changeRequest.expires.getTime() < Date.now()) {
-    await prisma.emailChangeRequest.delete({
-      where: { id: changeRequest.id },
+    const changeRequest = await prisma.emailChangeRequest.findUnique({
+      where: { tokenHash: hashEmailChangeToken(token) },
     });
-    return resultRedirect('expired');
-  }
 
-  // Re-check ownership at confirm time: someone else may have claimed the address
-  // in the window since the request was created.
-  const emailOwner = await prisma.user.findFirst({
-    where: {
-      email: changeRequest.newEmail,
-      id: { not: changeRequest.userId },
-    },
-    select: { id: true },
-  });
+    if (!changeRequest) {
+      return resultRedirect('invalid');
+    }
 
-  if (emailOwner) {
-    await prisma.emailChangeRequest.delete({
-      where: { id: changeRequest.id },
-    });
-    return resultRedirect('conflict');
-  }
+    // Burn expired requests so a stale link can't be probed repeatedly.
+    if (changeRequest.expires.getTime() < Date.now()) {
+      await prisma.emailChangeRequest.delete({
+        where: { id: changeRequest.id },
+      });
+      return resultRedirect('expired');
+    }
 
-  // Apply the change and consume every pending request for this user in one shot.
-  // emailVerified is stamped because the click just proved control of the inbox.
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: changeRequest.userId },
-      data: {
+    // Re-check ownership at confirm time: someone else may have claimed the address
+    // in the window since the request was created.
+    const emailOwner = await prisma.user.findFirst({
+      where: {
         email: changeRequest.newEmail,
-        emailVerified: new Date(),
+        id: { not: changeRequest.userId },
       },
-    }),
-    prisma.emailChangeRequest.deleteMany({
-      where: { userId: changeRequest.userId },
-    }),
-  ]);
+      select: { id: true },
+    });
 
-  return resultRedirect('success');
+    if (emailOwner) {
+      await prisma.emailChangeRequest.delete({
+        where: { id: changeRequest.id },
+      });
+      return resultRedirect('conflict');
+    }
+
+    // Apply the change and consume every pending request for this user in one shot.
+    // emailVerified is stamped because the click just proved control of the inbox.
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: changeRequest.userId },
+        data: {
+          email: changeRequest.newEmail,
+          emailVerified: new Date(),
+        },
+      }),
+      prisma.emailChangeRequest.deleteMany({
+        where: { userId: changeRequest.userId },
+      }),
+    ]);
+
+    return resultRedirect('success');
+  } catch (error) {
+    console.error('POST /api/profile/email/verify', error);
+    return resultRedirect('invalid');
+  }
 }
 
 // Any GET here — an old in-flight email link, a Safe Links scan, a prefetch — is
 // bounced to the confirm PAGE without touching the database. The token is only
 // ever spent on POST.
 export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get('token');
-  return NextResponse.redirect(
-    absoluteUrl(
-      token
-        ? `/email-change/confirm?token=${token}`
-        : '/email-change?status=invalid'
-    )
-  );
+  try {
+    const token = new URL(request.url).searchParams.get('token');
+    return NextResponse.redirect(
+      absoluteUrl(
+        token
+          ? `/email-change/confirm?token=${token}`
+          : '/email-change?status=invalid'
+      )
+    );
+  } catch (error) {
+    console.error('GET /api/profile/email/verify', error);
+    return NextResponse.redirect(absoluteUrl('/email-change?status=invalid'));
+  }
 }

@@ -18,32 +18,37 @@ export async function POST() {
   if (authResult instanceof NextResponse) return authResult;
   const userId = authResult.user.id;
 
-  const existing = await prisma.authenticator.findMany({
-    where: { userId },
-    select: { credentialID: true, transports: true },
-  });
+  try {
+    const existing = await prisma.authenticator.findMany({
+      where: { userId },
+      select: { credentialID: true, transports: true },
+    });
 
-  const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
-    rpID: rpID(),
-    userID: new TextEncoder().encode(userId),
-    userName: authResult.user.email ?? userId,
-    attestationType: 'none',
-    excludeCredentials: existing.map((cred) => ({
-      id: cred.credentialID,
-      transports: parseTransports(cred.transports) as
-        AuthenticatorTransportFuture[] | undefined,
-    })),
-    authenticatorSelection: {
-      residentKey: 'preferred',
-      userVerification: 'preferred',
-    },
-  });
+    const options = await generateRegistrationOptions({
+      rpName: RP_NAME,
+      rpID: rpID(),
+      userID: new TextEncoder().encode(userId),
+      userName: authResult.user.email ?? userId,
+      attestationType: 'none',
+      excludeCredentials: existing.map((cred) => ({
+        id: cred.credentialID,
+        transports: parseTransports(cred.transports) as
+          AuthenticatorTransportFuture[] | undefined,
+      })),
+      authenticatorSelection: {
+        residentKey: 'preferred',
+        userVerification: 'preferred',
+      },
+    });
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { currentChallenge: options.challenge },
-  });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { currentChallenge: options.challenge },
+    });
 
-  return jsonOk(options);
+    return jsonOk(options);
+  } catch (error) {
+    console.error('POST /api/mfa/passkey/register/options', error);
+    return jsonError('Failed to start passkey registration', 500);
+  }
 }

@@ -12,26 +12,31 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const authResult = await requireUser();
   if (authResult instanceof Response) return authResult;
 
-  const membership = await getGroupMembership(
-    params.groupId,
-    authResult.user.id
-  );
-  if (!membership) {
-    return jsonError('Group not found', 404);
-  }
-  if (!isGroupAdmin(membership.role)) {
-    return jsonError('Only admins can revoke invites', 403);
-  }
+  try {
+    const membership = await getGroupMembership(
+      params.groupId,
+      authResult.user.id
+    );
+    if (!membership) {
+      return jsonError('Group not found', 404);
+    }
+    if (!isGroupAdmin(membership.role)) {
+      return jsonError('Only admins can revoke invites', 403);
+    }
 
-  const invite = await getGroupInvite(params.groupId, params.inviteId);
-  if (!invite) {
-    return jsonError('Invite not found', 404);
+    const invite = await getGroupInvite(params.groupId, params.inviteId);
+    if (!invite) {
+      return jsonError('Invite not found', 404);
+    }
+
+    const updatedInvite = await prisma.groupInvite.update({
+      where: { id: params.inviteId },
+      data: { status: GroupInviteStatus.REVOKED },
+    });
+
+    return jsonOk(updatedInvite);
+  } catch (error) {
+    console.error('DELETE /api/groups/[groupId]/invites/[inviteId]', error);
+    return jsonError('Failed to revoke invite', 500);
   }
-
-  const updatedInvite = await prisma.groupInvite.update({
-    where: { id: params.inviteId },
-    data: { status: GroupInviteStatus.REVOKED },
-  });
-
-  return jsonOk(updatedInvite);
 }
