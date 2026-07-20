@@ -71,6 +71,7 @@ export default async function DashboardQuizzesPage() {
               choices: true,
               correctIndex: true,
               explanation: true,
+              choiceRationales: true,
               hint: true,
             },
           },

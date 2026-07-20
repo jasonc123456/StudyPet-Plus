@@ -87,6 +87,13 @@ export const quizQuestionSchema = z
      * column — merged into `explanation` on save.
      */
     misconception: z.string().trim().max(800).optional(),
+    /**
+     * Parallel to `choices`: for each wrong option a short "why this is
+     * incorrect", empty string at the correct index. Precomputed here so
+     * completing a quiz needs no live AI call. Length is normalized to
+     * `choices.length` on save; a missing/short array degrades to fallback text.
+     */
+    choiceRationales: z.array(z.string().trim().max(400)).optional(),
     // A nudge toward the answer without giving it away.
     hint: z.string().trim().min(1).max(500),
   })

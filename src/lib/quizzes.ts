@@ -15,6 +15,7 @@ import { prisma } from '@/lib/prisma';
 import {
   buildWeakTopicMisconceptionReason,
   mergeTeachingExplanation,
+  normalizeChoiceRationales,
   normalizeGeneratedHint,
 } from '@/lib/quiz-explanation';
 import type {
@@ -175,6 +176,11 @@ export async function generateAndSaveQuiz(
             question: q.question,
             topic: q.topic,
           }),
+          choiceRationales: normalizeChoiceRationales(
+            q.choiceRationales,
+            q.choices,
+            q.answerIndex
+          ),
           hint: normalizeGeneratedHint(q.hint) || q.hint,
         })),
       },

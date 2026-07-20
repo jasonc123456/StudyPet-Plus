@@ -123,6 +123,76 @@ function salvageExplanation(
   return ensurePeriod(sentenceCase(firstSentence(cleaned, 220)));
 }
 
+/** Clean one stored per-choice rationale, or null if it's empty/too shallow. */
+function salvageStoredRationale(
+  text: string | null | undefined
+): string | null {
+  const raw = (text ?? '').trim();
+  if (!raw || isShallowTeachingText(raw)) return null;
+  const cleaned = stripCitationPhrases(raw);
+  if (!cleaned || isShallowTeachingText(cleaned)) return null;
+  return ensurePeriod(sentenceCase(firstSentence(cleaned, 240)));
+}
+
+/**
+ * Normalize AI-generated per-choice rationales into an array aligned to
+ * `choices` for storage: exactly `choices.length` entries, empty string at the
+ * correct index and wherever the model gave missing or too-shallow text. Empty
+ * slots let the reader fall back to deterministic feedback at display time.
+ */
+export function normalizeChoiceRationales(
+  rationales: string[] | null | undefined,
+  choices: string[],
+  correctIndex: number
+): string[] {
+  return choices.map((_, i) => {
+    if (i === correctIndex) return '';
+    return salvageStoredRationale((rationales ?? [])[i]) ?? '';
+  });
+}
+
+/**
+ * Assemble tutor feedback for one question entirely from stored fields — no
+ * live AI call. Uses the precomputed `choiceRationales[selectedIndex]` for
+ * "why your answer misses", falling back to deterministic text when a slot is
+ * empty (older quizzes generated before rationales existed).
+ */
+export function buildStoredTutorFeedback(args: {
+  question: string;
+  choices: string[];
+  selectedIndex?: number;
+  correctIndex: number;
+  topic?: string | null;
+  explanation?: string | null;
+  choiceRationales?: string[] | null;
+  correct: boolean;
+}): TutorFeedback {
+  const selectedAnswer =
+    args.selectedIndex !== undefined &&
+    args.selectedIndex >= 0 &&
+    args.selectedIndex < args.choices.length
+      ? (args.choices[args.selectedIndex] ?? null)
+      : null;
+
+  const base = buildFallbackTutorFeedback({
+    question: args.question,
+    choices: args.choices,
+    selectedAnswer,
+    correctAnswer: args.choices[args.correctIndex] ?? '',
+    topic: args.topic,
+    correct: args.correct,
+    purpose: 'feedback',
+    explanation: args.explanation,
+  });
+
+  if (args.correct || args.selectedIndex === undefined) return base;
+
+  const stored = salvageStoredRationale(
+    (args.choiceRationales ?? [])[args.selectedIndex]
+  );
+  return stored ? { ...base, whySelectedMisses: stored } : base;
+}
+
 /**
  * Concise deterministic tutor feedback (AI fallback only).
  * Short sentences. No banned citation/template phrases.
