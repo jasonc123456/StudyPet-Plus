@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-<<<<<<< HEAD
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { Box3, Group, Vector3 } from 'three';
-=======
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   Box3,
   BufferGeometry,
@@ -16,7 +13,6 @@ import {
   Object3D,
   Vector3,
 } from 'three';
->>>>>>> cea58c0 (Load only active pet model and dispose previous stage)
 
 import type { PetStage } from '@/lib/pet-progress';
 
@@ -46,28 +42,16 @@ const STAGE_MODEL_SCALE: Record<PetStage, number> = {
 
 export function PetModel({ stage }: PetModelProps) {
   const path = STAGE_MODEL_PATHS[stage];
-<<<<<<< HEAD
-  // Models are meshopt-compressed (EXT_meshopt_compression) to keep the
-  // per-load download tiny — the decoder must be registered or they won't parse.
-  const gltf = useLoader(GLTFLoader, path, (loader) => {
-    loader.setMeshoptDecoder(MeshoptDecoder);
-  });
-  const scene = useMemo(() => gltf.scene.clone(true) as Group, [gltf.scene]);
-  const centeredScene = useMemo(() => {
-    const clone = scene.clone(true) as Group;
-    const box = new Box3().setFromObject(clone);
-    const center = new Vector3();
-    const size = new Vector3();
-=======
   const [centeredScene, setCenteredScene] = useState<{
     object: Group;
     height: number;
   } | null>(null);
->>>>>>> cea58c0 (Load only active pet model and dispose previous stage)
 
   useEffect(() => {
     let active = true;
     const loader = new GLTFLoader();
+    // Models are meshopt-compressed (EXT_meshopt_compression).
+    loader.setMeshoptDecoder(MeshoptDecoder);
 
     setCenteredScene(null);
 

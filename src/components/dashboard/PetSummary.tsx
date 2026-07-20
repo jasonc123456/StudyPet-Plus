@@ -12,7 +12,8 @@ type PetSummaryProps = {
 /**
  * US-4.10 — authenticated dashboard StudyPet widget.
  * Values come from the database Pet model (name, XP, level, stage, streak).
- * StudyPetHero on the marketing landing page remains a separate demo widget.
+ * StudyPetHero on the marketing landing page fetches live pet data via GET
+ * `/api/pet/xp` when the visitor is signed in (US-4.10).
  */
 export function PetSummary({ pet }: PetSummaryProps) {
   return (

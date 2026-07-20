@@ -1,8 +1,22 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
-import { awardFlashcardReviewXp, recordStudyActivity } from '@/lib/pet-xp';
+import {
+  awardFlashcardReviewXp,
+  getLivePetSnapshot,
+  recordStudyActivity,
+  serializePetSnapshot,
+} from '@/lib/pet-xp';
 import { awardPetXpSchema, zodFirstError } from '@/lib/validators';
+
+/** US-4.10 — read the signed-in user's live pet without awarding XP. */
+export async function GET() {
+  const authResult = await requireUser();
+  if (authResult instanceof NextResponse) return authResult;
+
+  const pet = await getLivePetSnapshot(authResult.user.id);
+  return jsonOk({ pet });
+}
 
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -31,14 +45,7 @@ export async function POST(request: Request) {
       : { pet: await recordStudyActivity(authResult.user.id), xp: 0 };
 
   return jsonOk({
-    pet: {
-      id: pet.id,
-      name: pet.name,
-      xp: pet.xp,
-      level: pet.level,
-      stage: pet.stage,
-      streakCount: pet.streakCount,
-    },
+    pet: serializePetSnapshot(pet),
     xpAwarded,
     action,
     outcome,
