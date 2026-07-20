@@ -8,15 +8,10 @@ import { ResultRow } from '@/components/common/ResultRow';
 import { AiExplanationDisclaimer } from '@/components/quizzes/AiExplanationDisclaimer';
 import type { QuizMode, QuizQuestionData } from '@/components/quizzes/types';
 import {
-  buildFallbackTutorFeedback,
   buildPracticeHint,
+  buildStoredTutorFeedback,
   tutorToResultFeedback,
-  type TutorFeedback,
 } from '@/lib/quiz-explanation';
-import {
-  feedbackCacheKey,
-  fetchQuizTutorFeedback,
-} from '@/lib/quiz-feedback-client';
 import Link from 'next/link';
 
 type QuizSessionProps = {
@@ -98,17 +93,6 @@ export function QuizSession({
     useState<SubmitQuizAttemptResponse | null>(null);
   const clientAttemptIdRef = useRef<string | null>(null);
 
-  /** Cached AI/fallback tutor feedback keyed by question + purpose. */
-  const [tutorCache, setTutorCache] = useState<Record<string, TutorFeedback>>(
-    {}
-  );
-  const [reviewNextOverride, setReviewNextOverride] = useState<string | null>(
-    null
-  );
-  const tutorInflightRef = useRef<Set<string>>(new Set());
-  const tutorReadyRef = useRef<Set<string>>(new Set());
-  const resultsFeedbackRequestedRef = useRef(false);
-
   const total = runQuestions.length;
   const current = runQuestions[index];
 
@@ -162,174 +146,15 @@ export function QuizSession({
       setAttemptError(null);
       setAttemptSummary(null);
       clientAttemptIdRef.current = null;
-      setTutorCache({});
-      setReviewNextOverride(null);
-      tutorInflightRef.current = new Set();
-      tutorReadyRef.current = new Set();
-      resultsFeedbackRequestedRef.current = false;
       setPhase('active');
     },
     [mode, totalMinutes, questions.length]
   );
 
-  const mergeTutorCache = useCallback((map: Record<string, TutorFeedback>) => {
-    setTutorCache((prev) => ({ ...prev, ...map }));
-  }, []);
-
-  const requestTutorFeedback = useCallback(
-    async (
-      requests: Array<{
-        key: string;
-        item: Parameters<typeof fetchQuizTutorFeedback>[0]['items'][number];
-      }>
-    ) => {
-      const todo = requests.filter(
-        (row) =>
-          !tutorReadyRef.current.has(row.key) &&
-          !tutorInflightRef.current.has(row.key)
-      );
-      if (todo.length === 0) return;
-
-      for (const row of todo) tutorInflightRef.current.add(row.key);
-
-      const optimistic: Record<string, TutorFeedback> = {};
-      for (const row of todo) {
-        optimistic[row.key] = buildFallbackTutorFeedback({
-          question: row.item.question,
-          choices: row.item.choices,
-          selectedAnswer: row.item.selectedAnswer ?? null,
-          correctAnswer: row.item.correctAnswer,
-          topic: row.item.topic,
-          correct: row.item.correct ?? null,
-          purpose: row.item.purpose ?? 'feedback',
-          explanation: row.item.explanation,
-        });
-      }
-      mergeTutorCache(optimistic);
-
-      try {
-        const map = await fetchQuizTutorFeedback({
-          mode,
-          items: todo.map((row) => ({ ...row.item, id: row.key })),
-        });
-        mergeTutorCache(map);
-        for (const row of todo) tutorReadyRef.current.add(row.key);
-      } catch {
-        // Keep optimistic fallback; mark ready so we do not spin forever.
-        for (const row of todo) tutorReadyRef.current.add(row.key);
-      } finally {
-        for (const row of todo) tutorInflightRef.current.delete(row.key);
-      }
-    },
-    [mergeTutorCache, mode]
-  );
-
-  // Review/Practice: AI feedback right after answering.
-  useEffect(() => {
-    if (phase !== 'active') return;
-    if (mode !== 'review' && mode !== 'practice') return;
-    if (!current || !revealed) return;
-    const selected = answers[current.id];
-    if (selected === undefined) return;
-
-    const key = feedbackCacheKey(current.id, 'answer', selected);
-    void requestTutorFeedback([
-      {
-        key,
-        item: {
-          id: key,
-          question: current.question,
-          choices: current.choices,
-          selectedAnswer: current.choices[selected] ?? 'No answer',
-          correctAnswer: current.choices[current.correctIndex] ?? '',
-          topic: current.topic,
-          correct: selected === current.correctIndex,
-          purpose: 'feedback',
-          explanation: current.explanation,
-        },
-      },
-    ]);
-  }, [phase, mode, current, revealed, answers, requestTutorFeedback]);
-
-  // Practice/Review: AI hint when the learner asks for Hint 1.
-  useEffect(() => {
-    if (phase !== 'active') return;
-    if (mode === 'exam') return;
-    if (!current || revealed || hintLevel < 1) return;
-
-    const key = feedbackCacheKey(current.id, 'hint');
-    void requestTutorFeedback([
-      {
-        key,
-        item: {
-          id: key,
-          question: current.question,
-          choices: current.choices,
-          selectedAnswer: null,
-          correctAnswer: current.choices[current.correctIndex] ?? '',
-          topic: current.topic,
-          correct: null,
-          purpose: 'hint',
-          explanation: current.explanation,
-        },
-      },
-    ]);
-  }, [phase, mode, current, revealed, hintLevel, requestTutorFeedback]);
-
-  // Exam (and all modes): batch AI review after submit/results.
-  useEffect(() => {
-    if (phase !== 'results' || resultsFeedbackRequestedRef.current) return;
-    resultsFeedbackRequestedRef.current = true;
-
-    const requests = runQuestions.map((q) => {
-      const selected = answers[q.id];
-      const key = feedbackCacheKey(q.id, 'answer', selected);
-      return {
-        key,
-        item: {
-          id: key,
-          question: q.question,
-          choices: q.choices,
-          selectedAnswer:
-            selected !== undefined &&
-            selected >= 0 &&
-            selected < q.choices.length
-              ? (q.choices[selected] ?? 'No answer')
-              : 'No answer',
-          correctAnswer: q.choices[q.correctIndex] ?? '',
-          topic: q.topic,
-          correct: selected === q.correctIndex,
-          purpose: 'feedback' as const,
-          explanation: q.explanation,
-        },
-      };
-    });
-
-    // Chunk to API max (20). Run sequentially to avoid provider pile-ups.
-    const chunkSize = 20;
-    void (async () => {
-      for (let i = 0; i < requests.length; i += chunkSize) {
-        await requestTutorFeedback(requests.slice(i, i + chunkSize));
-      }
-    })();
-  }, [phase, runQuestions, answers, requestTutorFeedback]);
-
-  // Prefer AI Review Next reason from a weak-topic miss when available.
-  useEffect(() => {
-    if (!attemptSummary?.weakTopic) return;
-    const weak = attemptSummary.weakTopic;
-    for (const q of runQuestions) {
-      if (q.topic !== weak) continue;
-      const selected = answers[q.id];
-      if (selected === undefined || selected === q.correctIndex) continue;
-      const key = feedbackCacheKey(q.id, 'answer', selected);
-      const fb = tutorCache[key];
-      if (fb?.reviewNextReason) {
-        setReviewNextOverride(fb.reviewNextReason);
-        return;
-      }
-    }
-  }, [attemptSummary, runQuestions, answers, tutorCache]);
+  // Tutor feedback is precomputed at quiz-generation time and stored on each
+  // question (explanation + per-choice choiceRationales), so answering or
+  // completing a quiz makes no live AI call — feedback is read from the
+  // question data below via buildStoredTutorFeedback.
 
   const finish = useCallback(() => {
     setPhase('results');
@@ -543,13 +368,9 @@ export function QuizSession({
                 {attemptSummary.weakTopic}
               </p>
               <p className="theme-muted mt-1">
-                {reviewNextOverride ??
-                  attemptSummary.weakTopicReason ??
+                {attemptSummary.weakTopicReason ??
                   'This was your weakest topic in the quiz.'}
               </p>
-              {reviewNextOverride ? (
-                <AiExplanationDisclaimer className="mt-2" />
-              ) : null}
               {attemptSummary.reviewHref ? (
                 <Link
                   href={attemptSummary.reviewHref}
@@ -606,19 +427,16 @@ export function QuizSession({
                 ? question.choices[selected]
                 : 'No answer';
             const correctAnswer = question.choices[question.correctIndex];
-            const key = feedbackCacheKey(question.id, 'answer', selected);
-            const tutor =
-              tutorCache[key] ??
-              buildFallbackTutorFeedback({
-                question: question.question,
-                choices: question.choices,
-                selectedAnswer: userAnswer ?? 'No answer',
-                correctAnswer: correctAnswer ?? '',
-                topic: question.topic,
-                correct,
-                purpose: 'feedback',
-                explanation: question.explanation,
-              });
+            const tutor = buildStoredTutorFeedback({
+              question: question.question,
+              choices: question.choices,
+              selectedIndex: selected,
+              correctIndex: question.correctIndex,
+              topic: question.topic,
+              explanation: question.explanation,
+              choiceRationales: question.choiceRationales,
+              correct,
+            });
             const feedback = tutorToResultFeedback(tutor, correct);
 
             return (
@@ -760,15 +578,14 @@ export function QuizSession({
                 }}
               >
                 💡 Hint 1:{' '}
-                {tutorCache[feedbackCacheKey(current.id, 'hint')]?.hint ??
-                  buildPracticeHint({
-                    level: 1,
-                    storedHint: current.hint,
-                    choices: current.choices,
-                    correctIndex: current.correctIndex,
-                    topic: current.topic,
-                    question: current.question,
-                  })}
+                {buildPracticeHint({
+                  level: 1,
+                  storedHint: current.hint,
+                  choices: current.choices,
+                  correctIndex: current.correctIndex,
+                  topic: current.topic,
+                  question: current.question,
+                })}
               </div>
             ) : null}
             {hintLevel >= 2 ? (
@@ -807,25 +624,16 @@ export function QuizSession({
           ? (() => {
               const selected = answers[current.id];
               const isCorrect = selected === current.correctIndex;
-              const userAnswer =
-                selected !== undefined &&
-                selected >= 0 &&
-                selected < current.choices.length
-                  ? (current.choices[selected] ?? 'No answer')
-                  : 'No answer';
-              const key = feedbackCacheKey(current.id, 'answer', selected);
-              const tutor =
-                tutorCache[key] ??
-                buildFallbackTutorFeedback({
-                  question: current.question,
-                  choices: current.choices,
-                  selectedAnswer: userAnswer,
-                  correctAnswer: current.choices[current.correctIndex] ?? '',
-                  topic: current.topic,
-                  correct: isCorrect,
-                  purpose: 'feedback',
-                  explanation: current.explanation,
-                });
+              const tutor = buildStoredTutorFeedback({
+                question: current.question,
+                choices: current.choices,
+                selectedIndex: selected,
+                correctIndex: current.correctIndex,
+                topic: current.topic,
+                explanation: current.explanation,
+                choiceRationales: current.choiceRationales,
+                correct: isCorrect,
+              });
               return (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                   <p

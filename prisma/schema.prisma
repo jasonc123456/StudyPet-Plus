@@ -641,6 +641,10 @@ model QuizQuestion {
   choices      String[]
   correctIndex Int
   explanation  String?
+  // Per-choice rationale, parallel to `choices`: for each wrong option a short
+  // "why this is incorrect"; empty string at the correct index. Generated once
+  // at quiz-generation time so completing a quiz needs no live AI call.
+  choiceRationales String[] @default([])
   hint         String? // AI-generated nudge; shown in Review/Practice modes
   createdAt    DateTime @default(now())
 

@@ -210,9 +210,14 @@ function quizPrompt(
       'Return a JSON object of the exact shape:\n' +
       '{ "questions": [ { "topic": string, "question": string, ' +
       '"choices": string[], "answerIndex": number, "explanation": string, ' +
-      '"misconception": string, "hint": string } ] }\n' +
+      '"misconception": string, "choiceRationales": string[], "hint": string } ] }\n' +
       '- Provide 3-4 "choices" per question, exactly one correct.\n' +
       '- "answerIndex" is the 0-based index of the correct choice.\n' +
+      '- "choiceRationales" is an array parallel to "choices" (same length, ' +
+      'same order). For each WRONG choice, write 1 short sentence on why it is ' +
+      'incorrect (reasoning, not citation). For the correct choice use "".\n' +
+      '  * Good (wrong choice): "This mixes up linear and exponential growth."\n' +
+      '  * No "notes say" / "source identifies" phrasing here either.\n' +
       '- "topic" is a short concept tag (e.g. "Growth Families", "Algorithms").\n' +
       '- "explanation" (2–3 short sentences) must TEACH:\n' +
       '  * Explain the concept in plain language with short sentences.\n' +
@@ -318,6 +323,12 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'unlike cramming or highlighting which feel familiar but check less.',
       misconception:
         'Cramming packs exposure into a short window, so it feels productive but does not strengthen retrieval the way active recall does.',
+      choiceRationales: [
+        'Cramming packs exposure into a short window but does not build durable retrieval.',
+        '',
+        'Highlighting marks text without forcing you to recall anything.',
+        'Re-reading feels familiar but skips the retrieval that cements memory.',
+      ],
       hint: 'Think about retrieving the answer from memory, not reviewing it.',
     },
     {
@@ -331,6 +342,12 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'than linear growth, where work only increases in proportion to n.',
       misconception:
         'n represents linear growth: work grows by a roughly fixed amount per step in input size. It does not multiply by a constant factor the way c^n does.',
+      choiceRationales: [
+        '1 is constant — it never changes as n grows, so it is not growth at all.',
+        'n is linear growth: it rises in proportion to n, not by repeated multiplication.',
+        'n log n is linearithmic — faster than linear but far slower than exponential.',
+        '',
+      ],
       hint: 'Compare how each expression changes when n gets bigger. Linear growth adds a steady amount, while exponential growth repeatedly multiplies.',
     },
     {
@@ -345,6 +362,12 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         '(log n), which grows much more slowly.',
       misconception:
         'Logarithmic (log n) grows slowly; adding the n factor moves the expression into the linearithmic family.',
+      choiceRationales: [
+        'Constant work stays fixed regardless of n, so it cannot describe n log n.',
+        'Logarithmic (log n) drops the n factor and grows far more slowly.',
+        '',
+        'Quadratic is n squared, which grows faster than the n log n here.',
+      ],
       hint: 'Look carefully at every factor in the notation. log n and n log n are related, but the extra n changes the category.',
     },
     {
@@ -361,6 +384,12 @@ function demoQuiz(count: number, topicHint?: string): QuizQuestion[] {
         'Real quiz generation needs a configured AI provider. Set ' +
         'LOCAL_AI_BASE_URL or GEMINI_API_KEY and turn AI_DEMO_MODE off so the ' +
         'app can call the model instead of returning canned demo questions.',
+      choiceRationales: [
+        'Some configuration is required — demo questions are canned until you set it.',
+        '',
+        'Restarting changes nothing; the app just needs a provider configured.',
+        'The database version is unrelated to AI quiz generation.',
+      ],
       hint: 'Think about software configuration rather than hardware changes.',
     },
   ];

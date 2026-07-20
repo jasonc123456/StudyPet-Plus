@@ -5,6 +5,12 @@ export type QuizQuestionData = {
   choices: string[];
   correctIndex: number;
   explanation: string | null;
+  /**
+   * Parallel to `choices`: precomputed "why this option is wrong" per choice,
+   * empty at the correct index. Generated with the quiz, so results/review need
+   * no live AI call. Empty for quizzes made before this existed.
+   */
+  choiceRationales: string[];
   hint: string | null;
 };
 
