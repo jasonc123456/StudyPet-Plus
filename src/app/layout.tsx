@@ -2,6 +2,8 @@ import './globals.css';
 
 import type { Metadata } from 'next';
 
+import { LivePetProvider } from '@/components/LivePetProvider';
+
 export const metadata: Metadata = {
   title: 'StudyPet+',
   description: 'StudyPet+ — AI Study Planner',
@@ -15,9 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen antialiased">
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+        <LivePetProvider>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
               function studypetIsLightColor(hex) {
                 if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
                 var r = parseInt(hex.slice(1, 3), 16);
@@ -44,9 +47,10 @@ export default function RootLayout({
                 } catch (e) {}
               })();
             `,
-          }}
-        />
-        {children}
+            }}
+          />
+          {children}
+        </LivePetProvider>
       </body>
     </html>
   );
