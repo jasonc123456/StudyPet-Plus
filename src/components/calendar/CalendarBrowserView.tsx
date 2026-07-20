@@ -539,94 +539,101 @@ export function CalendarBrowserView({
           </button>
         </div>
 
-        <div className="mt-5 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label) => (
-            <div key={label} className="py-2">
-              {label}
+        <div className="-mx-1 max-w-full overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
+          <div className="min-w-[36rem] sm:min-w-0">
+            <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:gap-2 sm:text-xs">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+                (label) => (
+                  <div key={label} className="py-1 sm:py-2">
+                    <span className="sm:hidden">{label.slice(0, 1)}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </div>
+                )
+              )}
             </div>
-          ))}
-        </div>
 
-        <div className="grid grid-cols-7 gap-2">
-          {monthDays.map((day) => {
-            const dayKey = toDayKey(day);
-            const dayEvents = eventsByDay[dayKey] ?? [];
-            const isSelected = dayKey === selectedDayKey;
-            const isCurrentMonth = day.getMonth() === monthDate.getMonth();
-            const isToday = dayKey === todayKey;
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+              {monthDays.map((day) => {
+                const dayKey = toDayKey(day);
+                const dayEvents = eventsByDay[dayKey] ?? [];
+                const isSelected = dayKey === selectedDayKey;
+                const isCurrentMonth = day.getMonth() === monthDate.getMonth();
+                const isToday = dayKey === todayKey;
 
-            return (
-              <Link
-                key={dayKey}
-                href={buildCalendarHref(monthKey, dayKey)}
-                className={[
-                  'min-h-28 rounded-2xl border p-3 text-left transition',
-                  isSelected
-                    ? 'border-brand-300 bg-brand-50'
-                    : 'border-slate-200 bg-white hover:border-brand-200',
-                  !isCurrentMonth ? 'opacity-55' : '',
-                ].join(' ')}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span
+                return (
+                  <Link
+                    key={dayKey}
+                    href={buildCalendarHref(monthKey, dayKey)}
                     className={[
-                      'text-sm font-semibold',
-                      isToday
-                        ? 'rounded-full bg-brand-600 px-2 py-0.5 text-white'
-                        : 'text-slate-700',
+                      'min-h-16 rounded-xl border p-1 text-left transition sm:min-h-28 sm:rounded-2xl sm:p-3',
+                      isSelected
+                        ? 'border-brand-300 bg-brand-50'
+                        : 'border-slate-200 bg-white hover:border-brand-200',
+                      !isCurrentMonth ? 'opacity-55' : '',
                     ].join(' ')}
                   >
-                    {day.getDate()}
-                  </span>
-                  {dayEvents.length > 0 && (
-                    <span className="text-[11px] font-medium text-slate-400">
-                      {dayEvents.length}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-3 space-y-1.5">
-                  {dayEvents.slice(0, 3).map((event) => (
-                    <div
-                      key={event.id}
-                      className={[
-                        'flex items-center gap-1.5 rounded-lg py-1 pl-2 pr-1.5 text-[11px] font-medium',
-                        event.ignored
-                          ? 'text-slate-400 line-through'
-                          : 'text-slate-700',
-                      ].join(' ')}
-                      style={{
-                        borderLeft: `3px solid ${event.color}`,
-                        backgroundColor: `${event.color}18`,
-                      }}
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="tabular-nums text-slate-500">
-                          {formatEventTime(
-                            event.startsAtDate,
-                            event.allDay,
-                            displayZone
-                          )}
-                        </span>{' '}
-                        {event.title}
+                    <div className="flex items-center justify-between gap-1 sm:gap-2">
+                      <span
+                        className={[
+                          'text-xs font-semibold sm:text-sm',
+                          isToday
+                            ? 'rounded-full bg-brand-600 px-1.5 py-0.5 text-white sm:px-2'
+                            : 'text-slate-700',
+                        ].join(' ')}
+                      >
+                        {day.getDate()}
                       </span>
-                      {event.status && !event.ignored && (
-                        <EventStatusIcon
-                          status={event.status}
-                          className="h-3 w-3"
-                        />
+                      {dayEvents.length > 0 && (
+                        <span className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
+                          {dayEvents.length}
+                        </span>
                       )}
                     </div>
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <p className="text-[11px] text-slate-400">
-                      +{dayEvents.length - 3} more
-                    </p>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+
+                    <div className="mt-1 space-y-0.5 sm:mt-3 sm:space-y-1.5">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <div
+                          key={event.id}
+                          className={[
+                            'flex items-center gap-1 rounded-md py-0.5 pl-1.5 pr-1 text-[10px] font-medium leading-snug sm:gap-1.5 sm:rounded-lg sm:py-1 sm:pl-2 sm:pr-1.5 sm:text-[11px]',
+                            event.ignored
+                              ? 'text-slate-400 line-through'
+                              : 'text-slate-700',
+                          ].join(' ')}
+                          style={{
+                            borderLeft: `3px solid ${event.color}`,
+                            backgroundColor: `${event.color}18`,
+                          }}
+                        >
+                          <span className="min-w-0 flex-1 truncate">
+                            <span className="tabular-nums text-slate-500">
+                              {formatEventTime(
+                                event.startsAtDate,
+                                event.allDay,
+                                displayZone
+                              )}
+                            </span>{' '}
+                            {event.title}
+                          </span>
+                          {event.status && !event.ignored && (
+                            <EventStatusIcon
+                              status={event.status}
+                              className="h-3 w-3 shrink-0"
+                            />
+                          )}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <p className="text-[10px] text-slate-400 sm:text-[11px]">
+                          +{dayEvents.length - 3} more
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 

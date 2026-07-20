@@ -1453,92 +1453,97 @@ export function GroupWorkspace({
                   : monthTitleUTC(calendarMonth)}
               </span>
             </h3>
-            <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
-                (label) => (
-                  <div key={label} className="py-2">
-                    {label}
-                  </div>
-                )
-              )}
-            </div>
-            <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((day) => {
-                const dayKey = getDayKey(day);
-                const dayTasks = tasksByDay[dayKey] || [];
-                const isCurrentMonth =
-                  day.getMonth() === calendarMonth.getMonth();
-                const isSelected = dayKey === selectedDay;
-                const isToday = dayKey === todayKey;
+            <div className="-mx-1 max-w-full overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
+              <div className="min-w-[36rem] sm:min-w-0">
+                <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:gap-2 sm:text-xs">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+                    (label) => (
+                      <div key={label} className="py-1 sm:py-2">
+                        <span className="sm:hidden">{label.slice(0, 1)}</span>
+                        <span className="hidden sm:inline">{label}</span>
+                      </div>
+                    )
+                  )}
+                </div>
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                  {calendarDays.map((day) => {
+                    const dayKey = getDayKey(day);
+                    const dayTasks = tasksByDay[dayKey] || [];
+                    const isCurrentMonth =
+                      day.getMonth() === calendarMonth.getMonth();
+                    const isSelected = dayKey === selectedDay;
+                    const isToday = dayKey === todayKey;
 
-                return (
-                  <button
-                    key={dayKey}
-                    type="button"
-                    onClick={() => {
-                      setSelectedDay(dayKey);
-                      if (!isCurrentMonth) {
-                        setCalendarMonth(
-                          new Date(day.getFullYear(), day.getMonth(), 1)
-                        );
-                      }
-                    }}
-                    className={[
-                      'min-h-28 rounded-2xl border p-3 text-left transition',
-                      isSelected
-                        ? 'border-brand-300 bg-brand-50'
-                        : 'border-slate-200 bg-white hover:border-brand-200',
-                      !isCurrentMonth ? 'opacity-55' : '',
-                    ].join(' ')}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
+                    return (
+                      <button
+                        key={dayKey}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDay(dayKey);
+                          if (!isCurrentMonth) {
+                            setCalendarMonth(
+                              new Date(day.getFullYear(), day.getMonth(), 1)
+                            );
+                          }
+                        }}
                         className={[
-                          'text-sm font-semibold',
-                          isToday
-                            ? 'rounded-full bg-brand-600 px-2 py-0.5 text-white'
-                            : 'text-slate-700',
+                          'min-h-16 rounded-xl border p-1 text-left transition sm:min-h-28 sm:rounded-2xl sm:p-3',
+                          isSelected
+                            ? 'border-brand-300 bg-brand-50'
+                            : 'border-slate-200 bg-white hover:border-brand-200',
+                          !isCurrentMonth ? 'opacity-55' : '',
                         ].join(' ')}
                       >
-                        {day.getDate()}
-                      </span>
-                      {dayTasks.length > 0 && (
-                        <span className="text-[11px] font-medium text-slate-400">
-                          {dayTasks.length}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-3 space-y-1.5">
-                      {dayTasks.slice(0, 3).map((task) => (
-                        <div
-                          key={task.id}
-                          className="flex items-center gap-1.5 rounded-lg bg-brand-50 py-1 pl-2 pr-1.5 text-[11px] font-medium text-brand-700"
-                        >
-                          <span className="min-w-0 flex-1 truncate">
-                            <span className="tabular-nums text-brand-600/70">
-                              <DateLabel
-                                value={task.dueAt}
-                                mode="time"
-                                mounted={mounted}
-                              />
-                            </span>{' '}
-                            {task.title}
+                        <div className="flex items-center justify-between gap-1 sm:gap-2">
+                          <span
+                            className={[
+                              'text-xs font-semibold sm:text-sm',
+                              isToday
+                                ? 'rounded-full bg-brand-600 px-1.5 py-0.5 text-white sm:px-2'
+                                : 'text-slate-700',
+                            ].join(' ')}
+                          >
+                            {day.getDate()}
                           </span>
-                          <EventStatusIcon
-                            status={task.status}
-                            className="h-3 w-3"
-                          />
+                          {dayTasks.length > 0 && (
+                            <span className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
+                              {dayTasks.length}
+                            </span>
+                          )}
                         </div>
-                      ))}
-                      {dayTasks.length > 3 && (
-                        <p className="text-[11px] text-slate-400">
-                          +{dayTasks.length - 3} more
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                        <div className="mt-1 space-y-0.5 sm:mt-3 sm:space-y-1.5">
+                          {dayTasks.slice(0, 3).map((task) => (
+                            <div
+                              key={task.id}
+                              className="flex items-center gap-1 rounded-md bg-brand-50 py-0.5 pl-1.5 pr-1 text-[10px] font-medium leading-snug text-brand-700 sm:gap-1.5 sm:rounded-lg sm:py-1 sm:pl-2 sm:pr-1.5 sm:text-[11px]"
+                            >
+                              <span className="min-w-0 flex-1 truncate">
+                                <span className="tabular-nums text-brand-600/70">
+                                  <DateLabel
+                                    value={task.dueAt}
+                                    mode="time"
+                                    mounted={mounted}
+                                  />
+                                </span>{' '}
+                                {task.title}
+                              </span>
+                              <EventStatusIcon
+                                status={task.status}
+                                className="h-3 w-3 shrink-0"
+                              />
+                            </div>
+                          ))}
+                          {dayTasks.length > 3 && (
+                            <p className="text-[10px] text-slate-400 sm:text-[11px]">
+                              +{dayTasks.length - 3} more
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </DashboardPanel>
 
