@@ -89,9 +89,10 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 2.75rem;
     border-radius: 0.75rem;
     background: var(--accent);
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     font-weight: 600;
     color: var(--accent-text);
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
@@ -115,10 +116,11 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 2.75rem;
     border-radius: 0.75rem;
     border: 1px solid var(--btn-secondary-border);
     background: var(--btn-secondary-bg);
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     font-weight: 600;
     color: var(--btn-secondary-text);
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
@@ -220,11 +222,6 @@ body {
 
   .dashboard-panel {
     padding: 1rem;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    min-height: 2.75rem;
   }
 
   .app-shell-main {

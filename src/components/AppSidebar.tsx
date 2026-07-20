@@ -467,7 +467,7 @@ function SidebarShell({
               type="button"
               onClick={onClose}
               aria-label="Close menu"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
             >
               <CloseIcon className="h-5 w-5" />
             </button>
@@ -531,14 +531,14 @@ export function AppTopBar({ user }: { user: AppChromeUser }) {
           onClick={() => setMenuOpen(true)}
           aria-label="Open menu"
           aria-expanded={menuOpen}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
         >
           <MenuIcon className="h-5 w-5" />
         </button>
 
         <BrandMark compact />
 
-        <div className="h-10 w-10" aria-hidden />
+        <div className="h-11 w-11" aria-hidden />
       </header>
 
       <div
