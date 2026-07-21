@@ -157,6 +157,56 @@ export async function assembleNoteSource(
 }
 
 /**
+ * Safety valve on prompt size only — every topic a course has is sent back to
+ * the model, and a course realistically never approaches this many.
+ */
+export const MAX_EXISTING_TOPICS = 200;
+
+/**
+ * Topic tags already used by this course's flashcards and quiz questions, most
+ * recent first. Fed back into the generation prompt so a new deck/quiz reuses
+ * the course's existing topic names instead of inventing a parallel set.
+ * Returns [] for uncategorized sources (no shared course).
+ */
+export async function listCourseTopics(
+  courseId: string | null,
+  userId: string
+): Promise<string[]> {
+  if (!courseId) return [];
+
+  const [cardTopics, questionTopics] = await Promise.all([
+    prisma.flashcard.findMany({
+      where: { courseId, userId },
+      select: { topic: true },
+      distinct: ['topic'],
+      orderBy: { createdAt: 'desc' },
+      take: MAX_EXISTING_TOPICS,
+    }),
+    prisma.quizQuestion.findMany({
+      where: { userId, quiz: { courseId } },
+      select: { topic: true },
+      distinct: ['topic'],
+      orderBy: { createdAt: 'desc' },
+      take: MAX_EXISTING_TOPICS,
+    }),
+  ]);
+
+  // Case-insensitive dedupe, keeping the most recent spelling of each topic.
+  const seen = new Set<string>();
+  const topics: string[] = [];
+  for (const { topic } of [...cardTopics, ...questionTopics]) {
+    const trimmed = topic.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    topics.push(trimmed);
+    if (topics.length >= MAX_EXISTING_TOPICS) break;
+  }
+  return topics;
+}
+
+/**
  * Smart default title for a generated quiz/deck: an explicit title wins,
  * otherwise the single note's title, otherwise "First note + N more".
  */
