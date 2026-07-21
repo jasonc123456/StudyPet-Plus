@@ -20,6 +20,7 @@ type CourseFormProps =
         name: string;
         color: string;
         term: string | null;
+        credits: number;
       };
     };
 
@@ -34,6 +35,9 @@ export function CourseForm(props: CourseFormProps) {
   const [term, setTerm] = useState(
     isEdit ? (props.initialValues.term ?? '') : ''
   );
+  const [credits, setCredits] = useState(
+    isEdit ? props.initialValues.credits.toString() : '3'
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -46,6 +50,7 @@ export function CourseForm(props: CourseFormProps) {
       name: name.trim(),
       color,
       term: term.trim() || null,
+      credits: Number(credits),
     };
 
     try {
@@ -116,6 +121,29 @@ export function CourseForm(props: CourseFormProps) {
             placeholder="e.g. Fall 2026"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="course-credits"
+            className="mb-1.5 block text-sm font-medium text-slate-700"
+          >
+            Credits
+          </label>
+          <input
+            id="course-credits"
+            type="number"
+            required
+            min={0}
+            max={12}
+            step={1}
+            value={credits}
+            onChange={(e) => setCredits(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Used for GPA weighting — most courses are 3 to 5 credits.
+          </p>
         </div>
 
         <ColorPicker value={color} onChange={setColor} />

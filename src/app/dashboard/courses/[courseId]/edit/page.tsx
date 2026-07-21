@@ -36,6 +36,7 @@ export default async function EditCoursePage({ params }: EditCoursePageProps) {
           name: course.name,
           color: course.color,
           term: course.term,
+          credits: course.credits,
         }}
       />
     </div>
