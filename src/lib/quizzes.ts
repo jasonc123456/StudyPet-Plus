@@ -9,7 +9,11 @@ import {
   type AiProgressCallback,
   type AiProviderName,
 } from '@/lib/ai/types';
-import { assembleNoteSource, defaultEntityTitle } from '@/lib/note-sources';
+import {
+  assembleNoteSource,
+  defaultEntityTitle,
+  listCourseTopics,
+} from '@/lib/note-sources';
 import { recordStudyActivity, xpForQuizScore } from '@/lib/pet-xp';
 import { prisma } from '@/lib/prisma';
 import {
@@ -131,10 +135,15 @@ export async function generateAndSaveQuiz(
   const { notes, sourceText, truncated, attachments, courseId, topicHint } =
     assembled.value;
 
+  // Reuse the course's existing topic vocabulary so repeat generations group
+  // into the same categories instead of minting near-duplicate ones.
+  const existingTopics = await listCourseTopics(courseId, input.userId);
+
   const { items, provider } = await generateQuiz({
     sourceText,
     count: input.count,
     topicHint,
+    existingTopics,
     attachments,
     onProgress: input.onProgress,
   });

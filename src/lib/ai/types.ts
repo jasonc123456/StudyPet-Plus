@@ -119,6 +119,8 @@ export interface GenerateFlashcardsInput {
   count?: number;
   /** Optional subject/course name to bias topic tagging. */
   topicHint?: string;
+  /** Topic tags already used by this course, so the model reuses them. */
+  existingTopics?: string[];
   /** Raw file attachments (e.g. PDFs) passed through to the model. */
   attachments?: AiAttachment[];
   /** Optional live progress callback (enables streaming when supported). */
@@ -129,6 +131,8 @@ export interface GenerateQuizInput {
   sourceText: string;
   count?: number;
   topicHint?: string;
+  /** Topic tags already used by this course, so the model reuses them. */
+  existingTopics?: string[];
   /** Raw file attachments (e.g. PDFs) passed through to the model. */
   attachments?: AiAttachment[];
   /** Optional live progress callback (enables streaming when supported). */

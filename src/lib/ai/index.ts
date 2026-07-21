@@ -61,6 +61,65 @@ function sourceSection(source: string, attachmentCount: number): string {
   );
 }
 
+/**
+ * Shared topic-tagging policy for cards and questions.
+ *
+ * Without this the model tags nearly every item with its own hyper-specific
+ * topic ("Bogosort", "Bogosort Probability", "Bogosort Expectation", …), which
+ * turns the deck/quiz browser into a wall of one-item categories. We ask for a
+ * small number of broad themes, and hand back the topics this course already
+ * uses so repeat generations land in the same buckets instead of spawning
+ * near-duplicate ones.
+ */
+function topicPolicySection(
+  count: number,
+  topicHint?: string,
+  existingTopics?: string[]
+): string {
+  // Guidance, not a cap: aim for ~3-4 items per topic so a student can tell
+  // which area they're weak on, while still allowing a genuine one-off topic.
+  const targetTopics = Math.max(1, Math.round(count / 3));
+  const course = topicHint?.trim();
+  const known = (existingTopics ?? [])
+    .map((topic) => topic.trim())
+    .filter(Boolean);
+
+  const lines = [
+    '\n\nTOPIC TAGGING GUIDANCE (important):',
+    '- Topics exist so a student can see WHICH AREA they are weak on. A topic ' +
+      'that holds a single item tells them nothing.',
+    '- Group items under shared themes and reuse the same topic string across ' +
+      `every item that belongs to it — roughly ${targetTopics} distinct topics ` +
+      `for ${count} items is a good target, not a hard limit.`,
+    '- A topic is a broad theme covering several items (e.g. "Sorting Algorithms", ' +
+      '"Recurrences"), never a restatement of one item.',
+    '- Do NOT split a theme into sibling tags such as "Bogosort", ' +
+      '"Bogosort Probability" and "Bogosort Variants" — those are all "Bogosort" ' +
+      'or, better, "Sorting Algorithms".',
+    '- Use a one-item topic only when the material genuinely contains an ' +
+      'unrelated one-off concept — that case is fine, just do not make it the norm.',
+    '- Keep topics short (1-4 words), in Title Case.',
+  ];
+
+  if (course) {
+    lines.push(
+      `- Do NOT prefix topics with the course name or code ("${course}") — the ` +
+        'course is already known. Tag the concept only.'
+    );
+  }
+
+  if (known.length > 0) {
+    lines.push(
+      '- This course already uses the topics listed below. If an item fits one ' +
+        'of them, reuse that EXACT string (same spelling and casing). Only ' +
+        'invent a new topic when nothing here fits.',
+      `  Existing topics: ${known.map((topic) => `"${topic}"`).join(', ')}`
+    );
+  }
+
+  return lines.join('\n');
+}
+
 /** Collapse equivalent cards (same front+back, case/whitespace-insensitive). */
 export function dedupeFlashcards(cards: Flashcard[]): Flashcard[] {
   const seen = new Set<string>();
@@ -89,11 +148,49 @@ function providerDisplayName(provider: AiProviderName): string {
 // Flashcards
 // ---------------------------------------------------------------------------
 
+/**
+ * Post-process a model-supplied topic: drop a leading course-code/name prefix
+ * ("CSE-102-01: Bogosort" → "Bogosort") and snap onto an existing topic when it
+ * differs only in case or punctuation, so the UI doesn't show two spellings of
+ * the same category.
+ */
+function canonicalizeTopic(
+  topic: string,
+  topicHint?: string,
+  existingTopics?: string[]
+): string {
+  let cleaned = topic.trim();
+
+  const course = topicHint?.trim();
+  if (course) {
+    // "CSE-102-01: X", "CSE 102 — X", "CSE102-01 - X"
+    const loose = course.replace(/[^a-z0-9]+/gi, '[^a-z0-9]*');
+    cleaned = cleaned
+      .replace(new RegExp(`^${loose}\\s*[:\\-–—]\\s*`, 'i'), '')
+      .trim();
+  }
+  if (!cleaned) cleaned = topic.trim();
+
+  const key = cleaned
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  const match = (existingTopics ?? []).find(
+    (existing) =>
+      existing
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim() === key
+  );
+  return match ?? cleaned;
+}
+
 function flashcardPrompt(
   source: string,
   count: number,
   topicHint?: string,
-  attachments?: AiAttachment[]
+  attachments?: AiAttachment[],
+  existingTopics?: string[]
 ): JsonPrompt {
   const hint = topicHint?.trim()
     ? ` The course/subject context is "${topicHint.trim()}" — use it only for topic tags when it fits the source.`
@@ -112,10 +209,11 @@ function flashcardPrompt(
       `Create exactly ${count} flashcards from the source material.${hint}\n\n` +
       'Return a JSON object of this exact shape:\n' +
       '{ "cards": [ { "topic": string, "front": string, "back": string } ] }\n' +
-      '- "topic": a short subject/section tag grounded in the source (a few words).\n' +
+      '- "topic": a broad theme shared by several cards (see the rules below).\n' +
       '- "front": a clear question or prompt about the source.\n' +
       '- "back": a concise answer drawn only from the source.\n' +
       '- Prefer variety across distinct facts; avoid near-duplicate cards.' +
+      topicPolicySection(count, topicHint, existingTopics) +
       sourceSection(source, attachments?.length ?? 0),
     attachments,
   };
@@ -156,13 +254,28 @@ export async function generateFlashcards(
   }
 
   const run = await runWithFallback(
-    flashcardPrompt(source, count, input.topicHint, attachments),
+    flashcardPrompt(
+      source,
+      count,
+      input.topicHint,
+      attachments,
+      input.existingTopics
+    ),
     (value) => flashcardResponseSchema.safeParse(value).success,
     input.onProgress
   );
 
   const parsed = flashcardResponseSchema.parse(run.value);
-  const cards = dedupeFlashcards(parsed.cards).slice(0, count);
+  const cards = dedupeFlashcards(parsed.cards)
+    .slice(0, count)
+    .map((card) => ({
+      ...card,
+      topic: canonicalizeTopic(
+        card.topic,
+        input.topicHint,
+        input.existingTopics
+      ),
+    }));
 
   if (cards.length === 0) {
     throw new AiProviderError(
@@ -191,7 +304,8 @@ function quizPrompt(
   source: string,
   count: number,
   topicHint?: string,
-  attachments?: AiAttachment[]
+  attachments?: AiAttachment[],
+  existingTopics?: string[]
 ): JsonPrompt {
   const hint = topicHint?.trim()
     ? ` The course/subject context is "${topicHint.trim()}".`
@@ -218,7 +332,8 @@ function quizPrompt(
       'incorrect (reasoning, not citation). For the correct choice use "".\n' +
       '  * Good (wrong choice): "This mixes up linear and exponential growth."\n' +
       '  * No "notes say" / "source identifies" phrasing here either.\n' +
-      '- "topic" is a short concept tag (e.g. "Growth Families", "Algorithms").\n' +
+      '- "topic" is a broad concept tag shared by several questions ' +
+      '(e.g. "Growth Families", "Algorithms") — see the rules below.\n' +
       '- "explanation" (2–3 short sentences) must TEACH:\n' +
       '  * Explain the concept in plain language with short sentences.\n' +
       '  * Say why the correct choice makes sense (reasoning, not citation).\n' +
@@ -231,6 +346,7 @@ function quizPrompt(
       '- "hint" nudges without revealing the answer:\n' +
       '  * Good: "Compare how each expression changes when n gets bigger."\n' +
       '  * Bad: "The answer is c^n."' +
+      topicPolicySection(count, topicHint, existingTopics) +
       sourceSection(source, attachments?.length ?? 0),
     attachments,
   };
@@ -270,12 +386,26 @@ export async function generateQuiz(
   }
 
   const run = await runWithFallback(
-    quizPrompt(source, count, input.topicHint, attachments),
+    quizPrompt(
+      source,
+      count,
+      input.topicHint,
+      attachments,
+      input.existingTopics
+    ),
     (value) => quizResponseSchema.safeParse(value).success,
     input.onProgress
   );
 
-  const { questions } = quizResponseSchema.parse(run.value);
+  const parsedQuiz = quizResponseSchema.parse(run.value);
+  const questions = parsedQuiz.questions.map((question) => ({
+    ...question,
+    topic: canonicalizeTopic(
+      question.topic,
+      input.topicHint,
+      input.existingTopics
+    ),
+  }));
   console.info('[ai] generateQuiz ok', {
     provider: run.provider,
     questions: questions.length,
