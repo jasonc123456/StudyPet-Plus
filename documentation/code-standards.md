@@ -89,14 +89,12 @@ Graph analysis of the repository identifies these as the most-depended-on functi
 
 Every `route.ts` handler follows the same shape:
 
-1. Authenticate with `requireUser()` and bail out on the returned `NextResponse`.
-2. Parse the body inside `try/catch`, returning `jsonError('Invalid JSON body', 400)` on failure.
+1. Authenticate with `requireUser()` **outside** the main `try/catch` block and bail out on the returned `NextResponse`. Keeping auth outside the catch ensures `401 Unauthorized` responses pass through cleanly without being wrapped in a generic `500` error handler.
+2. Wrap the remaining handler logic (database queries, external calls) in a `try/catch`. Log with the route name as prefix (`console.error('GET /api/assignments', error)`) and return `jsonError('Failed to …', 500)` — internal error text must never reach the client. Parse the request body in its own inner `try/catch`, returning `jsonError('Invalid JSON body', 400)` on failure.
 3. Validate with a Zod schema via `safeParse`, returning `zodFirstError(parsed.error)` on failure.
 4. For records owned by a user, load through an ownership helper (`getOwnedCourse`, `getOwnedGradeItem`, `getGroupMembership`) and return a **404** when it comes back empty — never leak the existence of another user's row.
 5. Query through the shared `prisma` client, always scoped by the authenticated `user.id`.
 6. Return `jsonOk(data)`.
-
-Wrap database work in `try/catch`, log with the route name as the prefix (`console.error('DELETE /api/grades/items/[itemId]', error)`), and return a generic `jsonError('Failed to …', 500)` — internal error text must never reach the client.
 
 Never construct `NextResponse.json` ad hoc in a route — use `jsonOk` / `jsonError` so response shapes stay consistent. Never trust a client-supplied user or owner id; take it from the session.
 
@@ -107,11 +105,13 @@ Never construct `NextResponse.json` ad hoc in a route — use `jsonOk` / `jsonEr
 - Give optional props **default values in the destructuring** (`padding = true`, `linkLabel = 'View all'`) rather than branching inside the body.
 - Export named components (`export function DashboardPanel`), not default exports.
 - Style with **Tailwind utility classes**; compose conditional classes with a filtered array join rather than nested ternaries in the JSX. Style lookup maps (`STATUS_BADGE_STYLES`, `HIGHLIGHT_STYLES`) live as module constants, not inline objects.
+- **Mobile Touch Targets:** All interactive elements (`<button>`, `<a>`, clickable badges, swatches) must maintain a minimum hit area of 44×44px (`min-h-11` or equivalent padding) on mobile viewports to comply with US-4.11 / US-4.13 standards.
 - Feature components stay in their feature folder; promote to `components/common/` only once a second feature imports them.
 
 ## Security Standards
 
 - **Authenticate then authorize.** `requireUser()` proves *who*; an ownership or membership helper proves *what they may touch*. Both are required for any record-scoped route.
+- **Enforce Module Boundaries:** Never import server-only utility modules (such as `@/lib/prisma` or `auth.ts`) inside files marked with `'use client'`.
 - **Validate every external input** with Zod before it reaches Prisma. Type annotations are not validation.
 - **Guard outbound fetches.** User-supplied URLs (ICS calendar feeds) go through `assertPublicHttpUrl()` / `isPrivateAddress()` in `lib/calendar.ts` to block SSRF against private ranges, and responses are read with `readCappedText()`. Any new user-supplied-URL feature must reuse these.
 - **Never store raw tokens.** Invite tokens follow `createRawInviteToken()` → `hashInviteToken()`; only the hash is persisted.
