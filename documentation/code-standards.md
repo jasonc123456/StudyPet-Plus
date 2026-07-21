@@ -107,6 +107,7 @@ Never construct `NextResponse.json` ad hoc in a route — use `jsonOk` / `jsonEr
 - Style with **Tailwind utility classes**; compose conditional classes with a filtered array join rather than nested ternaries in the JSX. Style lookup maps (`STATUS_BADGE_STYLES`, `HIGHLIGHT_STYLES`) live as module constants, not inline objects.
 - **Mobile Touch Targets:** All interactive elements (`<button>`, `<a>`, clickable badges, swatches) must maintain a minimum hit area of 44×44px (`min-h-11` or equivalent padding) on mobile viewports to comply with US-4.11 / US-4.13 standards.
 - Feature components stay in their feature folder; promote to `components/common/` only once a second feature imports them.
+- **Mobile Responsive & Touch Guidelines (US-4.11 / US-4.13):** Ensure layout containers prevent horizontal scroll leaks down to 320px viewports, and verify all interactive elements (`<button>`, `<a>`, badges, swatches) verified no horizontal scroll leaks and interactive elements meet the 44px minimum touch target requirement
 
 ## Security Standards
 
