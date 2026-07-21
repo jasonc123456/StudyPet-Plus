@@ -413,21 +413,21 @@ function SidebarNav({ pathname, onNavigate, onOpenSettings }: SidebarNavProps) {
             </Link>
           );
         })}
+      </nav>
 
+      <div className="app-sidebar-divider space-y-1 border-t p-3">
         <button
           type="button"
           onClick={() => {
             onOpenSettings();
             onNavigate?.();
           }}
-          className={linkClass(false)}
+          className="app-sidebar-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
         >
           <SettingsIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
           Settings
         </button>
-      </nav>
 
-      <div className="app-sidebar-divider border-t p-3">
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: '/login' })}
