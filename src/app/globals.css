@@ -392,6 +392,21 @@ html[data-theme='dark'] .hover\:bg-slate-100:hover {
   background-color: var(--btn-secondary-hover) !important;
 }
 
+/* Same story for the translucent accent fills used to highlight a selected /
+   in-progress panel (planner cards, weakest-topic row, generation progress).
+   The opaque .bg-brand-50 rule maps to --accent-soft, which stays light on
+   purpose so small badges keep indigo-on-lavender contrast — but these are
+   full panels wrapping text-slate-* content, so they need a dark accent tint
+   instead or that text washes out. */
+html[data-theme='dark'] .bg-brand-50\/60,
+html[data-theme='dark'] .bg-brand-50\/40 {
+  background-color: color-mix(
+    in srgb,
+    var(--accent) 16%,
+    var(--card-bg)
+  ) !important;
+}
+
 /* Exception: the sliding knob inside a toggle must stay light for contrast
    against its coloured track, so keep those white in dark mode. */
 html[data-theme='dark'] [role='switch'] .bg-white {
