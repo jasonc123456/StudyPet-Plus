@@ -78,7 +78,7 @@ All scenarios were **manually tested** on the v1.0 release build and **passed**.
 
 **Related user stories:**  
 - As a user, I want to paste and store notes by course so that I can keep study material organized.  
-- As a user, I want to generate topic-tagged flashcards from my notes so that I can review efficiently. [file:1]
+- As a user, I want to generate topic-tagged flashcards from my notes so that I can review efficiently.
 
 **Steps:**
 
@@ -107,7 +107,7 @@ All scenarios were **manually tested** on the v1.0 release build and **passed**.
 
 **Related user stories:**  
 - As a user, I want to generate multiple-choice quizzes from my notes so that I can test my understanding.  
-- As a user, I want to take quizzes, submit answers, and receive scores so that I can measure my understanding. [file:1]
+- As a user, I want to take quizzes, submit answers, and receive scores so that I can measure my understanding.
 
 **Steps:**
 
