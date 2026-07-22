@@ -22,7 +22,7 @@ const GROUP_TASK_STATUS_OPTIONS = [
 
 type CalendarBrowserEvent = {
   id: string;
-  source: 'assignment' | 'quest' | 'group_task' | 'imported';
+  source: 'assignment' | 'quest' | 'group_task' | 'imported' | 'personal';
   sourceId: string;
   title: string;
   startsAt: string;
@@ -61,6 +61,21 @@ type CalendarBrowserViewProps = {
    */
   initialShowAllGroupTasks: boolean;
 };
+
+/**
+ * Cell width (px) below which a day switches to the compact status-count view.
+ *
+ * The inline event row needs to fit its time ("11:59 PM" ≈ 48px at 11px
+ * tabular), a space, and enough of the title to read the first word (~40px),
+ * plus the row's own padding (14px), the status icon and gap (18px), and the
+ * cell's padding (24px). Under this the title truncates to "1…", which is the
+ * unreadable state the counts view replaces.
+ *
+ * Measured per-cell rather than keyed to a viewport breakpoint: the calendar
+ * lives in a column that's a fraction of the page at xl, so a viewport wide
+ * enough for `sm` still leaves cells far too narrow.
+ */
+const COMPACT_CELL_WIDTH = 150;
 
 function toDayKey(date: Date) {
   const year = date.getFullYear();
@@ -247,6 +262,14 @@ function SourceBadge({ event }: { event: ParsedEvent }) {
     );
   }
 
+  if (event.source === 'personal') {
+    return (
+      <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        Personal
+      </span>
+    );
+  }
+
   return null;
 }
 
@@ -283,6 +306,21 @@ export function CalendarBrowserView({
   >(null);
   // One auto-sync attempt per mount; router.refresh() below must not retrigger it.
   const autoSyncAttempted = useRef(false);
+
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDescription, setNewEventDescription] = useState('');
+  const [newEventAllDay, setNewEventAllDay] = useState(false);
+  const [newEventStartTime, setNewEventStartTime] = useState('09:00');
+  const [newEventEndTime, setNewEventEndTime] = useState('');
+  const [newEventColor, setNewEventColor] = useState('#64748b');
+  const [savingEvent, setSavingEvent] = useState(false);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+
+  // Starts true so the server render and first client paint agree; the observer
+  // below corrects it from the real cell width immediately after mount.
+  const dayGridRef = useRef<HTMLDivElement>(null);
+  const [compactCells, setCompactCells] = useState(true);
 
   const autoSyncIds = new Set(autoSyncSubscriptionIds);
   const hasAutoSync = autoSyncSubscriptionIds.length > 0;
@@ -466,6 +504,106 @@ export function CalendarBrowserView({
     }
   }
 
+  /** A personal event has no course/quest/group behind it — the user can delete their own. */
+  function canDelete(event: ParsedEvent) {
+    return event.source === 'personal';
+  }
+
+  async function handleAddEvent(formEvent: React.FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    if (!newEventTitle.trim()) return;
+
+    setSavingEvent(true);
+    setActionError(null);
+
+    const startsAt = newEventAllDay
+      ? `${selectedDayKey}T00:00:00`
+      : `${selectedDayKey}T${newEventStartTime || '00:00'}:00`;
+    const endsAt =
+      !newEventAllDay && newEventEndTime
+        ? `${selectedDayKey}T${newEventEndTime}:00`
+        : null;
+
+    try {
+      const response = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newEventTitle,
+          description: newEventDescription || null,
+          startsAt,
+          endsAt,
+          allDay: newEventAllDay,
+          color: newEventColor,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setActionError(data?.error ?? 'Unable to add event');
+        return;
+      }
+
+      setNewEventTitle('');
+      setNewEventDescription('');
+      setNewEventAllDay(false);
+      setNewEventStartTime('09:00');
+      setNewEventEndTime('');
+      setShowAddEvent(false);
+      router.refresh();
+    } catch {
+      setActionError('Network error — please try again');
+    } finally {
+      setSavingEvent(false);
+    }
+  }
+
+  async function handleDeleteEvent(event: ParsedEvent) {
+    setDeletingEventId(event.id);
+    setActionError(null);
+
+    try {
+      const response = await fetch(`/api/calendar/events/${event.sourceId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setActionError(data?.error ?? 'Unable to remove this event');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setActionError('Network error — please try again');
+    } finally {
+      setDeletingEventId(null);
+    }
+  }
+
+  useEffect(() => {
+    const grid = dayGridRef.current;
+    if (!grid) return;
+
+    const measure = () => {
+      const cell = grid.firstElementChild;
+      if (cell) {
+        setCompactCells(
+          cell.getBoundingClientRect().width < COMPACT_CELL_WIDTH
+        );
+      }
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     setMounted(true);
 
@@ -600,10 +738,14 @@ export function CalendarBrowserView({
           ))}
         </div>
 
-        {/* On phones each cell shows per-status counts instead of event text;
-            this legend explains the glyphs. Hidden once the full agenda-style
-            cells return at sm. */}
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500 sm:hidden">
+        {/* When cells are too narrow for readable event text they show
+            per-status counts instead; this legend explains the glyphs. */}
+        <div
+          className={[
+            'mt-2 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500',
+            compactCells ? 'flex' : 'hidden',
+          ].join(' ')}
+        >
           <span className="inline-flex items-center gap-1">
             <EventStatusIcon status="todo" className="h-3 w-3" />
             To do
@@ -618,7 +760,10 @@ export function CalendarBrowserView({
           </span>
         </div>
 
-        <div className="mt-3 grid grid-cols-7 gap-1 sm:mt-0 sm:gap-2">
+        <div
+          ref={dayGridRef}
+          className="mt-3 grid grid-cols-7 gap-1 sm:mt-0 sm:gap-2"
+        >
           {monthDays.map((day) => {
             const dayKey = toDayKey(day);
             const dayEvents = eventsByDay[dayKey] ?? [];
@@ -631,7 +776,8 @@ export function CalendarBrowserView({
                 key={dayKey}
                 href={buildCalendarHref(monthKey, dayKey)}
                 className={[
-                  'min-h-16 rounded-xl border p-1 text-left transition sm:min-h-28 sm:rounded-2xl sm:p-3',
+                  'rounded-xl border text-left transition',
+                  compactCells ? 'min-h-16 p-1' : 'min-h-28 rounded-2xl p-3',
                   isSelected
                     ? 'border-brand-300 bg-brand-50'
                     : 'border-slate-200 bg-white hover:border-brand-200',
@@ -656,16 +802,21 @@ export function CalendarBrowserView({
                   )}
                 </div>
 
-                {/* Mobile: compact per-status counts. Tap the day to open the
-                    full list in the agenda below. */}
-                {dayEvents.length > 0 && (
-                  <div className="mt-1 flex flex-wrap justify-center gap-x-1.5 gap-y-0.5 sm:hidden">
+                {/* Narrow cells: compact per-status counts. Tap the day to open
+                    the full list in the agenda below. */}
+                {dayEvents.length > 0 && compactCells && (
+                  <div className="mt-1 flex flex-wrap justify-center gap-x-1.5 gap-y-0.5">
                     <DayStatusChips events={dayEvents} />
                   </div>
                 )}
 
-                {/* Desktop: the roomier inline event list. */}
-                <div className="mt-3 hidden space-y-1.5 sm:block">
+                {/* Wide cells: the roomier inline event list. */}
+                <div
+                  className={[
+                    'mt-3 space-y-1.5',
+                    compactCells ? 'hidden' : 'block',
+                  ].join(' ')}
+                >
                   {dayEvents.slice(0, 3).map((event) => (
                     <div
                       key={event.id}
@@ -711,12 +862,141 @@ export function CalendarBrowserView({
       </section>
 
       <section className="card p-5">
-        <h2 className="text-xl font-semibold text-slate-900">
-          {formatDayHeading(selectedDayKey)}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Day agenda from your planner plus imported calendars.
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-slate-900">
+              {formatDayHeading(selectedDayKey)}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Day agenda from your planner plus imported calendars.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddEvent((value) => !value)}
+            className="btn-secondary shrink-0 text-sm"
+            aria-expanded={showAddEvent}
+          >
+            {showAddEvent ? 'Cancel' : 'Add event'}
+          </button>
+        </div>
+
+        {showAddEvent && (
+          <form
+            onSubmit={handleAddEvent}
+            className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+          >
+            <div>
+              <label
+                htmlFor="new-event-title"
+                className="mb-1.5 block text-sm font-semibold text-slate-700"
+              >
+                Event title
+              </label>
+              <input
+                id="new-event-title"
+                value={newEventTitle}
+                onChange={(input) => setNewEventTitle(input.target.value)}
+                className="theme-input"
+                placeholder="Dentist appointment"
+                required
+                maxLength={200}
+              />
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={newEventAllDay}
+                onChange={(input) => setNewEventAllDay(input.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm font-medium text-slate-700">
+                All day
+              </span>
+            </label>
+
+            {!newEventAllDay && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="new-event-start"
+                    className="mb-1.5 block text-sm font-semibold text-slate-700"
+                  >
+                    Starts
+                  </label>
+                  <input
+                    id="new-event-start"
+                    type="time"
+                    value={newEventStartTime}
+                    onChange={(input) =>
+                      setNewEventStartTime(input.target.value)
+                    }
+                    className="theme-input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="new-event-end"
+                    className="mb-1.5 block text-sm font-semibold text-slate-700"
+                  >
+                    Ends <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    id="new-event-end"
+                    type="time"
+                    value={newEventEndTime}
+                    onChange={(input) => setNewEventEndTime(input.target.value)}
+                    className="theme-input"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="new-event-description"
+                className="mb-1.5 block text-sm font-semibold text-slate-700"
+              >
+                Notes <span className="text-slate-400">(optional)</span>
+              </label>
+              <textarea
+                id="new-event-description"
+                value={newEventDescription}
+                onChange={(input) => setNewEventDescription(input.target.value)}
+                className="theme-input"
+                rows={2}
+                maxLength={2000}
+              />
+            </div>
+
+            <div className="flex items-end gap-3">
+              <div>
+                <label
+                  htmlFor="new-event-color"
+                  className="mb-1.5 block text-sm font-semibold text-slate-700"
+                >
+                  Color
+                </label>
+                <input
+                  id="new-event-color"
+                  type="color"
+                  value={newEventColor}
+                  onChange={(input) => setNewEventColor(input.target.value)}
+                  className="h-11 w-16 rounded-xl border border-[var(--card-border)] bg-white p-1"
+                />
+              </div>
+              <button
+                type="submit"
+                className="btn-primary flex-1"
+                disabled={savingEvent}
+              >
+                {savingEvent ? 'Adding…' : 'Add to this day'}
+              </button>
+            </div>
+          </form>
+        )}
 
         {actionError && (
           <p className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -805,7 +1085,8 @@ export function CalendarBrowserView({
 
                 {(hasStatusControl(event) ||
                   hasGroupStatusControl(event) ||
-                  canIgnore(event)) && (
+                  canIgnore(event) ||
+                  canDelete(event)) && (
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3">
                     {hasStatusControl(event) && (
                       <CalendarEventStatusControl
@@ -845,6 +1126,19 @@ export function CalendarBrowserView({
                             : 'Hide from your tasks'}
                         </span>
                       </div>
+                    )}
+
+                    {canDelete(event) && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEvent(event)}
+                        disabled={deletingEventId === event.id}
+                        className="text-xs font-semibold text-red-600 hover:text-red-700 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {deletingEventId === event.id
+                          ? 'Removing…'
+                          : 'Delete event'}
+                      </button>
                     )}
                   </div>
                 )}

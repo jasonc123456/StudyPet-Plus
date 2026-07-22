@@ -63,6 +63,13 @@ model User {
   showAllGroupTasksOnCalendar Boolean @default(false)
   createdAt     DateTime  @default(now())
 
+  // sha256 of the raw token embedded in the outbound ICS feed URL
+  // (/api/calendar/feed/[token].ics). Null until the user generates a link;
+  // rotating it (regenerating) invalidates every calendar app subscribed to
+  // the old one. Hashed like group invite tokens (see hashInviteToken) so a
+  // leaked DB row can't be used to mint a working feed URL.
+  calendarFeedTokenHash String? @unique
+
   // ---- Multi-factor auth (US-4.S1) ----
   // totpSecret holds a base32 TOTP secret. It is written at the start of
   // enrollment (pending) and only becomes an active factor once the user
@@ -96,6 +103,7 @@ model User {
   gradeProfile          GradeProfile?
   gradeScaleEntries     GradeScaleEntry[]
   coursePlanners        CoursePlanner[]
+  personalEvents        PersonalEvent[]
   groupsCreated         StudyGroup[]         @relation("GroupCreator")
   groupMemberships      GroupMembership[]
   groupInvitesCreated   GroupInvite[]        @relation("GroupInviteCreator")
@@ -287,6 +295,26 @@ model Pet {
   createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// A plain, user-owned calendar entry with nothing behind it — no course,
+// quest, or group ("Dentist appointment", "Study group hangout"). Added
+// Sprint 4 so the calendar page isn't limited to auto-generated planner items.
+model PersonalEvent {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  allDay      Boolean   @default(false)
+  color       String    @default("#64748b")
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startsAt])
 }
 
 model CalendarSubscription {
