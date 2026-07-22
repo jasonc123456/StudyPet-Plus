@@ -24,7 +24,7 @@
 
 ### Completed Stories
 - US-3.1: Notes management — paste, save, and manage notes by course (3 pts) ✅
-- US-3.2: AI provider layer — Gemini-first provider with DeepSeek fallback (5 pts) ✅
+- US-3.2: AI provider layer — Gemini-first provider with DeepSeek fallback (5 pts) ✅ *(superseded in Sprint 4: DeepSeek was replaced by a self-hosted OpenAI-compatible LLM as the primary provider, with Gemini as the fallback. The current chain in `src/lib/ai/provider.ts` is local → Gemini.)*
 - US-3.3: Topic-tagged flashcards generated from notes and persisted (5 pts) ✅
 - US-3.4: Multiple-choice quiz generation and persistence (5 pts) ✅
 - US-3.5: Flashcard review flow and initial XP awards (3 pts) ✅
