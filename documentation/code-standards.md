@@ -3,7 +3,7 @@
 
 ## Style Guide Reference
 
-We follow the **Next.js / React TypeScript conventions** and enforce them with **ESLint (`next/core-web-vitals`) + Prettier** via `plugin:prettier/recommended` (`npm run lint`).
+We follow the **Next.js / React TypeScript conventions** and enforce them with **ESLint (`next/core-web-vitals`) + Prettier** via `plugin:prettier/recommended` (`npm run lint`). The ESLint config lives in the `eslintConfig` block of `package.json` rather than a separate `.eslintrc` file.
 
 TypeScript runs in `strict` mode (`tsconfig.json`). Formatting rules live in `.prettierrc` and are applied by ESLint, so a formatting mistake is a lint error — there is no separate format step to forget.
 
@@ -62,7 +62,7 @@ Put new code where its neighbours already live:
 | `src/components/<feature>/` | React components grouped by feature (`flashcards`, `grades`, `quests`, …) |
 | `src/components/common/` | Feature-agnostic reusable UI (`Chip`, `StatTile`, `ProgressBar`) |
 | `src/lib/` | Framework-free business logic, formatting, and data access helpers |
-| `src/lib/ai/` | AI provider layer, generation, prompts, and streaming |
+| `src/lib/ai/` | AI provider chain and config, generation, planner import, quiz feedback, and SSE streaming |
 | `src/hooks/` | Shared React hooks |
 | `src/systems/` | Game-system rules (e.g. pet evolution) |
 | `src/types/` | Ambient/global type declarations |
@@ -105,9 +105,8 @@ Never construct `NextResponse.json` ad hoc in a route — use `jsonOk` / `jsonEr
 - Give optional props **default values in the destructuring** (`padding = true`, `linkLabel = 'View all'`) rather than branching inside the body.
 - Export named components (`export function DashboardPanel`), not default exports.
 - Style with **Tailwind utility classes**; compose conditional classes with a filtered array join rather than nested ternaries in the JSX. Style lookup maps (`STATUS_BADGE_STYLES`, `HIGHLIGHT_STYLES`) live as module constants, not inline objects.
-- **Mobile Touch Targets:** All interactive elements (`<button>`, `<a>`, clickable badges, swatches) must maintain a minimum hit area of 44×44px (`min-h-11` or equivalent padding) on mobile viewports to comply with US-4.11 / US-4.13 standards.
 - Feature components stay in their feature folder; promote to `components/common/` only once a second feature imports them.
-- **Mobile Responsive & Touch Guidelines (US-4.11 / US-4.13):** Ensure layout containers prevent horizontal scroll leaks down to 320px viewports, and verify all interactive elements (`<button>`, `<a>`, badges, swatches) verified no horizontal scroll leaks and interactive elements meet the 44px minimum touch target requirement
+- **Mobile responsive & touch targets (US-4.11 / US-4.13) — target, not yet met.** New and touched components should keep layout containers free of horizontal scroll leaks down to 320px viewports, and give every interactive element (`<button>`, `<a>`, clickable badges, swatches) a minimum 44×44px hit area (`min-h-11` or equivalent padding). This is the standard the team is converging on: as of v1.0 only one component applies `min-h-11`, and US-4.11 / US-4.13 remain open in the Sprint 4 report. Apply it to code you touch rather than assuming the codebase already complies.
 
 ## Security Standards
 
@@ -122,7 +121,7 @@ Never construct `NextResponse.json` ad hoc in a route — use `jsonOk` / `jsonEr
 
 - **DRY:** Extract repeated logic into `src/lib`. If the same expression appears three times, it becomes a helper.
 - **Single Responsibility:** Each function, component, and module does one thing. If describing it needs more than one paragraph, split it.
-- **Watch module size.** `lib/validators.ts` (772 lines) and `lib/ai/planner-import.ts` (1004 lines) are the largest modules and show low internal cohesion in graph analysis. Add new schemas to a feature-scoped module rather than growing these further.
+- **Watch module size.** `lib/calendar.ts` (1309 lines), `lib/ai/planner-import.ts` (1004 lines), and `lib/validators.ts` (772 lines) are the three largest modules and show low internal cohesion in graph analysis. Add new schemas and helpers to a feature-scoped module rather than growing these further.
 - **Clarity over cleverness:** Write for the next reader. Avoid one-liners that sacrifice readability.
 - **Type safety:** No `any`. Use `unknown` for unparsed input (as the route handlers do) and narrow it. Do not use `@ts-ignore` to silence a real error.
 - **No commented-out code:** Delete it. Git history preserves it.
@@ -135,7 +134,7 @@ Before opening a pull request:
 
 - [ ] `npm run lint` passes with no new errors or warnings
 - [ ] `npm run build` succeeds
-- [ ] Unit tests pass (`npx vitest run`) and new logic in `src/lib` has test coverage
+- [ ] Unit tests pass and new logic in `src/lib` has test coverage. Vitest is configured (`vitest.config.ts`, `vitest.setup.ts`) but is **not yet a declared dev dependency and has no `npm test` script**, so `npx vitest run` currently resolves the runner from the registry. Wiring vitest into `package.json` and CI is outstanding work.
 - [ ] New routes use `requireUser()` + an ownership check, and validate input with Zod
 - [ ] No new import cycles introduced
 - [ ] Prisma schema changes ship with a migration

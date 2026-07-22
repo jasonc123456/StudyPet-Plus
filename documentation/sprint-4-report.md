@@ -36,31 +36,36 @@
 - US-4.08: Daily streak tracking system (3 pts) ✅
 - US-4.09: Pet evolution based on XP thresholds (5 pts) ✅
 - US-4.10: Live pet widget displaying XP, stage, and streak (3 pts) ✅
+- US-4.S1: MFA authentication — authenticator-app TOTP and WebAuthn passkey second factors (8 pts) ✅
+- US-4.S2: Google OAuth login as an optional provider alongside the magic link (5 pts) ✅
 
 ### Incomplete Stories
-- US-4.11: Responsive UI validation and refinement (5 pts)
-- US-4.12: Empty and error state UX validation (3 pts)
-- US-4.13: Accessibility validation (ARIA, keyboard, contrast) (5 pts)
-- US-4.S1: MFA authentication (TOTP/passkey) (8 pts)
-- US-4.S2: Google OAuth login (5 pts)
+- US-4.11: Responsive UI validation and refinement (5 pts) — responsive calendar grids landed, but the 44px touch-target pass is applied in only one component
+- US-4.12: Empty and error state UX validation (3 pts) — `try/catch` error handling was added across 14 API routes; the UI-side empty/error state sweep is unfinished
+- US-4.13: Accessibility validation (ARIA, keyboard, contrast) (5 pts) — partial ARIA/role coverage (51 of 119 component files); keyboard and contrast audit outstanding
 - US-4.S3: Full production email delivery setup (3 pts)
 
 ## Velocity
 
 | Metric | Value |
 |--------|-------|
-| Stories completed | 10 |
-| Story points completed | 37/55 |
+| Stories completed | 12 |
+| Story points completed (recorded scope) | 37/55 |
+| Stretch points additionally delivered | 13 (US-4.S1, US-4.S2) |
 | Ideal work hours completed | 60 hours |
 | Sprint days | 7 |
-| Stories/day | 1.43 |
+| Stories/day | 1.71 |
 | Ideal hours/day | 8.57 hours |
-| Avg. stories/day (Sprints 2–4) | 1.16 |
-| Avg. ideal hours/day (Sprints 2–4) | 6.80 hours |
+| Avg. stories/day (Sprints 2–4) | 1.45 |
+| Avg. ideal hours/day (Sprints 2–4) | 7.35 hours |
+
+*US-4.14 (Bug Bash & Polish) and US-4.15 (Final Demo Preparation) were carried out as continuous
+work through the sprint rather than tracked to a single completion date, and so are not counted in
+either list above.*
 
 ## Burnup Chart
 
 ![Sprint 4 Burnup Chart](./img/Sprint4_Burnup_Chart.png)
 
 ### Summary
-Sprint 4 successfully delivered all core MVP functionality, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system. The application now supports a complete end-to-end study experience and is ready for final demo presentation. However, several polish and quality-focused stories (responsiveness, accessibility, and UX validation) remain incomplete and require additional manual testing. Stretch goals such as MFA and OAuth were not prioritized in favor of ensuring core functionality. Overall, the sprint achieved its primary objective of delivering a fully functional, demo-ready product, with remaining work focused on refinement rather than capability.
+Sprint 4 successfully delivered all core MVP functionality, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system. The application now supports a complete end-to-end study experience and is ready for final demo presentation. However, several polish and quality-focused stories (responsiveness, accessibility, and UX validation) remain incomplete and require additional manual testing. Two stretch goals were also delivered — MFA (TOTP and passkeys) and optional Google OAuth sign-in — while full production email delivery was deferred. Overall, the sprint achieved its primary objective of delivering a fully functional, demo-ready product, with remaining work focused on refinement rather than capability.

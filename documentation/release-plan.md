@@ -1,5 +1,5 @@
 # Release Plan
-**Product:** StudyPet AI Study Planner | **Team:** StudyPet-Plus | **Release:** v1.0 | **Release Date:** July 1, 2026 | **Rev:** 1.0 | **Rev Date:** July 19, 2026
+**Product:** StudyPet AI Study Planner | **Team:** StudyPet-Plus | **Release:** v1.0 | **Release Date:** July 22, 2026 (end of Sprint 4) | **Rev:** 1.1 | **Rev Date:** July 21, 2026
 
 ## High-Level Goals
 1. Students can manage courses, assignments, and study tasks in one planner-first web app.
@@ -29,8 +29,24 @@
 
 **Total story points:** 96 | **Team velocity estimate:** 24 pts/sprint | **Sprints needed:** ~4 ✅
 
+## Delivered Beyond This Plan
+
+The following was added as recorded sprint scope after this plan was written and ships in v1.0. See the sprint 3 and 4 plans for the point estimates.
+
+| ID | Feature | Sprint |
+|----|---------|--------|
+| US-3.6 | Study groups: memberships, custom roles, expiring invites, channels, messages, group tasks | 3 |
+| US-3.7 | Calendar subscriptions: ICS feeds and parser, month/day views, group feeds, task checklist | 3 |
+| US-3.8 | Pomodoro focus timer widget | 3 |
+| US-3.9 | First-run onboarding: name, timezone, avatar | 3 |
+| — | Grade tracker: grade profiles, grade scales, weighted categories, GPA | 3 |
+| — | Course planners with AI/spreadsheet degree-plan import | 3 |
+| US-4.S1 | MFA: authenticator-app TOTP and WebAuthn passkeys | 4 |
+| US-4.S2 | Optional Google OAuth sign-in | 4 |
+
 ## Product Backlog (not in this release)
-- US-17: Optional second-factor authentication (TOTP) and Google OAuth.
-- US-18: Advanced analytics dashboard for long-term study trends.
-- US-19: Native mobile apps (iOS/Android).
-- US-20: Social/collaborative study features (shared decks, leaderboards, groups).
+- US-17: Advanced analytics dashboard for long-term study trends, correlated with the grade tracker.
+- US-18: Native mobile apps (iOS/Android).
+- US-19: Shared flashcard decks and class-based leaderboards, building on the study groups shipped in Sprint 3.
+- US-20: Instructor-facing tools for pushing assignments and recommended decks to enrolled students.
+- US-4.S3: Full production email delivery for magic links.

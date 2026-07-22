@@ -77,6 +77,19 @@
     - Daily or regular activity contributes to streaks.
     - Reaching XP thresholds triggers visible pet evolution stages.
 
+### 5. Additional Features Shipped Beyond the Original Release Plan
+
+These landed during Sprints 3 and 4 and are present in the v1.0 codebase:
+
+- **Account security:** authenticator-app TOTP and WebAuthn passkeys as second factors (`src/lib/mfa.ts`, `/api/mfa/*`, `/mfa`), plus optional **Google OAuth sign-in** alongside the magic link (`src/auth.ts`).
+- **Study groups:** groups with memberships, custom roles, expiring invite links, channels, messages, and assignable group tasks (`/api/groups/*`).
+- **Calendar subscriptions:** ICS feed subscription and parsing with SSRF-guarded fetching, month/day browse views, per-event ignores, and auto-sync (`/api/calendar/*`).
+- **Grade tracker:** grade profiles, configurable grade scales, weighted categories, and GPA calculation (`/api/grades/*`, `/api/grade-scale/*`).
+- **Course planner + import:** multi-term course planners with AI- and spreadsheet-driven import of a degree plan (`/api/course-planners/*`).
+- **Notes from PDF:** PDF upload and attachment as a generation source alongside pasted text (`/api/notes/pdf`).
+- **Pomodoro focus timer** on the dashboard, and **first-run onboarding** for name, timezone, and avatar.
+- **Animated 3D StudyPet** rendered with three.js / react-three-fiber, with per-stage models loaded on demand.
+
 ---
 
 ## Known Problems
@@ -89,8 +102,8 @@
 
 ### Missing Functionality
 
-- Optional second-factor authentication (TOTP) and Google OAuth are not implemented in this release.
-- Advanced analytics (long-term trends, GPA correlation, cohort insights) are not fully implemented; analytics focus on basic weak-topic feedback.
+- Advanced analytics (long-term trends, cohort insights) are not fully implemented; analytics focus on basic weak-topic feedback. A separate grade tracker with GPA calculation ships in this release, but it is not correlated with quiz analytics.
+- Production email delivery (US-4.S3) is not fully configured; magic links rely on the configured SMTP host, and a `/api/demo-login` route exists for demos without email.
 - Mood-based recommendations are simplified and may not cover all combinations of energy level, available time, difficulty, and deadlines.
 
 ### Design Shortcuts
@@ -105,11 +118,11 @@
 
 ### High-Priority User Stories
 
-- Implement optional second-factor authentication (TOTP) and Google OAuth sign-in to strengthen security.
-- Add an advanced analytics dashboard with visualizations and long-term tracking of weak topics and study progress.
+- Add an advanced analytics dashboard with visualizations and long-term tracking of weak topics and study progress, correlated with the grade tracker.
 - Improve mood-based recommendation logic to better combine energy level, available time, difficulty, and deadlines.
-- Enhance accessibility and mobile responsiveness for all key flows (login, dashboard, notes, quizzes, StudyPet).
-- Add social and collaborative features such as shared decks, group study rooms, and class-based leaderboards. 
+- Enhance accessibility and mobile responsiveness for all key flows (login, dashboard, notes, quizzes, StudyPet) — carried over as US-4.11 and US-4.13.
+- Extend the collaborative features beyond study groups: shared flashcard decks and class-based leaderboards.
+- Complete production email delivery so magic links are reliable outside a configured SMTP sandbox.
 - Provide instructor-facing tools for pushing assignments, study tasks, and recommended decks to enrolled students. 
 
 ### High-Priority Bug Fixes and Refactoring

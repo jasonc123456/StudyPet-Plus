@@ -21,15 +21,16 @@ All scenarios were **manually tested** on the v1.0 release build and **passed**.
 2. Enter a valid email address in the login form and click “Send magic link”.
 3. Open the email inbox for that address and click the magic-link in the message.(check spam message)
 4. On first login, observe that the onboarding panel appears before the main dashboard, prompting:
-   - Avatar selection for the StudyPet.
-   - Color theme selection for the UI.
-   - Calendar feed selection or configuration.
-5. Choose an avatar, pick a color theme, and select/confirm a calendar feed, then save.
+   - Display name.
+   - Time zone, pre-filled from the browser default.
+   - Avatar selection.
+   - Optional calendar (ICS) feed with a name and colour, which may be skipped.
+5. Enter a name, confirm the time zone, choose an avatar, and either add or skip a calendar feed, then save.
 6. Confirm you are redirected to the main dashboard and see:
    - The chosen avatar in the UI.
-   - The selected color theme applied.
-   - The calendar section showing events from the chosen feed.
-7. Refresh `/dashboard` and confirm the personalization persists.
+   - The calendar section showing events from the chosen feed, if one was added.
+7. Open Settings → Theme and change the colour theme; confirm it applies.
+8. Refresh `/dashboard` and confirm the personalization persists.
 
 **Expected results:**
 
@@ -174,4 +175,4 @@ All scenarios were **manually tested** on the v1.0 release build and **passed**.
 **Status for released system version:**
 
 - For the v1.0 release, all above tests were designed to pass for the implemented logic; manual verification of core flows (login, planner, notes, flashcards, quizzes, analytics, and StudyPet progression) was performed and passed.  
-- Test runner wiring (CI scripts and package.json test script) may need further integration work in future releases; for this release, manual system testing serves as the primary acceptance evidence.
+- Test runner wiring is incomplete: `vitest.config.ts` and `vitest.setup.ts` are committed, but **vitest is not listed in `package.json` devDependencies, there is no `npm test` script, and `.github/workflows/ci.yml` runs only `prisma generate` → `npm run lint` → `npm run build`**. Adding the dependency, the script, and a CI test step is carried into the next release. For this release, manual system testing serves as the primary acceptance evidence.
