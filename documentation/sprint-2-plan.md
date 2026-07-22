@@ -1,11 +1,20 @@
 # Sprint 2 Plan
-**Product:** StudyPet+ | **Team:** StudyPet+ | **Due:** July 3, 2026 | **Rev:** 1.0 | **Rev Date:** July 6, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** June 29–July 3, 2026 | **Sprint Completion:** July 3, 2026 | **Rev:** 1.0 | **Rev Date:** June 29, 2026
 
 ## Sprint Goal
 Deliver the planner core: a logged-in user manages courses and assignments, sees a planner dashboard sorted by due date, and sees their StudyPet on the dashboard.
 
 ## Team Capacity
-- Committed hours: 32 ideal hours
+- Team members: 5
+- Planned available hours: 37.5h (5 members × 7.5h/sprint)
+- Capacity buffer (15%): 5.5h
+- Committed work hours: 32h
+
+## Scope
+- **Core committed scope:** 32 hours (US-1 through US-8)
+- **Added scope recorded during the sprint:** None
+- **Combined recorded scope:** 32 hours
+- **MVP priority:** Land course, assignment, and quest CRUD with a planner dashboard and pet widget on the live site. Mobile responsiveness and CI fixes are required for demo readiness, not optional polish.
 
 ## Team Roles
 | Member | Role |
@@ -77,7 +86,32 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 | Fix LF line endings to resolve CI lint failures; port the settings modal out of the sidebar DOM hierarchy and restore the dev build cache | Aadi | 1.5h |
 | **Story Total** | | **4.5h** |
 
-**Total committed: 32 ideal hours**
+**Core committed total: 32 hours**
+
+## Initial Scrum Board
+| User Story | To Do | In Progress | Completed |
+|------------|-------|-------------|-----------|
+| US-1 Prisma Models | Schema design; migration apply | — | — |
+| US-2 Course CRUD | API routes; list/form UI; dashboard wiring | — | — |
+| US-3 Assignment CRUD | API routes; planner views; status dropdown | — | — |
+| US-4 Quest CRUD | API routes; quest UI; settings polish | — | — |
+| US-5 Planner Dashboard | Stats, streaks, due dates, courses grid | — | — |
+| US-6 Pet Widget | PetSummary component; dashboard wiring | — | — |
+| US-7 Demo Seed Script | Extend seed for courses, assignments, quests, pet | — | — |
+| US-8 Mobile UI / CI Fixes | Responsive views; LF line endings; build cache | — | — |
+
+## Burnup Plan
+| Date | Jun 29 | Jun 30 | Jul 1 | Jul 2 | Jul 3 |
+|------|--------|--------|-------|-------|-------|
+| Ideal completed hours | 6.4 | 12.8 | 19.2 | 25.6 | 32 |
+| Actual completed hours | 0 | 8 | 16 | 24 | 32 |
+
+## Definition of Done
+- Functionality meets the relevant acceptance criteria.
+- Course, assignment, and quest CRUD are verified end-to-end on the live deployment.
+- Code is reviewed, tested as appropriate, and does not regress the core demo path.
+- The Scrum board and burnup are updated at scrum meetings.
+- Non-core scope is deferred when necessary to protect the core MVP.
 
 ## Scrum Schedule
 | Day | Time | Type |
@@ -86,3 +120,10 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 | Wednesday | 30m | Mid-sprint sync |
 | Friday | 30m (+30m TA session) | Sprint Review / Demo + Retro |
 | Daily | Async | Daily standup via Discord thread |
+
+### Key Milestones
+| Milestone | Date |
+|-----------|------|
+| Sprint 2 starts | June 29, 2026 |
+| Mid-sprint sync | July 1, 2026 |
+| Sprint review and completion | July 3, 2026 |
