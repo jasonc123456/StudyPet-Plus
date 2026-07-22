@@ -68,7 +68,9 @@ function useAssignmentRowState(assignment: AssignmentRowData) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const editHref = `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`;
+  // Clicking a title opens the read-only view; editing stays an explicit action.
+  const viewHref = `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}`;
+  const editHref = `${viewHref}/edit`;
 
   async function handleStatusChange(nextStatus: string) {
     const previousStatus = status;
@@ -137,6 +139,7 @@ function useAssignmentRowState(assignment: AssignmentRowData) {
     confirmOpen,
     deleting,
     error,
+    viewHref,
     editHref,
     setConfirmOpen,
     handleStatusChange,
@@ -269,6 +272,7 @@ export function AssignmentMobileCard({
     confirmOpen,
     deleting,
     error,
+    viewHref,
     editHref,
     setConfirmOpen,
     handleStatusChange,
@@ -280,7 +284,7 @@ export function AssignmentMobileCard({
       <div className="card p-4">
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={editHref}
+            href={viewHref}
             className="font-medium text-slate-900 hover:text-brand-600"
           >
             {assignment.title}
@@ -350,6 +354,7 @@ export function AssignmentRow({
     confirmOpen,
     deleting,
     error,
+    viewHref,
     editHref,
     setConfirmOpen,
     handleStatusChange,
@@ -362,7 +367,7 @@ export function AssignmentRow({
         <td className="px-2 py-2.5 sm:px-4 sm:py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={editHref}
+              href={viewHref}
               className="font-medium text-slate-900 hover:text-brand-600"
             >
               {assignment.title}
