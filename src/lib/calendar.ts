@@ -1055,7 +1055,7 @@ export async function getCalendarPageData(
               status: assignment.status,
               color: assignment.course.color,
               description: assignment.description,
-              href: `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`,
+              href: `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}`,
               meta: assignment.calendarSubscriptionId
                 ? `${assignment.course.name} · ${
                     subscriptionNames.get(assignment.calendarSubscriptionId) ??
@@ -1239,7 +1239,7 @@ export async function getDashboardCalendarTasks(
               title: assignment.title,
               dueAt: assignment.dueAt,
               status: assignment.status,
-              href: `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`,
+              href: `/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}`,
               courseId: assignment.courseId,
               meta: assignment.course.name,
             },

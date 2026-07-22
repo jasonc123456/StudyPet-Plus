@@ -39,7 +39,7 @@ export function UpcomingAssignments({ assignments }: UpcomingAssignmentsProps) {
           {assignments.map((assignment) => (
             <Link
               key={assignment.id}
-              href={`/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}/edit`}
+              href={`/dashboard/courses/${assignment.courseId}/assignments/${assignment.id}`}
               className="dashboard-row group flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
             >
               <div className="flex min-w-0 flex-1 items-center gap-3.5">
