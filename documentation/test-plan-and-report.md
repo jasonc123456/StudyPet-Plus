@@ -24,12 +24,12 @@ All scenarios were **manually tested** on the v1.0 release build and **passed**.
    - Display name.
    - Time zone, pre-filled from the browser default.
    - Avatar selection.
-   - Optional calendar (ICS) feed with a name and colour, which may be skipped.
+   - Optional calendar (ICS) feed with a name and color, which may be skipped.
 5. Enter a name, confirm the time zone, choose an avatar, and either add or skip a calendar feed, then save.
 6. Confirm you are redirected to the main dashboard and see:
    - The chosen avatar in the UI.
    - The calendar section showing events from the chosen feed, if one was added.
-7. Open Settings → Theme and change the colour theme; confirm it applies.
+7. Open Settings → Theme and change the color theme; confirm it applies.
 8. Refresh `/dashboard` and confirm the personalization persists.
 
 **Expected results:**
