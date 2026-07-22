@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { CalendarEventStatusControl } from '@/components/calendar/CalendarEventStatusControl';
 import type { StatusTarget } from '@/components/calendar/CalendarEventStatusControl';
-import { CalendarStatusButtons } from '@/components/calendar/CalendarStatusButtons';
+import { StatusPills } from '@/components/StatusPills';
 import { EventDescription } from '@/components/calendar/EventDescription';
 import { EventStatusIcon } from '@/components/calendar/EventStatusIcon';
 import { useTimezone } from '@/components/TimezoneProvider';
@@ -18,6 +18,13 @@ const GROUP_TASK_STATUS_OPTIONS = [
   { value: 'TODO', label: 'To do' },
   { value: 'IN_PROGRESS', label: 'In progress' },
   { value: 'DONE', label: 'Done' },
+] as const;
+
+// Quests use the same lowercase vocabulary as assignments.
+const QUEST_STATUS_OPTIONS = [
+  { value: 'todo', label: 'To do' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'done', label: 'Done' },
 ] as const;
 
 type CalendarBrowserEvent = {
@@ -65,17 +72,19 @@ type CalendarBrowserViewProps = {
 /**
  * Cell width (px) below which a day switches to the compact status-count view.
  *
- * The inline event row needs to fit its time ("11:59 PM" ≈ 48px at 11px
- * tabular), a space, and enough of the title to read the first word (~40px),
- * plus the row's own padding (14px), the status icon and gap (18px), and the
- * cell's padding (24px). Under this the title truncates to "1…", which is the
- * unreadable state the counts view replaces.
+ * The budget inside a cell: 24px of cell padding, 14px of row padding, and
+ * 18px for the status icon and its gap leave ~64px of text at this width. The
+ * time ("11:59 PM" ≈ 48px at 11px tabular) takes most of it, so the title still
+ * gets a couple of characters — which is the point. The detailed view is worth
+ * showing as long as *some* of the title reads; only below this does it
+ * collapse to the bare "1…" that the counts view exists to replace.
  *
  * Measured per-cell rather than keyed to a viewport breakpoint: the calendar
- * lives in a column that's a fraction of the page at xl, so a viewport wide
- * enough for `sm` still leaves cells far too narrow.
+ * lives in a column that's a fraction of the page at xl, so even a 1920px-wide
+ * window leaves cells around 140px — well inside a `sm`-and-up viewport, yet
+ * narrow enough that a viewport-based rule got this exactly backwards.
  */
-const COMPACT_CELL_WIDTH = 150;
+const COMPACT_CELL_WIDTH = 118;
 
 function toDayKey(date: Date) {
   const year = date.getFullYear();
@@ -398,6 +407,11 @@ export function CalendarBrowserView({
     return event.source === 'group_task' && Boolean(event.groupId);
   }
 
+  /** Quests carry the same to-do/in-progress/done status, written to the quest API. */
+  function hasQuestStatusControl(event: ParsedEvent) {
+    return event.source === 'quest';
+  }
+
   /** An event can be ignored when it came from a feed the user auto-syncs. */
   function canIgnore(event: ParsedEvent) {
     if (!event.subscriptionId || !event.uid) return false;
@@ -507,6 +521,40 @@ export function CalendarBrowserView({
   /** A personal event has no course/quest/group behind it — the user can delete their own. */
   function canDelete(event: ParsedEvent) {
     return event.source === 'personal';
+  }
+
+  /**
+   * Write a quest's status from its agenda card. Completing a quest here awards
+   * its XP exactly as it does on the Quests page — the quest API owns that, and
+   * `router.refresh()` pulls the updated pet state back into the page.
+   */
+  async function updateQuestStatus(event: ParsedEvent, nextStatus: string) {
+    if (nextStatus === event.status) return;
+
+    setPendingStatusEventId(event.id);
+    setActionError(null);
+
+    try {
+      const response = await fetch(`/api/quests/${event.sourceId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setActionError(data?.error ?? 'Failed to update status');
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setActionError('Network error — please try again');
+    } finally {
+      setPendingStatusEventId(null);
+    }
   }
 
   async function handleAddEvent(formEvent: React.FormEvent<HTMLFormElement>) {
@@ -1085,6 +1133,7 @@ export function CalendarBrowserView({
 
                 {(hasStatusControl(event) ||
                   hasGroupStatusControl(event) ||
+                  hasQuestStatusControl(event) ||
                   canIgnore(event) ||
                   canDelete(event)) && (
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3">
@@ -1097,10 +1146,20 @@ export function CalendarBrowserView({
                     )}
 
                     {hasGroupStatusControl(event) && (
-                      <CalendarStatusButtons
+                      <StatusPills
                         options={GROUP_TASK_STATUS_OPTIONS}
                         value={event.status ?? 'TODO'}
                         onSelect={(next) => updateGroupTaskStatus(event, next)}
+                        ariaLabel={`Change status for ${event.title}`}
+                        saving={pendingStatusEventId === event.id}
+                      />
+                    )}
+
+                    {hasQuestStatusControl(event) && (
+                      <StatusPills
+                        options={QUEST_STATUS_OPTIONS}
+                        value={event.status ?? 'todo'}
+                        onSelect={(next) => updateQuestStatus(event, next)}
                         ariaLabel={`Change status for ${event.title}`}
                         saving={pendingStatusEventId === event.id}
                       />

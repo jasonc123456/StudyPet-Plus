@@ -4,6 +4,7 @@ import {
   hashFeedToken,
 } from '@/lib/calendar-export';
 import { prisma } from '@/lib/prisma';
+import { siteOrigin } from '@/lib/site-url';
 
 // Public by design: calendar apps (Outlook, Google, Apple) fetch this URL with
 // no cookies or auth headers, so the unguessable token in the path *is* the
@@ -15,7 +16,7 @@ type RouteContext = {
   params: { token: string };
 };
 
-export async function GET(request: Request, { params }: RouteContext) {
+export async function GET(_request: Request, { params }: RouteContext) {
   // Calendar clients are happier with a URL that ends in .ics; accept both.
   const rawToken = params.token.replace(/\.ics$/i, '');
 
@@ -32,8 +33,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     return new Response('Not found', { status: 404 });
   }
 
-  const origin = new URL(request.url).origin;
-  const events = await collectExportableEvents(user.id, origin);
+  const events = await collectExportableEvents(user.id, siteOrigin());
   const calendarName = user.name
     ? `StudyPet+ · ${user.name}`
     : 'StudyPet+ Calendar';

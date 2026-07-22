@@ -1,12 +1,11 @@
 'use client';
 
 /**
- * Presentational segmented status picker for a calendar agenda card — the same
- * to-do / in-progress / done pill the assignment control renders, but with no
- * opinion about where the write goes. `CalendarEventStatusControl` owns the
- * assignment-specific fetch; the group calendar passes its own `onSelect` that
- * PATCHes the group-task API. Keeping the visuals here means the two calendars
- * can't drift apart.
+ * Presentational segmented to-do / in-progress / done picker, with no opinion
+ * about where the write goes — each caller passes its own `onSelect`.
+ * `CalendarEventStatusControl` owns the assignment fetch, the group workspace
+ * PATCHes the group-task API, quests PUT their own route. Keeping the visuals
+ * in one place is what stops those screens from drifting apart.
  *
  * `value` is matched case-insensitively so a group task's uppercase enum
  * (`TODO`) and an assignment's lowercase status (`todo`) light up the same way.
@@ -25,7 +24,7 @@ type StatusOption = {
   label: string;
 };
 
-type CalendarStatusButtonsProps = {
+type StatusPillsProps = {
   options: readonly StatusOption[];
   value: string;
   onSelect: (value: string) => void;
@@ -34,14 +33,14 @@ type CalendarStatusButtonsProps = {
   saving?: boolean;
 };
 
-export function CalendarStatusButtons({
+export function StatusPills({
   options,
   value,
   onSelect,
   ariaLabel,
   disabled = false,
   saving = false,
-}: CalendarStatusButtonsProps) {
+}: StatusPillsProps) {
   return (
     <div
       role="radiogroup"

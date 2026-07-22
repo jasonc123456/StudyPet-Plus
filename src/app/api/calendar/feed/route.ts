@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { jsonOk, requireUser } from '@/lib/api-response';
 import { createRawFeedToken, hashFeedToken } from '@/lib/calendar-export';
 import { prisma } from '@/lib/prisma';
+import { absoluteUrl } from '@/lib/site-url';
 
 // Mint (or rotate) the share link for the user's outbound ICS feed.
 //
@@ -10,7 +11,7 @@ import { prisma } from '@/lib/prisma';
 // can never be read back. The client shows the full URL immediately after this
 // call; afterwards the user regenerates to get a new one, which is also how
 // they revoke access for anyone still subscribed to the old link.
-export async function POST(request: Request) {
+export async function POST() {
   const authResult = await requireUser();
   if (authResult instanceof NextResponse) return authResult;
 
@@ -21,10 +22,8 @@ export async function POST(request: Request) {
     data: { calendarFeedTokenHash: hashFeedToken(rawToken) },
   });
 
-  const origin = new URL(request.url).origin;
-
   return jsonOk({
-    feedUrl: `${origin}/api/calendar/feed/${rawToken}.ics`,
+    feedUrl: absoluteUrl(`/api/calendar/feed/${rawToken}.ics`),
   });
 }
 

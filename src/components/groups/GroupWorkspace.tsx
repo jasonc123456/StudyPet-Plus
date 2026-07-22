@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { CalendarStatusButtons } from '@/components/calendar/CalendarStatusButtons';
+import { StatusPills } from '@/components/StatusPills';
 import { EventStatusIcon } from '@/components/calendar/EventStatusIcon';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 
@@ -1608,7 +1608,7 @@ export function GroupWorkspace({
                     )}
 
                     <div className="mt-3 border-t border-slate-100 pt-3">
-                      <CalendarStatusButtons
+                      <StatusPills
                         options={GROUP_TASK_STATUS_OPTIONS}
                         value={task.status}
                         onSelect={(next) => updateTaskStatus(task.id, next)}
