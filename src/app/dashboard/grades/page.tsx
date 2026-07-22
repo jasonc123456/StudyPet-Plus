@@ -17,7 +17,7 @@ export default async function GradesPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Grade Tracker"
-        description="Track weighted categories, graded assignments, and projected GPA across your courses."
+        description="Track weighted categories, graded tasks, and projected GPA across your courses."
       />
       <GradeTrackerPage {...data} />
     </div>

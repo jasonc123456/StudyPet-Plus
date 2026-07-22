@@ -48,7 +48,7 @@ export default async function NewAssignmentPage({
       </div>
 
       <PageHeader
-        title="New assignment"
+        title="New task"
         description={`Add an assignment for ${course.name}.`}
       />
 

@@ -7,8 +7,8 @@ type AssignmentEmptyStateProps = {
 };
 
 export function AssignmentEmptyState({
-  message = 'No assignments yet. Add one to start tracking deadlines.',
-  actionLabel = 'Add assignment',
+  message = 'No tasks yet. Add one to start tracking deadlines.',
+  actionLabel = 'Add task',
   actionHref,
 }: AssignmentEmptyStateProps) {
   return (

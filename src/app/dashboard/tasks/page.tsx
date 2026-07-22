@@ -10,6 +10,7 @@ import {
 } from '@/components/assignments/AssignmentRow';
 import { PageHeader } from '@/components/courses/PageHeader';
 import { ResponsiveDataTable } from '@/components/ResponsiveDataTable';
+import { sortDoneLast } from '@/lib/assignment-status';
 import { prisma } from '@/lib/prisma';
 
 type TasksPageProps = {
@@ -46,13 +47,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
   });
 
-  // Finished work sinks to the bottom — you open this page to see what's still
-  // owed, not what's already behind you. Array#sort is stable, so the due-date
-  // ordering from the query survives inside each group.
-  const sortedAssignments = [...assignments].sort(
-    (left, right) =>
-      Number(left.status === 'done') - Number(right.status === 'done')
-  );
+  const sortedAssignments = sortDoneLast(assignments);
 
   const hasFilters =
     searchParams.status || searchParams.type || searchParams.courseId;

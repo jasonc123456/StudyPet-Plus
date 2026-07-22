@@ -218,7 +218,7 @@ export function AssignmentForm(props: AssignmentFormProps) {
   const [saving, setSaving] = useState(false);
 
   const courseId = resolveCourseId(props, selectedCourseId);
-  const submitLabel = isEdit ? 'Save changes' : 'Create assignment';
+  const submitLabel = isEdit ? 'Save changes' : 'Create task';
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

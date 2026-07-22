@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/courses/PageHeader';
 import { NoteEmptyState } from '@/components/notes/NoteEmptyState';
 import { NoteRow } from '@/components/notes/NoteRow';
 import { ResponsiveDataTable } from '@/components/ResponsiveDataTable';
+import { sortDoneLast } from '@/lib/assignment-status';
 import { prisma } from '@/lib/prisma';
 
 type CourseAssignmentsPageProps = {
@@ -48,6 +49,8 @@ export default async function CourseAssignmentsPage({
     notFound();
   }
 
+  const assignments = sortDoneLast(course.assignments);
+
   const baseHref = `/dashboard/courses/${course.id}/assignments`;
   const notesHref = `/dashboard/notes?courseId=${course.id}`;
   const newNoteHref = `/dashboard/notes/new?courseId=${course.id}`;
@@ -66,9 +69,9 @@ export default async function CourseAssignmentsPage({
       </div>
 
       <PageHeader
-        title="Assignments"
+        title="Tasks"
         description={`Track work for ${course.name}.`}
-        action={{ label: 'Add assignment', href: `${baseHref}/new` }}
+        action={{ label: 'Add task', href: `${baseHref}/new` }}
       />
 
       {course.assignments.length === 0 ? (
@@ -76,7 +79,7 @@ export default async function CourseAssignmentsPage({
       ) : (
         <>
           <div className="flex flex-col gap-3 md:hidden">
-            {course.assignments.map((assignment) => (
+            {assignments.map((assignment) => (
               <AssignmentMobileCard
                 key={assignment.id}
                 assignment={{ ...assignment, courseId: course.id }}
@@ -97,7 +100,7 @@ export default async function CourseAssignmentsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {course.assignments.map((assignment) => (
+                  {assignments.map((assignment) => (
                     <AssignmentRow
                       key={assignment.id}
                       assignment={{ ...assignment, courseId: course.id }}

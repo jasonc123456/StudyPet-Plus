@@ -35,7 +35,7 @@ export default async function CalendarPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Calendar"
-        description="See assignments, quests, and imported ICS calendars in one working schedule."
+        description="See tasks, quests, and imported ICS calendars in one working schedule."
       />
 
       <CalendarBrowserView
