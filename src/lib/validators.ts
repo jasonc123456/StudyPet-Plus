@@ -166,6 +166,54 @@ export const updateQuestSchema = updateQuestSchemaBase
 export type CreateQuestInput = z.infer<typeof createQuestSchema>;
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>;
 
+const requiredDateSchema = z
+  .union([z.string(), z.date()])
+  .transform((val) => (val instanceof Date ? val : new Date(val)))
+  .refine((date) => !Number.isNaN(date.getTime()), { message: 'Invalid date' });
+
+const personalEventColorSchema = z
+  .string()
+  .trim()
+  .refine((v) => hexColorRegex.test(v), { message: 'Invalid color' });
+
+const personalEventSchemaFields = {
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  description: z.string().trim().max(2000).optional().nullable(),
+  startsAt: requiredDateSchema,
+  endsAt: dueAtSchema,
+  allDay: z.boolean().optional().default(false),
+  color: personalEventColorSchema.optional().default('#64748b'),
+};
+
+function endsAtAfterStartsAt(data: { startsAt?: Date; endsAt?: Date | null }) {
+  return !data.endsAt || !data.startsAt || data.endsAt >= data.startsAt;
+}
+
+export const createPersonalEventSchema = z
+  .object(personalEventSchemaFields)
+  .refine(endsAtAfterStartsAt, {
+    message: 'End time must be after the start time',
+    path: ['endsAt'],
+  });
+
+export const updatePersonalEventSchema = z
+  .object(personalEventSchemaFields)
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(endsAtAfterStartsAt, {
+    message: 'End time must be after the start time',
+    path: ['endsAt'],
+  });
+
+export type CreatePersonalEventInput = z.infer<
+  typeof createPersonalEventSchema
+>;
+export type UpdatePersonalEventInput = z.infer<
+  typeof updatePersonalEventSchema
+>;
+
 // Canvas (and Apple/Google) often hand out a `webcal://` feed link. It's a real
 // ICS URL, but Node's fetch only speaks http(s) — normalize it to https so the
 // same link the user copies from Canvas just works.

@@ -371,7 +371,15 @@ export async function ignoreCalendarEvent(
   return { ok: true as const };
 }
 
-/** Undo an ignore. The next sync re-creates the assignment. */
+/**
+ * Undo an ignore, re-materializing the assignment right away.
+ *
+ * The re-sync is forced rather than left to the next page view: ignoring an
+ * event does not change `lastSyncedAt`, so the throttle above would skip the
+ * sync that follows, and the event would come back as an un-synced feed row
+ * with no task behind it — visible on the calendar but with its status control
+ * dead until the user manually toggled auto-sync off and on.
+ */
 export async function unignoreCalendarEvent(
   userId: string,
   subscriptionId: string,
@@ -379,7 +387,15 @@ export async function unignoreCalendarEvent(
 ) {
   const subscription = await prisma.calendarSubscription.findFirst({
     where: { id: subscriptionId, userId },
-    select: { id: true },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      icsUrl: true,
+      color: true,
+      autoSync: true,
+      lastSyncedAt: true,
+    },
   });
 
   if (!subscription)
@@ -388,6 +404,14 @@ export async function unignoreCalendarEvent(
   await prisma.calendarIgnoredEvent.deleteMany({
     where: { subscriptionId, uid },
   });
+
+  if (subscription.autoSync) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
+    await syncSubscription(subscription, user?.timezone ?? null, true);
+  }
 
   return { ok: true as const };
 }

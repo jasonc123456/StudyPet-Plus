@@ -8,7 +8,7 @@ import { isMissingGroupTables } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
 
 export type CalendarEventSource =
-  'assignment' | 'quest' | 'group_task' | 'imported';
+  'assignment' | 'quest' | 'group_task' | 'imported' | 'personal';
 
 export type CalendarEvent = {
   id: string;
@@ -80,6 +80,8 @@ export type CalendarPageData = {
    * Drives the "Show all group tasks" toggle's initial state.
    */
   showAllGroupTasks: boolean;
+  /** True once the user has generated an outbound ICS link. The URL itself is unrecoverable. */
+  hasCalendarFeedToken: boolean;
 };
 
 export type ParsedIcsEvent = {
@@ -960,6 +962,22 @@ async function loadAllGroupTasks(
   }
 }
 
+/** Personal events overlapping the grid: starts before it ends, and (if it has an end) ends after it starts. */
+async function loadPersonalEvents(
+  userId: string,
+  gridStart: Date,
+  gridEnd: Date
+) {
+  return prisma.personalEvent.findMany({
+    where: {
+      userId,
+      startsAt: { lte: gridEnd },
+      OR: [{ endsAt: null }, { endsAt: { gte: gridStart } }],
+    },
+    orderBy: [{ startsAt: 'asc' }],
+  });
+}
+
 export async function getCalendarPageData(
   userId: string,
   monthParam?: string,
@@ -974,52 +992,63 @@ export async function getCalendarPageData(
   // keeps the heavier task query from over-fetching when the toggle is off.
   const preferences = await prisma.user.findUnique({
     where: { id: userId },
-    select: { timezone: true, showAllGroupTasksOnCalendar: true },
+    select: {
+      timezone: true,
+      showAllGroupTasksOnCalendar: true,
+      calendarFeedTokenHash: true,
+    },
   });
   const showAllGroupTasks = preferences?.showAllGroupTasksOnCalendar ?? false;
 
-  const [assignments, quests, groupTasks, subscriptions, ignoredUids] =
-    await Promise.all([
-      prisma.assignment.findMany({
-        where: {
-          course: { userId },
-          dueAt: { gte: gridStart, lte: gridEnd },
-        },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          dueAt: true,
-          status: true,
-          courseId: true,
-          calendarSubscriptionId: true,
-          externalUid: true,
-          course: { select: { name: true, color: true } },
-        },
-        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-      }),
-      prisma.quest.findMany({
-        where: {
-          userId,
-          dueAt: { gte: gridStart, lte: gridEnd },
-        },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          dueAt: true,
-          status: true,
-          estimatedMinutes: true,
-          xpReward: true,
-        },
-        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
-      }),
-      showAllGroupTasks
-        ? loadAllGroupTasks(userId, gridStart, gridEnd)
-        : loadAssignedGroupTasks(userId, gridStart, gridEnd),
-      loadCalendarSubscriptions(userId),
-      loadIgnoredEventUids(userId),
-    ]);
+  const [
+    assignments,
+    quests,
+    groupTasks,
+    subscriptions,
+    ignoredUids,
+    personalEvents,
+  ] = await Promise.all([
+    prisma.assignment.findMany({
+      where: {
+        course: { userId },
+        dueAt: { gte: gridStart, lte: gridEnd },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        status: true,
+        courseId: true,
+        calendarSubscriptionId: true,
+        externalUid: true,
+        course: { select: { name: true, color: true } },
+      },
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    }),
+    prisma.quest.findMany({
+      where: {
+        userId,
+        dueAt: { gte: gridStart, lte: gridEnd },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        status: true,
+        estimatedMinutes: true,
+        xpReward: true,
+      },
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    }),
+    showAllGroupTasks
+      ? loadAllGroupTasks(userId, gridStart, gridEnd)
+      : loadAssignedGroupTasks(userId, gridStart, gridEnd),
+    loadCalendarSubscriptions(userId),
+    loadIgnoredEventUids(userId),
+    loadPersonalEvents(userId, gridStart, gridEnd),
+  ]);
 
   // Feeds carry no timezone, so an all-day due date only means something relative
   // to the student. Theirs anchors the 11:59pm the imported events render at.
@@ -1129,6 +1158,26 @@ export async function getCalendarPageData(
           ]
         : []
     ),
+    ...personalEvents.map<CalendarEvent>((event) => ({
+      id: `personal-${event.id}`,
+      source: 'personal' as const,
+      sourceId: event.id,
+      title: event.title,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      allDay: event.allDay,
+      status: null,
+      color: event.color,
+      description: event.description,
+      href: null,
+      meta: null,
+      courseId: null,
+      groupId: null,
+      uid: null,
+      subscriptionId: null,
+      ignored: false,
+      autoSynced: false,
+    })),
   ];
 
   const importedResults = await Promise.all(
@@ -1181,6 +1230,7 @@ export async function getCalendarPageData(
     selectedDayEvents,
     subscriptions: syncedSubscriptions,
     showAllGroupTasks,
+    hasCalendarFeedToken: Boolean(preferences?.calendarFeedTokenHash),
   };
 }
 

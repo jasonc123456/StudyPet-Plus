@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { CalendarBrowserView } from '@/components/calendar/CalendarBrowserView';
+import { CalendarFeedExport } from '@/components/calendar/CalendarFeedExport';
 import { CalendarSubscriptionManager } from '@/components/calendar/CalendarSubscriptionManager';
 import { PageHeader } from '@/components/courses/PageHeader';
 import {
@@ -55,6 +56,8 @@ export default async function CalendarPage({
       />
 
       <CalendarSubscriptionManager subscriptions={data.subscriptions} />
+
+      <CalendarFeedExport hasFeedToken={data.hasCalendarFeedToken} />
     </div>
   );
 }
