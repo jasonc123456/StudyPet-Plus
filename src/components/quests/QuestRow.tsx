@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { ConfirmDialog } from '@/components/courses/ConfirmDialog';
 import { DueDate } from '@/components/DueDate';
+import { StatusPills } from '@/components/StatusPills';
 import { DEFAULT_QUEST_DIFFICULTY, QUEST_STATUSES } from '@/lib/constants';
 import { difficultyLabel, formatEstimatedTime } from '@/lib/format';
 
@@ -123,19 +124,13 @@ function QuestStatusSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <select
-      aria-label={`Change status for ${title}`}
+    <StatusPills
+      options={QUEST_STATUSES}
       value={status}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={savingStatus}
-      className="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
-    >
-      {QUEST_STATUSES.map((questStatus) => (
-        <option key={questStatus.value} value={questStatus.value}>
-          {questStatus.label}
-        </option>
-      ))}
-    </select>
+      onSelect={onChange}
+      ariaLabel={`Change status for ${title}`}
+      saving={savingStatus}
+    />
   );
 }
 
