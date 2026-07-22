@@ -3,6 +3,10 @@
 
 # next.js
 /.next
+# Zero-downtime deploy scratch dirs: the new build lands in .next.build and the
+# previous one is kept as .next.old for instant rollback (see auto-deploy.sh).
+/.next.build
+/.next.old
 /out
 next-env.d.ts
 
