@@ -836,13 +836,13 @@ export function CalendarBrowserView({
                           {pendingEventId === event.id
                             ? 'Saving…'
                             : event.ignored
-                              ? 'Track as assignment'
-                              : 'Not an assignment'}
+                              ? 'Track as task'
+                              : 'Not a task'}
                         </button>
                         <span className="text-xs text-slate-400">
                           {event.ignored
                             ? 'Skipped by auto-sync'
-                            : 'Hide from your assignments'}
+                            : 'Hide from your tasks'}
                         </span>
                       </div>
                     )}

@@ -53,7 +53,7 @@ export default async function EditAssignmentPage({
       </div>
 
       <PageHeader
-        title="Edit assignment"
+        title="Edit task"
         description={`Update "${assignment.title}".`}
       />
 

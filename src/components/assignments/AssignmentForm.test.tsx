@@ -117,7 +117,7 @@ describe('AssignmentForm', () => {
       expect(screen.getByLabelText('Status')).toHaveValue('todo');
       expect(screen.getByLabelText('Type')).toHaveValue('homework');
 
-      const submit = screen.getByRole('button', { name: 'Create assignment' });
+      const submit = screen.getByRole('button', { name: 'Create task' });
       expect(submit).toBeEnabled();
       expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
         'href',
@@ -147,7 +147,7 @@ describe('AssignmentForm', () => {
         screen.getByRole('option', { name: 'Chemistry' })
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('button', { name: 'Create assignment' })
+        screen.getByRole('button', { name: 'Create task' })
       ).toBeInTheDocument();
     });
 
@@ -265,9 +265,7 @@ describe('AssignmentForm', () => {
       });
       await user.selectOptions(screen.getByLabelText('Status'), 'in_progress');
       await user.selectOptions(screen.getByLabelText('Type'), 'exam');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       await waitFor(() => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -305,9 +303,7 @@ describe('AssignmentForm', () => {
       );
 
       await user.type(screen.getByLabelText('Title'), 'Reading');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       await waitFor(() => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -338,9 +334,7 @@ describe('AssignmentForm', () => {
 
       await user.selectOptions(screen.getByLabelText('Course'), 'course_2');
       await user.type(screen.getByLabelText('Title'), 'Quiz');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       await waitFor(() => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -414,9 +408,7 @@ describe('AssignmentForm', () => {
       );
 
       await user.type(screen.getByLabelText('Title'), 'Pending');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       const savingButton = await screen.findByRole('button', {
         name: 'Saving…',
@@ -448,9 +440,7 @@ describe('AssignmentForm', () => {
       );
 
       await user.type(screen.getByLabelText('Title'), 'Dupe');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       expect(
         await screen.findByText('Title already exists')
@@ -458,9 +448,7 @@ describe('AssignmentForm', () => {
       expect(pushMock).not.toHaveBeenCalled();
       expect(refreshMock).not.toHaveBeenCalled();
       // saving is reset so the button becomes usable again.
-      expect(
-        screen.getByRole('button', { name: 'Create assignment' })
-      ).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Create task' })).toBeEnabled();
     });
 
     it('falls back to a generic error when the error body has no error field', async () => {
@@ -477,9 +465,7 @@ describe('AssignmentForm', () => {
       );
 
       await user.type(screen.getByLabelText('Title'), 'Whatever');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       expect(
         await screen.findByText('Something went wrong')
@@ -503,9 +489,7 @@ describe('AssignmentForm', () => {
       );
 
       await user.type(screen.getByLabelText('Title'), 'Whatever');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       expect(
         await screen.findByText('Something went wrong')
@@ -526,9 +510,7 @@ describe('AssignmentForm', () => {
       );
 
       await user.type(screen.getByLabelText('Title'), 'Whatever');
-      await user.click(
-        screen.getByRole('button', { name: 'Create assignment' })
-      );
+      await user.click(screen.getByRole('button', { name: 'Create task' }));
 
       expect(
         await screen.findByText('Network error — please try again')
@@ -549,9 +531,7 @@ describe('AssignmentForm', () => {
       );
 
       fireEvent.submit(
-        screen
-          .getByRole('button', { name: 'Create assignment' })
-          .closest('form')!
+        screen.getByRole('button', { name: 'Create task' }).closest('form')!
       );
 
       expect(screen.getByText('Please select a course')).toBeInTheDocument();

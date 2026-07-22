@@ -671,7 +671,7 @@ export function GradeTrackerPage(props: GradeTrackerPageProps) {
                           }}
                           className={numberInputClass()}
                         >
-                          <option value="">No linked assignment</option>
+                          <option value="">No linked task</option>
                           {selectedCourse.assignments.map((assignment) => (
                             <option key={assignment.id} value={assignment.id}>
                               {assignment.title}

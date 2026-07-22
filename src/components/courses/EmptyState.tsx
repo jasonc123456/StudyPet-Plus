@@ -9,7 +9,7 @@ type EmptyStateProps = {
 
 export function EmptyState({
   title = 'No courses yet',
-  message = 'Add your first course to start organizing assignments.',
+  message = 'Add your first course to start organizing tasks.',
   actionLabel = 'Add course',
   actionHref = '/dashboard/courses/new',
 }: EmptyStateProps) {

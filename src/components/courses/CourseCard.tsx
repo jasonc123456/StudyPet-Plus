@@ -221,7 +221,7 @@ export function CourseCard({ course }: CourseCardProps) {
       <ConfirmDialog
         open={confirmOpen}
         title="Delete course?"
-        message={`"${course.name}" and all its assignments will be permanently removed.`}
+        message={`"${course.name}" and all its tasks will be permanently removed.`}
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setConfirmOpen(false)}

@@ -40,7 +40,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       authResult.user.id
     );
     if (!assignment) {
-      return jsonError('Assignment not found for this course', 404);
+      return jsonError('Task not found for this course', 404);
     }
   }
 
