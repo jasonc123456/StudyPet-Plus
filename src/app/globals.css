@@ -413,6 +413,41 @@ html[data-theme='dark'] [role='switch'] .bg-white {
   background-color: #e2e8f0 !important;
 }
 
+/* Landing/login hero background. Kept as its own class (instead of an inline
+   arbitrary `bg-[radial-gradient(...)]`) so it can respond to the theme: the
+   dark-mode override rules only remap named colour classes, so an arbitrary
+   background would otherwise stay light while the text goes light — leaving the
+   headings washed out. Light and dark each get their own gradient. */
+.landing-shell {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(99, 102, 241, 0.14),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(16, 185, 129, 0.12),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #f8fbff 0%, #ffffff 42%, #f8fafc 100%);
+}
+
+html[data-theme='dark'] .landing-shell {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(99, 102, 241, 0.22),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(16, 185, 129, 0.16),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #141414 0%, #191919 46%, #101010 100%);
+}
+
 /* --- Interactive landing-page helpers (used by the client components) --- */
 
 /* Floating "+XP" that drifts up and fades when you study. */

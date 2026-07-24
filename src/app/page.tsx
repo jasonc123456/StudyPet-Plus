@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import FlashcardDemo from '@/components/FlashcardDemo';
 import StudyPetHero from '@/components/StudyPetHero';
+import ThemeModeToggle from '@/components/ThemeModeToggle';
 
 const AUDIENCES = [
   {
@@ -97,7 +98,7 @@ export default async function LandingPage() {
   }
 
   return (
-    <main className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_42%,_#f8fafc_100%)]">
+    <main className="landing-shell relative overflow-hidden">
       <div className="absolute inset-x-0 top-0 h-72 bg-[linear-gradient(120deg,rgba(79,70,229,0.06),rgba(16,185,129,0.02),transparent)]" />
       <div className="relative mx-auto max-w-6xl px-6 py-10 sm:py-12">
         <header className="flex items-center justify-between">
@@ -107,9 +108,12 @@ export default async function LandingPage() {
               StudyPet<span className="text-mint-500">+</span>
             </span>
           </div>
-          <Link href="/login" className="btn-secondary">
-            Log in
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeModeToggle />
+            <Link href="/login" className="btn-secondary">
+              Log in
+            </Link>
+          </div>
         </header>
 
         <section className="mt-14 grid items-center gap-12 lg:grid-cols-[1.15fr_0.85fr]">
