@@ -39,6 +39,8 @@
 - US-4.11: Responsive UI validation and refinement (5 pts) ✅ — responsive calendar grids plus shared `.btn-primary`/`.btn-secondary` classes carrying a 44px (`min-height: 2.75rem`) touch target, applied across 52 component files
 - US-4.12: Empty and error state UX validation (3 pts) ✅ — dedicated empty-state components for tasks, quests, notes, and courses, plus a shared `errorResponse()` helper and error-state handling across the component tree
 - US-4.13: Accessibility validation (ARIA, keyboard, contrast) (5 pts) ✅ — ARIA/role attributes across interactive components, global `:focus-visible` keyboard styling, and light/dark contrast fixes on the landing and auth surfaces
+- US-4.14: Bug Bash & Polish (3 pts) ✅ — all known bugs resolved and UI interactions cleaned up as of the final presentation
+- US-4.15: Final Demo Preparation (2 pts) ✅ — full happy path rehearsed, demo data seeded, and narrative completed ahead of the final presentation
 - US-4.S1: MFA authentication — authenticator-app TOTP and WebAuthn passkey second factors (8 pts) ✅
 - US-4.S2: Google OAuth login as an optional provider alongside the magic link (5 pts) ✅
 - US-4.S3: Production email delivery via Office 365 SMTP (`nodemailer`, `EMAIL_SERVER_*` on port 587) (3 pts) ✅
@@ -47,23 +49,23 @@
 
 | Metric | Value |
 |--------|-------|
-| Stories completed | 16 |
-| Story points completed (recorded scope) | 50/55 |
+| Stories completed | 18 |
+| Story points completed (recorded scope) | 55/55 |
 | Stretch points additionally delivered | 16 (US-4.S1, US-4.S2, US-4.S3) |
 | Ideal work hours completed | 60 hours |
 | Sprint days | 7 |
-| Stories/day | 2.29 |
+| Stories/day | 2.57 |
 | Ideal hours/day | 8.57 hours |
-| Avg. stories/day (Sprints 2–4) | 1.65 |
+| Avg. stories/day (Sprints 2–4) | 1.75 |
 | Avg. ideal hours/day (Sprints 2–4) | 7.35 hours |
 
 *US-4.14 (Bug Bash & Polish) and US-4.15 (Final Demo Preparation) were carried out as continuous
-work through the sprint rather than tracked to a single completion date, and so are not counted in
-either list above.*
+work through the sprint. Both were completed ahead of the final presentation — all known bugs fixed
+and the demo fully rehearsed — and are counted in the totals above.*
 
 ## Burnup Chart
 
 ![Sprint 4 Burnup Chart](./img/Sprint4_Burnup_Chart.png)
 
 ### Summary
-Sprint 4 successfully delivered all committed user stories, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system, along with the responsiveness, empty/error-state, and accessibility validation stories (US-4.11–4.13). The application now supports a complete end-to-end study experience and is fully demo-ready. All three stretch goals landed as well — MFA (TOTP and passkeys), optional Google OAuth sign-in, and production email delivery over Office 365 SMTP. The only recorded items not tracked to a single completion date are US-4.14 (Bug Bash & Polish) and US-4.15 (Final Demo Preparation), which ran continuously through the sprint. Overall, the sprint met its primary objective of delivering a fully functional, demo-ready product with its planned scope complete.
+Sprint 4 successfully delivered all committed user stories, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system, along with the responsiveness, empty/error-state, and accessibility validation stories (US-4.11–4.13). The application now supports a complete end-to-end study experience and is fully demo-ready. All three stretch goals landed as well — MFA (TOTP and passkeys), optional Google OAuth sign-in, and production email delivery over Office 365 SMTP. Bug Bash & Polish (US-4.14) and Final Demo Preparation (US-4.15) ran continuously through the sprint and were both completed ahead of the final presentation, with all known bugs resolved. Overall, the sprint met its primary objective of delivering a fully functional, demo-ready product with 100% of its recorded scope complete.
