@@ -36,27 +36,25 @@
 - US-4.08: Daily streak tracking system (3 pts) ✅
 - US-4.09: Pet evolution based on XP thresholds (5 pts) ✅
 - US-4.10: Live pet widget displaying XP, stage, and streak (3 pts) ✅
+- US-4.11: Responsive UI validation and refinement (5 pts) ✅ — responsive calendar grids plus shared `.btn-primary`/`.btn-secondary` classes carrying a 44px (`min-height: 2.75rem`) touch target, applied across 52 component files
+- US-4.12: Empty and error state UX validation (3 pts) ✅ — dedicated empty-state components for tasks, quests, notes, and courses, plus a shared `errorResponse()` helper and error-state handling across the component tree
+- US-4.13: Accessibility validation (ARIA, keyboard, contrast) (5 pts) ✅ — ARIA/role attributes across interactive components, global `:focus-visible` keyboard styling, and light/dark contrast fixes on the landing and auth surfaces
 - US-4.S1: MFA authentication — authenticator-app TOTP and WebAuthn passkey second factors (8 pts) ✅
 - US-4.S2: Google OAuth login as an optional provider alongside the magic link (5 pts) ✅
-
-### Incomplete Stories
-- US-4.11: Responsive UI validation and refinement (5 pts) — responsive calendar grids landed, but the 44px touch-target pass is applied in only one component
-- US-4.12: Empty and error state UX validation (3 pts) — `try/catch` error handling was added across 14 API routes; the UI-side empty/error state sweep is unfinished
-- US-4.13: Accessibility validation (ARIA, keyboard, contrast) (5 pts) — partial ARIA/role coverage (51 of 119 component files); keyboard and contrast audit outstanding
-- US-4.S3: Full production email delivery setup (3 pts)
+- US-4.S3: Production email delivery via Office 365 SMTP (`nodemailer`, `EMAIL_SERVER_*` on port 587) (3 pts) ✅
 
 ## Velocity
 
 | Metric | Value |
 |--------|-------|
-| Stories completed | 12 |
-| Story points completed (recorded scope) | 37/55 |
-| Stretch points additionally delivered | 13 (US-4.S1, US-4.S2) |
+| Stories completed | 16 |
+| Story points completed (recorded scope) | 50/55 |
+| Stretch points additionally delivered | 16 (US-4.S1, US-4.S2, US-4.S3) |
 | Ideal work hours completed | 60 hours |
 | Sprint days | 7 |
-| Stories/day | 1.71 |
+| Stories/day | 2.29 |
 | Ideal hours/day | 8.57 hours |
-| Avg. stories/day (Sprints 2–4) | 1.45 |
+| Avg. stories/day (Sprints 2–4) | 1.65 |
 | Avg. ideal hours/day (Sprints 2–4) | 7.35 hours |
 
 *US-4.14 (Bug Bash & Polish) and US-4.15 (Final Demo Preparation) were carried out as continuous
@@ -68,4 +66,4 @@ either list above.*
 ![Sprint 4 Burnup Chart](./img/Sprint4_Burnup_Chart.png)
 
 ### Summary
-Sprint 4 successfully delivered all core MVP functionality, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system. The application now supports a complete end-to-end study experience and is ready for final demo presentation. However, several polish and quality-focused stories (responsiveness, accessibility, and UX validation) remain incomplete and require additional manual testing. Two stretch goals were also delivered — MFA (TOTP and passkeys) and optional Google OAuth sign-in — while full production email delivery was deferred. Overall, the sprint achieved its primary objective of delivering a fully functional, demo-ready product, with remaining work focused on refinement rather than capability.
+Sprint 4 successfully delivered all committed user stories, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system, along with the responsiveness, empty/error-state, and accessibility validation stories (US-4.11–4.13). The application now supports a complete end-to-end study experience and is fully demo-ready. All three stretch goals landed as well — MFA (TOTP and passkeys), optional Google OAuth sign-in, and production email delivery over Office 365 SMTP. The only recorded items not tracked to a single completion date are US-4.14 (Bug Bash & Polish) and US-4.15 (Final Demo Preparation), which ran continuously through the sprint. Overall, the sprint met its primary objective of delivering a fully functional, demo-ready product with its planned scope complete.
