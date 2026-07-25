@@ -1,5 +1,5 @@
 # Sprint 3 Report
-**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Date:** July 14, 2026 | **Sprint Period:** July 7–14, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Date:** July 12, 2026 | **Sprint Period:** July 6–12, 2026 (Mon–Sun)
 
 ## Retrospective: Start / Stop / Continue
 
@@ -43,11 +43,11 @@
 | User stories completed | 9 |
 | Story points completed | 41 / 41 |
 | Estimated ideal work hours | 55h |
-| Sprint period | 8 calendar days (July 7–14) |
-| User stories/day | 1.125 |
-| Ideal work hours/day | 6.875h |
-| Average user stories/day (Sprints 2–3) | 1.06 |
-| Average ideal work hours/day (Sprints 2–3) | 5.94h |
+| Sprint period | 7 calendar days (July 6–12) |
+| User stories/day | 1.29 |
+| Ideal work hours/day | 7.86h |
+| Average user stories/day (Sprints 2–3) | 1.44 |
+| Average ideal work hours/day (Sprints 2–3) | 7.13h |
 
 ## Burnup Chart
 
@@ -57,11 +57,10 @@
 
 | Sprint Day | Date | Completed Hours | Ideal Hours |
 |------------|------|-----------------|-------------|
-| Day 1 | Jul 7 | 0h | 0h |
-| Day 2 | Jul 8 | 6h | 8h |
-| Day 3 | Jul 9 | 14h | 16h |
-| Day 4 | Jul 10 | 22h | 24h |
-| Day 5 | Jul 11 | 30h | 31h |
-| Day 6 | Jul 12 | 38h | 39h |
-| Day 7 | Jul 13 | 47h | 47h |
-| Day 8 | Jul 14 | 55h | 55h |
+| Day 1 | Jul 6 | 0h | 0h |
+| Day 2 | Jul 7 | 8h | 9h |
+| Day 3 | Jul 8 | 16h | 18h |
+| Day 4 | Jul 9 | 25h | 28h |
+| Day 5 | Jul 10 | 34h | 37h |
+| Day 6 | Jul 11 | 45h | 46h |
+| Day 7 | Jul 12 | 55h | 55h |

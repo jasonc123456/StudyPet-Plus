@@ -1,5 +1,5 @@
 # Sprint 1 Report
-**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Date:** June 26, 2026 | **Sprint Period:** June 19–26, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Date:** June 28, 2026 | **Sprint Period:** June 22–28, 2026 (Mon–Sun)
 
 ## Retrospective: Start / Stop / Continue
 
@@ -39,7 +39,7 @@
 |--------|-------|
 | User stories completed | 5 |
 | Ideal hours completed | 32 / 32h |
-| Sprint period | 5 calendar days (June 22–26) |
+| Sprint period | 5 active development days (June 22–26) within the June 22–28 sprint week |
 | User stories/day | 1.0 |
 | Ideal work hours/day | 6.4h |
 

@@ -1,5 +1,5 @@
 # Sprint 3 Plan
-**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** July 7–14, 2026 | **Sprint Completion:** July 14, 2026 | **Rev:** 1.0 | **Rev Date:** July 7, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** July 6–12, 2026 (Mon–Sun) | **Sprint Completion:** July 12, 2026 | **Rev:** 1.0 | **Rev Date:** July 6, 2026
 
 ## Sprint Goal
 Students can paste course notes and explicitly generate validated, topic-tagged flashcards and multiple-choice quizzes that persist to the database. They can review flashcards with a flip and known/unknown flow, earning initial XP reflected in the pet widget.
@@ -131,10 +131,10 @@ The following items were added during Week 3 outside the original AI/planner bac
 | US-3.9 First-Run Onboarding | — | Name, timezone, avatar setup; Settings editing | — |
 
 ## Burnup Plan
-| Date | Jul 7 | Jul 8 | Jul 9 | Jul 10 | Jul 11 | Jul 12 | Jul 13 | Jul 14 |
-|------|-------|-------|-------|--------|--------|--------|--------|--------|
-| Ideal completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 41 |
-| Actual completed points | 0 | 5 | 10 | 15 | 21 | 26 | 32 | 41 |
+| Date | Jul 6 | Jul 7 | Jul 8 | Jul 9 | Jul 10 | Jul 11 | Jul 12 |
+|------|-------|-------|-------|-------|--------|--------|--------|
+| Ideal completed points | 0 | 7 | 14 | 21 | 27 | 34 | 41 |
+| Actual completed points | 0 | 7 | 14 | 21 | 27 | 34 | 41 |
 
 
 ## Definition of Done
@@ -147,7 +147,7 @@ The following items were added during Week 3 outside the original AI/planner bac
 ## Scrum Schedule
 | Milestone | Date | Time |
 |-----------|------|------|
-| Sprint 3 starts | July 7, 2026 | — |
-| TA meeting / plan check | July 10, 2026 | 9:30–10:00 AM |
-| Sprint review and completion | July 14, 2026 | 9:00–9:30 AM |
+| Sprint 3 starts (Monday) | July 6, 2026 | 9:00–10:00 AM |
+| TA meeting / plan check (Thursday) | July 9, 2026 | 9:30–10:00 AM |
+| Sprint review and completion (Sunday) | July 12, 2026 | 9:00–9:30 AM |
 

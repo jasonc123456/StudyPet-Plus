@@ -1,5 +1,5 @@
 # Release Plan
-**Product:** StudyPet AI Study Planner | **Team:** StudyPet-Plus | **Release:** v1.0 | **Release Date:** July 22, 2026 (end of Sprint 4) | **Rev:** 1.1 | **Rev Date:** July 21, 2026
+**Product:** StudyPet AI Study Planner | **Team:** StudyPet-Plus | **Release:** v1.0 | **Release Date:** July 19, 2026 (end of Sprint 4) | **Rev:** 1.1 | **Rev Date:** July 21, 2026
 
 ## High-Level Goals
 1. Students can manage courses, assignments, and study tasks in one planner-first web app.

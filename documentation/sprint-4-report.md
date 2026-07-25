@@ -1,5 +1,5 @@
 # Sprint 4 Report
-**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Date:** July 22, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Date:** July 19, 2026 | **Sprint Period:** July 13–19, 2026 (Mon–Sun)
 
 ## Retrospective: Start / Stop / Continue
 
@@ -45,6 +45,9 @@
 - US-4.S2: Google OAuth login as an optional provider alongside the magic link (5 pts) ✅
 - US-4.S3: Production email delivery via Office 365 SMTP (`nodemailer`, `EMAIL_SERVER_*` on port 587) (3 pts) ✅
 
+### Incomplete Stories
+- None. All 15 recorded-scope stories (US-4.01–US-4.15) were completed, plus 3 stretch stories (US-4.S1–US-4.S3). No stories were carried over or dropped from Sprint 4.
+
 ## Velocity
 
 | Metric | Value |
@@ -53,11 +56,11 @@
 | Story points completed (recorded scope) | 55/55 |
 | Stretch points additionally delivered | 16 (US-4.S1, US-4.S2, US-4.S3) |
 | Ideal work hours completed | 60 hours |
-| Sprint days | 7 |
+| Sprint days | 7 calendar days (July 13–19) |
 | Stories/day | 2.57 |
 | Ideal hours/day | 8.57 hours |
-| Avg. stories/day (Sprints 2–4) | 1.75 |
-| Avg. ideal hours/day (Sprints 2–4) | 7.35 hours |
+| Avg. stories/day (Sprints 2–4) | 1.82 |
+| Avg. ideal hours/day (Sprints 2–4) | 7.61 hours |
 
 *US-4.14 (Bug Bash & Polish) and US-4.15 (Final Demo Preparation) were carried out as continuous
 work through the sprint. Both were completed ahead of the final presentation — all known bugs fixed
@@ -66,6 +69,22 @@ and the demo fully rehearsed — and are counted in the totals above.*
 ## Burnup Chart
 
 ![Sprint 4 Burnup Chart](./img/Sprint4_Burnup_Chart.png)
+
+### Daily Burnup Data
+| Sprint Day | Day 1 | Day 2 | Day 3 | Day 4 | Day 5 | Day 6 | Day 7 |
+|------------|-------|-------|-------|-------|-------|-------|-------|
+| Date | Jul 13 | Jul 14 | Jul 15 | Jul 16 | Jul 17 | Jul 18 | Jul 19 |
+| Ideal completed points | 0 | 9 | 18 | 27 | 36 | 46 | 55 |
+| Actual completed points | 0 | 7 | 16 | 27 | 38 | 47 | 55 |
+| Ideal completed hours | 0 | 9 | 18 | 27 | 36 | 46 | 55 |
+| Actual completed hours | 0 | 8 | 18 | 28 | 40 | 50 | 60 |
+
+**Trend notes:** Actual progress tracked slightly behind the ideal line through Jul 14–15 while the
+quiz-taking and persistence stories (US-4.01, US-4.02) were being integrated, then pulled ahead from
+Jul 17 onward once the shared QuizAttempt/QuestionResult data layer unblocked analytics, XP, and pet
+evolution work in parallel. The scope met the ideal line on Jul 16 (TA check-in) and finished on
+plan at 55/55 points, with the extra 5 recorded hours accounted for by the three stretch stories
+(US-4.S1–US-4.S3) delivered outside the committed scope.
 
 ### Summary
 Sprint 4 successfully delivered all committed user stories, including quiz-taking, analytics, recommendations, and gamification through the StudyPet system, along with the responsiveness, empty/error-state, and accessibility validation stories (US-4.11–4.13). The application now supports a complete end-to-end study experience and is fully demo-ready. All three stretch goals landed as well — MFA (TOTP and passkeys), optional Google OAuth sign-in, and production email delivery over Office 365 SMTP. Bug Bash & Polish (US-4.14) and Final Demo Preparation (US-4.15) ran continuously through the sprint and were both completed ahead of the final presentation, with all known bugs resolved. Overall, the sprint met its primary objective of delivering a fully functional, demo-ready product with 100% of its recorded scope complete.
