@@ -82,7 +82,8 @@ and the demo fully rehearsed — and are counted in the totals above.*
 **Trend notes:** Actual progress tracked slightly behind the ideal line through Jul 14–15 while the
 quiz-taking and persistence stories (US-4.01, US-4.02) were being integrated, then pulled ahead from
 Jul 17 onward once the shared QuizAttempt/QuestionResult data layer unblocked analytics, XP, and pet
-evolution work in parallel. The scope met the ideal line on Jul 16 (TA check-in) and finished on
+evolution work in parallel. The scope met the ideal line on Jul 16, was running ahead of it by the
+Friday TA check-in on Jul 17, and finished on
 plan at 55/55 points, with the extra 5 recorded hours accounted for by the three stretch stories
 (US-4.S1–US-4.S3) delivered outside the committed scope.
 
