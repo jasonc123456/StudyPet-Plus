@@ -125,15 +125,19 @@ Stand up the project foundation and passwordless authentication: a user can sign
 ## Scrum Schedule
 | Day | Date | Time | Type |
 |-----|------|------|------|
-| Monday | June 22, 2026 | 9:00–10:00 AM | Sprint Planning |
+| Monday | June 22, 2026 | 9:00–9:30 AM | Sprint Planning |
+| Tuesday | June 23, 2026 | 9:00–9:30 AM | **TA visit** (weekly Tuesday check-in) |
 | Wednesday | June 24, 2026 | 9:30–10:00 AM | Daily Scrum |
-| Thursday | June 25, 2026 | 9:30–10:00 AM | **TA visit / plan check** |
-| Friday | June 26, 2026 | 9:30–10:00 AM | Daily Scrum |
+| Friday | June 26, 2026 | 9:00–9:30 AM | Daily Scrum |
+| Friday | June 26, 2026 | 9:30–10:00 AM | **TA visit** (weekly Friday check-in) |
 | Sunday | June 28, 2026 | 9:00–9:30 AM | Sprint Review / Demo + Retro |
+
+*All scrum slots are 30 minutes. TA visits are scheduled every Tuesday at 9:00 AM and Friday at 9:30 AM for the duration of the course.*
 
 ### Key Milestones
 | Milestone | Date |
 |-----------|------|
 | Sprint 1 starts | June 22, 2026 |
-| TA visit / plan check | June 25, 2026 |
+| **TA visit** — plan check | June 23, 2026 |
+| **TA visit** — progress check | June 26, 2026 |
 | Sprint review and completion | June 28, 2026 |

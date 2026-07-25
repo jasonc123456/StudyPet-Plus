@@ -147,7 +147,12 @@ The following items were added during Week 3 outside the original AI/planner bac
 ## Scrum Schedule
 | Milestone | Date | Time |
 |-----------|------|------|
-| Sprint 3 starts (Monday) | July 6, 2026 | 9:00–10:00 AM |
-| TA meeting / plan check (Thursday) | July 9, 2026 | 9:30–10:00 AM |
+| Sprint 3 starts / Sprint Planning (Monday) | July 6, 2026 | 9:00–9:30 AM |
+| **TA visit** — plan check (Tuesday) | July 7, 2026 | 9:00–9:30 AM |
+| Daily Scrum (Wednesday) | July 8, 2026 | 9:30–10:00 AM |
+| Daily Scrum (Friday) | July 10, 2026 | 9:00–9:30 AM |
+| **TA visit** — progress check (Friday) | July 10, 2026 | 9:30–10:00 AM |
 | Sprint review and completion (Sunday) | July 12, 2026 | 9:00–9:30 AM |
+
+*All scrum slots are 30 minutes. TA visits are scheduled every Tuesday at 9:00 AM and Friday at 9:30 AM for the duration of the course.*
 

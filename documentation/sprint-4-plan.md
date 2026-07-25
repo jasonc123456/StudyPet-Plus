@@ -185,15 +185,19 @@ The following work supports usability, accessibility, and demo readiness. These 
 ## Scrum Schedule
 | Day | Date | Time | Type |
 |-----|------|------|------|
-| Monday | July 13, 2026 | 9:00–10:00 AM | Sprint Planning |
+| Monday | July 13, 2026 | 9:00–9:30 AM | Sprint Planning |
+| Tuesday | July 14, 2026 | 9:00–9:30 AM | **TA visit** (weekly Tuesday check-in) |
 | Wednesday | July 15, 2026 | 9:30–10:00 AM | Daily Scrum |
-| Thursday | July 16, 2026 | 9:30–10:00 AM | **TA visit / plan check** |
-| Friday | July 17, 2026 | 9:30–10:00 AM | Daily Scrum |
+| Friday | July 17, 2026 | 9:00–9:30 AM | Daily Scrum |
+| Friday | July 17, 2026 | 9:30–10:00 AM | **TA visit** (weekly Friday check-in) |
 | Sunday | July 19, 2026 | 9:00–9:30 AM | Sprint Review / Final Demo + Retro |
+
+*All scrum slots are 30 minutes. TA visits are scheduled every Tuesday at 9:00 AM and Friday at 9:30 AM for the duration of the course.*
 
 ### Key Milestones
 | Milestone | Date |
 |-----------|------|
 | Sprint 4 starts | July 13, 2026 |
-| TA visit / plan check | July 16, 2026 |
+| **TA visit** — plan check | July 14, 2026 |
+| **TA visit** — final progress check | July 17, 2026 |
 | Sprint review and completion | July 19, 2026 |
