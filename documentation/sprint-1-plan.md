@@ -1,5 +1,5 @@
 # Sprint 1 Plan
-**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** June 19–26, 2026 | **Sprint Completion:** June 26, 2026 | **Rev:** 1.0 | **Rev Date:** June 19, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** June 22–28, 2026 (Mon–Sun) | **Sprint Completion:** June 28, 2026 | **Rev:** 1.0 | **Rev Date:** June 22, 2026
 
 ## Sprint Goal
 Stand up the project foundation and passwordless authentication: a user can sign in via a magic link, log out, and land on an empty protected dashboard on the live site.
@@ -57,12 +57,12 @@ Stand up the project foundation and passwordless authentication: a user can sign
 | **Story Total** |  | **6h** |
 
 ### US-3: App Shell — 8h
-**User story:** As a developer, I want a shared Next.js app shell (layout, navigation, sidebar) so that every future feature has a consistent UI foundation to build on.
+**User story:** As a student, I want consistent navigation and a sidebar on every page so that I can move around the app without getting lost.
 
 **Acceptance criteria:**
 1. Authenticated routes render inside a shared layout with top navigation and sidebar.
 2. The shell adapts responsively across mobile and desktop breakpoints.
-3. Placeholder navigation links exist for upcoming planner features.
+3. Navigation links show where upcoming planner features will live.
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
@@ -71,12 +71,12 @@ Stand up the project foundation and passwordless authentication: a user can sign
 | **Story Total** |  | **8h** |
 
 ### US-4: Dev Pipeline — 6h
-**User story:** As a team, we want an automated CI/CD pipeline so that every push is linted, built, and deployed consistently.
+**User story:** As a student, I want the live site to always run a working, up-to-date build so that I can use StudyPet-Plus without hitting broken pages.
 
 **Acceptance criteria:**
 1. Pushing to the repository triggers automated lint and build checks.
-2. A passing pipeline is required before merging to main.
-3. Merges to main auto-deploy to the live site.
+2. A passing pipeline is required before merging to main, so broken code never reaches the live site.
+3. Merges to main auto-deploy, so students see the latest working version.
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
@@ -85,11 +85,12 @@ Stand up the project foundation and passwordless authentication: a user can sign
 | **Story Total** |  | **6h** |
 
 ### US-5: Demo Presentation — 4h
-**User story:** As a team, we want a rehearsed Sprint 1 demo so that stakeholders can see the authentication and app-shell foundation working end to end.
+**User story:** As a course stakeholder, I want a guided walkthrough of the sign-in and dashboard flow so that I can see and verify the Sprint 1 functionality on the live site.
 
 **Acceptance criteria:**
 1. The demo walks through magic-link sign-in, the protected dashboard, and log-out on the live site.
 2. Setup and demo steps are documented so any team member can present.
+3. The walkthrough runs against the live deployment, not a local build.
 
 | Task | Assignee | Estimate |
 |------|----------|----------|
@@ -109,10 +110,10 @@ Stand up the project foundation and passwordless authentication: a user can sign
 | US-5 Demo Presentation | Demo script/rehearsal; setup documentation | — | — |
 
 ## Burnup Plan
-| Date | Jun 19 | Jun 20 | Jun 21 | Jun 22 | Jun 23 | Jun 24 | Jun 25 | Jun 26 |
-|------|--------|--------|--------|--------|--------|--------|--------|--------|
-| Ideal completed hours | 0 | 0 | 0 | 6.4 | 12.8 | 19.2 | 25.6 | 32 |
-| Actual completed hours | 0 | 0 | 0 | 0 | 6 | 14 | 22 | 32 |
+| Date | Jun 22 | Jun 23 | Jun 24 | Jun 25 | Jun 26 | Jun 27 | Jun 28 |
+|------|--------|--------|--------|--------|--------|--------|--------|
+| Ideal completed hours | 6.4 | 12.8 | 19.2 | 25.6 | 32 | 32 | 32 |
+| Actual completed hours | 0 | 6 | 14 | 22 | 32 | 32 | 32 |
 
 ## Definition of Done
 - Functionality meets the relevant acceptance criteria.
@@ -122,8 +123,17 @@ Stand up the project foundation and passwordless authentication: a user can sign
 - Non-core scope is deferred when necessary to protect the core MVP.
 
 ## Scrum Schedule
+| Day | Date | Time | Type |
+|-----|------|------|------|
+| Monday | June 22, 2026 | 9:00–10:00 AM | Sprint Planning |
+| Wednesday | June 24, 2026 | 9:30–10:00 AM | Daily Scrum |
+| Thursday | June 25, 2026 | 9:30–10:00 AM | **TA visit / plan check** |
+| Friday | June 26, 2026 | 9:30–10:00 AM | Daily Scrum |
+| Sunday | June 28, 2026 | 9:00–9:30 AM | Sprint Review / Demo + Retro |
+
+### Key Milestones
 | Milestone | Date |
 |-----------|------|
-| Sprint 1 starts | June 19, 2026 |
-| Mid-sprint sync | June 23, 2026 |
-| Sprint review and completion | June 26, 2026 |
+| Sprint 1 starts | June 22, 2026 |
+| TA visit / plan check | June 25, 2026 |
+| Sprint review and completion | June 28, 2026 |

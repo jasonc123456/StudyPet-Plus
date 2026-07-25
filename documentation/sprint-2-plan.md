@@ -1,5 +1,5 @@
 # Sprint 2 Plan
-**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** June 29–July 3, 2026 | **Sprint Completion:** July 3, 2026 | **Rev:** 1.0 | **Rev Date:** June 29, 2026
+**Product:** StudyPet-Plus | **Team:** StudyPet-Plus | **Sprint Period:** June 29–July 5, 2026 (Mon–Sun) | **Sprint Completion:** July 5, 2026 | **Rev:** 1.0 | **Rev Date:** June 29, 2026
 
 ## Sprint Goal
 Deliver the planner core: a logged-in user manages courses and assignments, sees a planner dashboard sorted by due date, and sees their StudyPet on the dashboard.
@@ -27,14 +27,28 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 
 ## User Stories
 
-### US-1: As a developer, I want the Course/Assignment/Quest/Pet data model in place so that every planner feature has somewhere to persist data.
+### US-1: Planner Data Persistence — 2.5h
+**User story:** As a student, I want my courses, assignments, quests, and pet to be saved to my account so that my planner is still there when I come back.
+
+**Acceptance criteria:**
+1. Courses, assignments, quests, and the pet are stored against the signed-in user.
+2. Data entered in one session is still present after logging out and back in.
+3. A student can only read and write their own planner records.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Design Course, Assignment, Quest, Pet schema (fields, relations to User, indexes) | Jason | 1.5h |
 | Generate and apply the Prisma migration against the running Postgres | Jason | 1h |
 | **Story Total** | | **2.5h** |
 
-### US-2: As a student, I want to create, edit, and delete my courses so that I can organize assignments by class.
+### US-2: Course Management — 5.5h
+**User story:** As a student, I want to create, edit, and delete my courses so that I can organize assignments by class.
+
+**Acceptance criteria:**
+1. A student can create a course with a name and color tag, and edit or delete it later.
+2. Courses are listed on the dashboard and reachable from the sidebar.
+3. Deleting a course does not leave orphaned assignments visible in the planner.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Course API routes: list / create / edit /delete, color tag | Mia | 2h |
@@ -42,7 +56,14 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 | Course summary card + navigation wired into the dashboard and sidebar | Mia | 1.5h |
 | **Story Total** | | **5.5h** |
 
-### US-3: As a student, I want to create and track assignments tied to a course so that I know what's due and when.
+### US-3: Assignment Tracking — 6h
+**User story:** As a student, I want to create and track assignments tied to a course so that I know what's due and when.
+
+**Acceptance criteria:**
+1. An assignment can be created with a due date, status, and type, and linked to a course.
+2. Assignments are viewable both course-scoped and in a global planner list.
+3. Status can be changed inline from the list on desktop and mobile.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Assignment API routes: course-scoped and global list/detail, with dueAt, status, type | Mia | 2h |
@@ -51,7 +72,14 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 | Formatting/bug fixes (due-date display, row formatting) | Mia | 0.5h |
 | **Story Total** | | **6h** |
 
-### US-4: As a student, I want lightweight quests (study goals/tasks) with an XP reward field so that daily study work feeds the gamification system later.
+### US-4: Study Quests — 7h
+**User story:** As a student, I want lightweight quests (study goals/tasks) with an XP reward so that my daily study work counts toward my pet's progress.
+
+**Acceptance criteria:**
+1. A student can create, edit, delete, and change the status of a quest.
+2. Each quest carries an XP reward value that is stored with it.
+3. Quest status and XP are visible from the quest list and the profile display.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Quest API routes: list / create / edit / delete, status change | Subhangi | 2h |
@@ -60,25 +88,53 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 | Bug fixes + lint formatting cleanup | Subhangi | 1h |
 | **Story Total** | | **7h** |
 
-### US-5: As a signed-in student, I want a planner dashboard so that I can see everything due at a glance.
+### US-5: Planner Dashboard — 3h
+**User story:** As a signed-in student, I want a planner dashboard so that I can see everything due at a glance.
+
+**Acceptance criteria:**
+1. The dashboard shows upcoming assignments and quests sorted by due date.
+2. A "due this week" section and open-quest/streak stats are visible without scrolling on desktop.
+3. An empty state is shown when the student has no courses or assignments yet.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Dashboard page: stats, open quests / streak, due-this-week, upcoming assignments + quests + courses grid | Angela | 3h |
 | **Story Total** | | **3h** |
 
-### US-6: As a student, I want to see my StudyPet on the dashboard so that the gamification loop feels present from day one.
+### US-6: Pet Widget — 2h
+**User story:** As a student, I want to see my StudyPet on the dashboard so that my study progress feels rewarding from day one.
+
+**Acceptance criteria:**
+1. The dashboard displays the signed-in student's pet with its current state.
+2. A default pet is shown for a new account with no activity.
+3. The widget renders correctly on mobile and desktop.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | PetSummary component + pet-display helper, wired into the dashboard | Angela | 2h |
 | **Story Total** | | **2h** |
 
-### US-7: As a team, we want seeded demo data so that every sprint demo is predictable.
+### US-7: Demo Seed Data — 1.5h
+**User story:** As a course stakeholder, I want the demo account to open with realistic courses, assignments, and quests already in place so that I can evaluate the planner without setting up data first.
+
+**Acceptance criteria:**
+1. The seed script loads courses, assignments, quests, and a pet for the demo account.
+2. Re-running the seed produces the same predictable data set.
+3. The seeded dashboard shows a populated planner immediately after sign-in.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Extend the existing seed script to load courses, assignments, quests, and a pet | Jason | 1.5h |
 | **Story Total** | | **1.5h** |
 
-### US-8: As a team, we want the planner UI to work well on mobile so that the demo holds up on any device.
+### US-8: Mobile Planner — 4.5h
+**User story:** As a student, I want to use the planner on my phone so that I can check and update what's due between classes.
+
+**Acceptance criteria:**
+1. Assignment tables collapse into readable card views on small screens.
+2. Assignment status can be changed from a mobile device without horizontal scrolling.
+3. No layout overflow or clipped controls at common mobile breakpoints.
+
 | Task | Assignee | Hours |
 |------|----------|-------|
 | Mobile card views + responsive data tables for assignments | Aadi | 2h |
@@ -101,10 +157,10 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 | US-8 Mobile UI / CI Fixes | Responsive views; LF line endings; build cache | — | — |
 
 ## Burnup Plan
-| Date | Jun 29 | Jun 30 | Jul 1 | Jul 2 | Jul 3 |
-|------|--------|--------|-------|-------|-------|
-| Ideal completed hours | 6.4 | 12.8 | 19.2 | 25.6 | 32 |
-| Actual completed hours | 0 | 8 | 16 | 24 | 32 |
+| Date | Jun 29 | Jun 30 | Jul 1 | Jul 2 | Jul 3 | Jul 4 | Jul 5 |
+|------|--------|--------|-------|-------|-------|-------|-------|
+| Ideal completed hours | 6.4 | 12.8 | 19.2 | 25.6 | 32 | 32 | 32 |
+| Actual completed hours | 0 | 8 | 16 | 24 | 32 | 32 | 32 |
 
 ## Definition of Done
 - Functionality meets the relevant acceptance criteria.
@@ -114,16 +170,18 @@ Deliver the planner core: a logged-in user manages courses and assignments, sees
 - Non-core scope is deferred when necessary to protect the core MVP.
 
 ## Scrum Schedule
-| Day | Time | Type |
-|-----|------|------|
-| Monday | 1 hr (+30m TA session) | Sprint Planning |
-| Wednesday | 30m | Mid-sprint sync |
-| Friday | 30m (+30m TA session) | Sprint Review / Demo + Retro |
-| Daily | Async | Daily standup via Discord thread |
+| Day | Date | Time | Type |
+|-----|------|------|------|
+| Monday | June 29, 2026 | 9:00–10:00 AM | Sprint Planning |
+| Monday | June 29, 2026 | 10:00–10:30 AM | **TA visit / plan check** |
+| Wednesday | July 1, 2026 | 9:30–10:00 AM | Daily Scrum / mid-sprint sync |
+| Friday | July 3, 2026 | 9:30–10:00 AM | Daily Scrum |
+| Sunday | July 5, 2026 | 9:00–9:30 AM | Sprint Review / Demo + Retro |
 
 ### Key Milestones
 | Milestone | Date |
 |-----------|------|
 | Sprint 2 starts | June 29, 2026 |
+| TA visit / plan check | June 29, 2026 |
 | Mid-sprint sync | July 1, 2026 |
-| Sprint review and completion | July 3, 2026 |
+| Sprint review and completion | July 5, 2026 |
