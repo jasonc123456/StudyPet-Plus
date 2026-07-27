@@ -26,7 +26,9 @@ describe('resolveLetterGrade', () => {
 
   it('returns null for missing or invalid percentages', () => {
     expect(resolveLetterGrade(null, DEFAULT_GRADE_SCALE.slice())).toBeNull();
-    expect(resolveLetterGrade(Number.NaN, DEFAULT_GRADE_SCALE.slice())).toBeNull();
+    expect(
+      resolveLetterGrade(Number.NaN, DEFAULT_GRADE_SCALE.slice())
+    ).toBeNull();
   });
 });
 
