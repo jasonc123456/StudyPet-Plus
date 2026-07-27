@@ -61,6 +61,8 @@ type CalendarBrowserViewProps = {
   initialEvents: CalendarBrowserEvent[];
   /** Subscriptions with auto-sync on — these get the "not an assignment" control. */
   autoSyncSubscriptionIds: string[];
+  /** Feed events with no task behind them yet; non-zero forces the arrival sync. */
+  pendingSyncCount: number;
   /**
    * Persisted preference: when true the feed already includes every group task
    * from the user's groups; when false only the ones assigned to them. Drives
@@ -289,6 +291,7 @@ export function CalendarBrowserView({
   initialGridEnd,
   initialEvents,
   autoSyncSubscriptionIds,
+  pendingSyncCount,
   initialShowAllGroupTasks,
 }: CalendarBrowserViewProps) {
   const router = useRouter();
@@ -315,6 +318,7 @@ export function CalendarBrowserView({
   >(null);
   // One auto-sync attempt per mount; router.refresh() below must not retrigger it.
   const autoSyncAttempted = useRef(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
@@ -671,25 +675,76 @@ export function CalendarBrowserView({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [pathname, queryString, router, searchParams]);
 
-  // Auto-sync on arrival. The API throttles each feed to one upstream pull per
-  // 10 minutes, and we only refresh when rows actually changed — otherwise this
-  // would loop against its own router.refresh().
+  // Auto-sync on arrival.
+  //
+  // Normally throttled server-side to one upstream pull per feed per 10 minutes.
+  // But when the page is already rendering feed events that have no task behind
+  // them — a course the instructor published since the last run — we force past
+  // that throttle, because the alternative is what users actually hit: the new
+  // class sits there labelled "Imported" through repeated reloads, and the only
+  // way out is toggling auto-sync off and on by hand.
+  //
+  // Only refresh when rows actually changed, or this loops against its own
+  // router.refresh().
   useEffect(() => {
     if (!hasAutoSync || autoSyncAttempted.current) return;
     autoSyncAttempted.current = true;
 
+    const hasPending = pendingSyncCount > 0;
     let cancelled = false;
     setSyncing(true);
 
-    fetch('/api/calendar/sync', { method: 'POST' })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((result: { changed?: number } | null) => {
-        if (!cancelled && result && (result.changed ?? 0) > 0) {
-          router.refresh();
-        }
+    if (hasPending) {
+      setSyncToast(
+        `${pendingSyncCount} new calendar item${
+          pendingSyncCount === 1 ? '' : 's'
+        } detected — adding to your tasks…`
+      );
+    }
+
+    fetch('/api/calendar/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: hasPending }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('sync failed');
+        return response.json();
       })
+      .then(
+        (result: {
+          changed?: number;
+          coursesCreated?: string[];
+          subscriptions?: Array<{ created?: number }>;
+        }) => {
+          if (cancelled) return;
+
+          if (hasPending) {
+            const added = (result.subscriptions ?? []).reduce(
+              (total, subscription) => total + (subscription.created ?? 0),
+              0
+            );
+            const courses = result.coursesCreated ?? [];
+            const coursePart =
+              courses.length > 0
+                ? ` under ${courses.length === 1 ? '' : 'new courses '}${courses.join(', ')}`
+                : '';
+            setSyncToast(
+              added > 0
+                ? `Added ${added} task${added === 1 ? '' : 's'}${coursePart}.`
+                : 'Calendar is up to date.'
+            );
+          }
+
+          if ((result.changed ?? 0) > 0) router.refresh();
+        }
+      )
       .catch(() => {
-        /* A failed background sync is silent — the feed still renders. */
+        // A silent failure is what made this bug invisible; say something when
+        // the user was told a sync was starting.
+        if (!cancelled && hasPending) {
+          setSyncToast("Couldn't reach your calendar feed — try Sync now.");
+        }
       })
       .finally(() => {
         if (!cancelled) setSyncing(false);
@@ -698,10 +753,35 @@ export function CalendarBrowserView({
     return () => {
       cancelled = true;
     };
-  }, [hasAutoSync, router]);
+  }, [hasAutoSync, pendingSyncCount, router]);
+
+  // Toast is transient: it reports work that already happened, so it shouldn't
+  // need dismissing. Re-armed on every message change, including the result
+  // message that replaces the "adding…" one.
+  useEffect(() => {
+    if (!syncToast) return;
+    const timer = setTimeout(() => setSyncToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [syncToast]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(340px,1fr)]">
+      {syncToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2.5 rounded-full bg-slate-900/95 px-4 py-2.5 text-sm font-medium text-white shadow-lg"
+        >
+          {syncing && (
+            <span
+              className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white"
+              aria-hidden
+            />
+          )}
+          <span className="truncate">{syncToast}</span>
+        </div>
+      )}
+
       <section className="card p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

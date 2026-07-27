@@ -52,6 +52,7 @@ export default async function CalendarPage({
         autoSyncSubscriptionIds={data.subscriptions
           .filter((subscription) => subscription.autoSync)
           .map((subscription) => subscription.id)}
+        pendingSyncCount={data.pendingSyncCount}
         initialShowAllGroupTasks={data.showAllGroupTasks}
       />
 

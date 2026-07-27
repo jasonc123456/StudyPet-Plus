@@ -16,6 +16,8 @@
 import {
   endOfDayInZone,
   fetchIcsEvents,
+  getSyncWindow,
+  isSyncableFeedEvent,
   type ParsedIcsEvent,
 } from '@/lib/calendar';
 import {
@@ -25,11 +27,13 @@ import {
 } from '@/lib/calendar-text';
 import { prisma } from '@/lib/prisma';
 
-/** How far back/forward from today we materialize feed events. */
-const WINDOW_DAYS_PAST = 30;
-const WINDOW_DAYS_FUTURE = 270;
-
-/** A sync triggered by a page view is skipped if one ran this recently. */
+/**
+ * A sync triggered by a page view is skipped if one ran this recently.
+ *
+ * The calendar page overrides this when it can see feed events that have no
+ * assignment behind them (`pendingSyncCount`), so a newly published course is
+ * picked up on arrival instead of waiting out the window.
+ */
 const SYNC_THROTTLE_MS = 10 * 60 * 1000;
 
 export type SubscriptionSyncResult = {
@@ -40,6 +44,8 @@ export type SubscriptionSyncResult = {
   /** Previously-imported rows that lost their feed link and were re-attached. */
   adopted: number;
   removed: number;
+  /** Names of courses this run created, in first-seen order. */
+  coursesCreated: string[];
   skipped: boolean;
   error: string | null;
 };
@@ -48,13 +54,9 @@ export type CalendarSyncResult = {
   subscriptions: SubscriptionSyncResult[];
   /** Total rows written — the client only refreshes when this is non-zero. */
   changed: number;
+  /** Names of courses created across every feed, for the arrival toast. */
+  coursesCreated: string[];
 };
-
-function addDays(date: Date, amount: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + amount);
-  return next;
-}
 
 /**
  * Resolve the course a feed event belongs to, creating it on first sight.
@@ -69,7 +71,8 @@ async function resolveCourseId(
   courseCode: string | null,
   fallbackName: string,
   color: string,
-  cache: Map<string, string>
+  cache: Map<string, string>,
+  createdCourses: string[]
 ) {
   const name = courseCode ?? fallbackName;
   const cacheKey = name.toLowerCase();
@@ -98,6 +101,7 @@ async function resolveCourseId(
     select: { id: true },
   });
 
+  createdCourses.push(name);
   cache.set(cacheKey, created.id);
   return created.id;
 }
@@ -137,6 +141,7 @@ async function syncSubscription(
     updated: 0,
     adopted: 0,
     removed: 0,
+    coursesCreated: [] as string[],
     skipped: false,
     error: null as string | null,
   };
@@ -159,9 +164,7 @@ async function syncSubscription(
     };
   }
 
-  const now = new Date();
-  const windowStart = addDays(now, -WINDOW_DAYS_PAST);
-  const windowEnd = addDays(now, WINDOW_DAYS_FUTURE);
+  const { start: windowStart, end: windowEnd } = getSyncWindow();
 
   // Every UID the feed still knows about, window or not — deletions below key off
   // this, so an assignment outside the window is never mistaken for "removed".
@@ -201,15 +204,15 @@ async function syncSubscription(
     )
   );
 
-  const syncable = feedEvents.filter(
-    (event) =>
-      !event.rrule &&
-      !ignoredUids.has(event.uid) &&
-      event.startsAt >= windowStart &&
-      event.startsAt <= windowEnd
+  const syncable = feedEvents.filter((event) =>
+    isSyncableFeedEvent(event, ignoredUids, {
+      start: windowStart,
+      end: windowEnd,
+    })
   );
 
   const courseCache = new Map<string, string>();
+  const coursesCreated: string[] = [];
   let created = 0;
   let updated = 0;
   let adopted = 0;
@@ -246,10 +249,11 @@ async function syncSubscription(
       courseCode,
       subscription.name,
       subscription.color,
-      courseCache
+      courseCache,
+      coursesCreated
     );
 
-    await prisma.assignment.create({
+    const row = await prisma.assignment.create({
       data: {
         ...fields,
         courseId,
@@ -257,8 +261,21 @@ async function syncSubscription(
         calendarSubscriptionId: subscription.id,
         externalUid: event.uid,
       },
+      select: { id: true },
     });
     created += 1;
+
+    // Feeds do repeat a UID (Canvas does it for an assignment shared across two
+    // course calendars). Without this the second copy would take the create path
+    // again and trip the (subscriptionId, externalUid) unique index, throwing out
+    // of the whole sync — and the arrival sync swallows errors, so the user would
+    // just see the feed stuck on "Imported" with no explanation.
+    existingByUid.set(event.uid, {
+      id: row.id,
+      externalUid: event.uid,
+      status: 'todo',
+      dueAt: fields.dueAt,
+    });
   }
 
   // Dropped from the feed upstream. Only untouched ("todo") rows go — anything
@@ -284,7 +301,14 @@ async function syncSubscription(
     data: { lastSyncedAt: new Date() },
   });
 
-  return { ...base, created, updated, adopted, removed: staleIds.length };
+  return {
+    ...base,
+    created,
+    updated,
+    adopted,
+    coursesCreated,
+    removed: staleIds.length,
+  };
 }
 
 /**
@@ -332,7 +356,11 @@ export async function syncUserCalendars(
     0
   );
 
-  return { subscriptions: results, changed };
+  return {
+    subscriptions: results,
+    changed,
+    coursesCreated: results.flatMap((result) => result.coursesCreated),
+  };
 }
 
 /**

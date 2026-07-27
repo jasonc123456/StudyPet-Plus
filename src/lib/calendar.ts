@@ -75,6 +75,12 @@ export type CalendarPageData = {
   selectedDayEvents: CalendarEvent[];
   subscriptions: CalendarSubscriptionWithError[];
   /**
+   * Feed events from auto-sync connections with no assignment row yet. Non-zero
+   * means the page is rendering "Imported" events that *should* already be
+   * tasks, so the client's arrival sync forces past the throttle.
+   */
+  pendingSyncCount: number;
+  /**
    * The user's persisted preference: when true the group-task events above are
    * every dated task across their groups, not just the ones assigned to them.
    * Drives the "Show all group tasks" toggle's initial state.
@@ -700,6 +706,46 @@ export async function fetchIcsEvents(
   return parseIcsEvents(await readCappedText(response));
 }
 
+/**
+ * How far back/forward from today auto-sync materializes feed events. Lives here
+ * rather than in calendar-sync so the calendar page can apply the same bounds
+ * without importing the sync engine (which imports this module).
+ */
+const SYNC_WINDOW_DAYS_PAST = 30;
+const SYNC_WINDOW_DAYS_FUTURE = 270;
+
+export type SyncWindow = { start: Date; end: Date };
+
+export function getSyncWindow(now = new Date()): SyncWindow {
+  const start = new Date(now);
+  start.setDate(start.getDate() - SYNC_WINDOW_DAYS_PAST);
+  const end = new Date(now);
+  end.setDate(end.getDate() + SYNC_WINDOW_DAYS_FUTURE);
+  return { start, end };
+}
+
+/**
+ * Would auto-sync turn this raw feed event into an assignment?
+ *
+ * The single source of truth for that question: the sync engine filters with it,
+ * and the calendar page counts pending work with it. They have to agree — if the
+ * page counted events the engine skips (recurring lectures, ignored UIDs, events
+ * outside the window), the count would never reach zero and the "new items
+ * pending" force-sync below would fire on every single page load.
+ */
+export function isSyncableFeedEvent(
+  event: ParsedIcsEvent,
+  ignoredUids: Set<string>,
+  window: SyncWindow
+) {
+  return (
+    !event.rrule &&
+    !ignoredUids.has(event.uid) &&
+    event.startsAt >= window.start &&
+    event.startsAt <= window.end
+  );
+}
+
 type SubscriptionForFetch = {
   id: string;
   name: string;
@@ -716,10 +762,19 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
   rangeStart: Date,
   rangeEnd: Date,
   ignoredUids: Set<string>,
-  timeZone: string | null
+  timeZone: string | null,
+  syncWindow: SyncWindow
 ) {
   try {
     const parsedEvents = await fetchIcsEvents(subscription.icsUrl);
+
+    // Every UID auto-sync would materialize, measured against the *whole* feed
+    // rather than the visible grid: a class published today usually has its
+    // deadlines in a month the student isn't looking at yet.
+    const syncableUids = parsedEvents
+      .filter((event) => isSyncableFeedEvent(event, ignoredUids, syncWindow))
+      .map((event) => event.uid);
+
     const events = parsedEvents
       .flatMap((event) => expandRecurringEvent(event, rangeStart, rangeEnd))
       .filter((event) =>
@@ -754,11 +809,13 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
 
     return {
       events,
+      syncableUids,
       subscription: { ...subscription, syncError: null as string | null },
     };
   } catch (error) {
     return {
       events: [] as CalendarEvent[],
+      syncableUids: [] as string[],
       subscription: {
         ...subscription,
         syncError:
@@ -1007,6 +1064,7 @@ export async function getCalendarPageData(
     subscriptions,
     ignoredUids,
     personalEvents,
+    syncedFeedRows,
   ] = await Promise.all([
     prisma.assignment.findMany({
       where: {
@@ -1048,6 +1106,17 @@ export async function getCalendarPageData(
     loadCalendarSubscriptions(userId),
     loadIgnoredEventUids(userId),
     loadPersonalEvents(userId, gridStart, gridEnd),
+    // Feed-backed assignments across *all* dates, not just the visible grid —
+    // this answers "has auto-sync already claimed this feed event?", and a
+    // deadline in next month is still claimed.
+    prisma.assignment.findMany({
+      where: {
+        course: { userId },
+        calendarSubscriptionId: { not: null },
+        externalUid: { not: null },
+      },
+      select: { calendarSubscriptionId: true, externalUid: true },
+    }),
   ]);
 
   // Feeds carry no timezone, so an all-day due date only means something relative
@@ -1062,10 +1131,8 @@ export async function getCalendarPageData(
   // imported list below — the assignment row is the richer copy (it carries a
   // status and an edit link), so showing both would double-book the day.
   const syncedFeedKeys = new Set(
-    assignments.flatMap((assignment) =>
-      assignment.calendarSubscriptionId && assignment.externalUid
-        ? [`${assignment.calendarSubscriptionId}::${assignment.externalUid}`]
-        : []
+    syncedFeedRows.map(
+      (row) => `${row.calendarSubscriptionId}::${row.externalUid}`
     )
   );
 
@@ -1180,6 +1247,8 @@ export async function getCalendarPageData(
     })),
   ];
 
+  const syncWindow = getSyncWindow();
+
   const importedResults = await Promise.all(
     subscriptions.map((subscription) =>
       fetchSubscriptionEvents(
@@ -1187,10 +1256,26 @@ export async function getCalendarPageData(
         gridStart,
         gridEnd,
         ignoredUids.get(subscription.id) ?? new Set(),
-        timeZone
+        timeZone,
+        syncWindow
       )
     )
   );
+
+  // Feed events an auto-sync feed is carrying that have no assignment behind
+  // them yet — a course the instructor published since the last sync ran. The
+  // client forces a sync when this is non-zero instead of waiting out the
+  // 10-minute throttle, which is what used to leave new classes stuck showing
+  // as "Imported" until the user toggled auto-sync off and on by hand.
+  const pendingSyncCount = importedResults.reduce((total, result) => {
+    if (!result.subscription.autoSync) return total;
+    return (
+      total +
+      result.syncableUids.filter(
+        (uid) => !syncedFeedKeys.has(`${result.subscription.id}::${uid}`)
+      ).length
+    );
+  }, 0);
 
   const importedEvents = importedResults
     .flatMap((result) => result.events)
@@ -1229,6 +1314,7 @@ export async function getCalendarPageData(
     eventsByDay,
     selectedDayEvents,
     subscriptions: syncedSubscriptions,
+    pendingSyncCount,
     showAllGroupTasks,
     hasCalendarFeedToken: Boolean(preferences?.calendarFeedTokenHash),
   };
