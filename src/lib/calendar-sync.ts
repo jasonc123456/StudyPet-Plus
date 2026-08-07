@@ -156,7 +156,12 @@ async function syncSubscription(
 
   let feedEvents: ParsedIcsEvent[];
   try {
-    feedEvents = await fetchIcsEvents(subscription.icsUrl);
+    // Always straight from the publisher. This run decides what exists as a
+    // task, so reading a feed even slightly older than the one the calendar
+    // page just rendered would make it conclude "nothing new" about deadlines
+    // the user can already see on screen — and then stamp `lastSyncedAt` as if
+    // the work were done.
+    feedEvents = await fetchIcsEvents(subscription.icsUrl, { fresh: true });
   } catch (error) {
     return {
       ...base,

@@ -683,17 +683,61 @@ function parseIcsEvents(icsText: string) {
 }
 
 /**
- * Fetch + parse a feed into its raw (unexpanded) events. Shared by the calendar
- * renderer and the auto-sync engine; the 5-minute revalidate means a page view
- * and the sync that follows it hit one upstream request, not two.
+ * How long a fetched feed may be reused before we go back to the publisher.
+ *
+ * This exists to keep one calendar page view down to one upstream request:
+ * every day cell is a `<Link>`, so Next prefetches ~40 variants of the page and
+ * renders each one on the server. Without reuse that's ~40 hits on Canvas per
+ * visit.
  */
-export async function fetchIcsEvents(
-  icsUrl: string
-): Promise<ParsedIcsEvent[]> {
+const FEED_CACHE_TTL_MS = 5 * 60 * 1000;
+const FEED_CACHE_MAX_ENTRIES = 64;
+
+/**
+ * The cached value is the in-flight *promise*, not the resolved events, so the
+ * prefetch fan-out above collapses into a single upstream request instead of
+ * ~40 simultaneous misses.
+ */
+type FeedCacheEntry = { fetchedAt: number; events: Promise<ParsedIcsEvent[]> };
+
+const feedCache = new Map<string, FeedCacheEntry>();
+
+function readFeedCache(icsUrl: string) {
+  const entry = feedCache.get(icsUrl);
+  if (!entry) return null;
+
+  if (Date.now() - entry.fetchedAt >= FEED_CACHE_TTL_MS) {
+    feedCache.delete(icsUrl);
+    return null;
+  }
+
+  return entry.events;
+}
+
+function writeFeedCache(icsUrl: string, events: Promise<ParsedIcsEvent[]>) {
+  // Re-insert so the key moves to the end: Map iterates in insertion order,
+  // which makes the eviction below least-recently-fetched.
+  feedCache.delete(icsUrl);
+  feedCache.set(icsUrl, { fetchedAt: Date.now(), events });
+
+  while (feedCache.size > FEED_CACHE_MAX_ENTRIES) {
+    const oldest = feedCache.keys().next().value;
+    if (oldest === undefined) break;
+    feedCache.delete(oldest);
+  }
+}
+
+async function fetchIcsEventsUncached(icsUrl: string) {
   await assertPublicHttpUrl(icsUrl);
 
+  // `no-store` on purpose. Next's data cache is stale-while-revalidate: an
+  // expired entry is handed to the caller *and then* refreshed in the
+  // background, so two callers a second apart can legitimately see two
+  // different generations of the same feed. That is exactly what broke
+  // auto-sync — see the note on `fetchIcsEvents`. Freshness is managed above
+  // instead, where both callers share one generation.
   const response = await fetch(icsUrl, {
-    next: { revalidate: 300 },
+    cache: 'no-store',
     headers: {
       Accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8',
     },
@@ -704,6 +748,43 @@ export async function fetchIcsEvents(
   }
 
   return parseIcsEvents(await readCappedText(response));
+}
+
+/**
+ * Fetch + parse a feed into its raw (unexpanded) events. Shared by the calendar
+ * renderer and the auto-sync engine.
+ *
+ * `fresh` skips the reuse window and pulls from the publisher. Auto-sync passes
+ * it, and that is load-bearing rather than a nicety: the sync is what writes
+ * assignments, so it must never decide "nothing new" from a feed older than the
+ * one the page just rendered. When it did, the page showed a newly published
+ * deadline as "Imported", the arrival sync read the previous generation, found
+ * nothing to create, and still stamped `lastSyncedAt` — so the task only
+ * appeared on the second visit, or after the user pressed "Sync now".
+ *
+ * A fresh pull also refills the shared entry, so the `router.refresh()` that
+ * follows a sync renders from the same bytes the sync just wrote from.
+ */
+export async function fetchIcsEvents(
+  icsUrl: string,
+  { fresh = false }: { fresh?: boolean } = {}
+): Promise<ParsedIcsEvent[]> {
+  if (!fresh) {
+    const cached = readFeedCache(icsUrl);
+    if (cached) return cached;
+  }
+
+  const pending = fetchIcsEventsUncached(icsUrl);
+  writeFeedCache(icsUrl, pending);
+
+  try {
+    return await pending;
+  } catch (error) {
+    // Never leave a rejected promise in the cache — every caller for the next
+    // five minutes would inherit this failure instead of retrying.
+    if (feedCache.get(icsUrl)?.events === pending) feedCache.delete(icsUrl);
+    throw error;
+  }
 }
 
 /**
