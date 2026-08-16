@@ -4,7 +4,14 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUserPreMfa } from '@/lib/api-response';
-import { getSessionToken, markSessionMfaVerified, verifyTotp } from '@/lib/mfa';
+import {
+  clearTotpFailures,
+  getSessionToken,
+  markSessionMfaVerified,
+  recordTotpFailure,
+  totpLockoutState,
+  verifyTotp,
+} from '@/lib/mfa';
 import { prisma } from '@/lib/prisma';
 import { totpCodeSchema, zodFirstError } from '@/lib/validators';
 
@@ -27,15 +34,41 @@ export async function POST(request: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { totpSecret: true, totpActivatedAt: true },
+    select: {
+      totpSecret: true,
+      totpActivatedAt: true,
+      totpFailedAttempts: true,
+      totpLockedUntil: true,
+    },
   });
   if (!user?.totpSecret || !user.totpActivatedAt) {
     return jsonError('TOTP is not set up on this account', 400);
   }
 
+  // Checked before the code is compared, so a locked-out attacker learns nothing
+  // from the response about whether the guess was right.
+  const lockout = totpLockoutState(user.totpLockedUntil);
+  if (lockout.locked) {
+    return jsonError(
+      'Too many incorrect codes. Try again in a few minutes.',
+      429,
+      { 'Retry-After': String(lockout.retryAfterSeconds) }
+    );
+  }
+
   if (!(await verifyTotp(parsed.data.code, user.totpSecret))) {
+    const tripped = await recordTotpFailure(userId, user.totpFailedAttempts);
+    if (tripped.locked) {
+      return jsonError(
+        'Too many incorrect codes. Try again in a few minutes.',
+        429,
+        { 'Retry-After': String(tripped.retryAfterSeconds) }
+      );
+    }
     return jsonError('That code is not valid. Try the current one.', 400);
   }
+
+  await clearTotpFailures(userId);
 
   const token = getSessionToken();
   if (token) await markSessionMfaVerified(token);

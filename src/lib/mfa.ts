@@ -235,3 +235,63 @@ export async function requiresMfaChallenge(userId: string): Promise<boolean> {
   const state = await getSessionMfaGateState(userId);
   return state.active && !state.verified;
 }
+
+// ---- TOTP guess throttling ----
+//
+// A six-digit code is a 1-in-a-million guess, which is only strong while the
+// number of guesses is bounded. Nothing bounded them: the challenge route
+// accepted codes as fast as they could be posted, so an attacker holding a
+// primary session could simply enumerate. State lives on the User row rather
+// than in memory so a restart, or a second replica, does not hand out a fresh
+// allowance.
+
+/** Consecutive failures tolerated before the account is locked out. */
+export const TOTP_MAX_ATTEMPTS = 5;
+/** How long a lockout lasts once tripped. */
+export const TOTP_LOCKOUT_MS = 15 * 60 * 1000;
+
+export type TotpLockout = { locked: boolean; retryAfterSeconds: number };
+
+/** Whether TOTP verification is currently locked out for this user. */
+export function totpLockoutState(lockedUntil: Date | null): TotpLockout {
+  if (!lockedUntil) return { locked: false, retryAfterSeconds: 0 };
+
+  const remainingMs = lockedUntil.getTime() - Date.now();
+  if (remainingMs <= 0) return { locked: false, retryAfterSeconds: 0 };
+
+  return { locked: true, retryAfterSeconds: Math.ceil(remainingMs / 1000) };
+}
+
+/**
+ * Count a wrong code. Trips a lockout on the threshold and resets the counter,
+ * so the next lockout needs another full run of failures.
+ */
+export async function recordTotpFailure(
+  userId: string,
+  currentAttempts: number
+): Promise<TotpLockout> {
+  const attempts = currentAttempts + 1;
+
+  if (attempts >= TOTP_MAX_ATTEMPTS) {
+    const lockedUntil = new Date(Date.now() + TOTP_LOCKOUT_MS);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { totpFailedAttempts: 0, totpLockedUntil: lockedUntil },
+    });
+    return totpLockoutState(lockedUntil);
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { totpFailedAttempts: attempts },
+  });
+  return { locked: false, retryAfterSeconds: 0 };
+}
+
+/** Clear throttling state after a code verifies. */
+export async function clearTotpFailures(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { totpFailedAttempts: 0, totpLockedUntil: null },
+  });
+}

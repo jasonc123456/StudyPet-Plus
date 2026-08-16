@@ -79,10 +79,16 @@ model User {
   // proven. currentChallenge stores the one-time WebAuthn ceremony challenge
   // (registration or authentication) between the "options" and "verify"
   // round-trips. Passkeys live in the Authenticator table.
-  totpSecret        String?
-  totpPendingSecret String?
-  totpActivatedAt   DateTime?
-  currentChallenge  String?
+  // totpFailedAttempts/totpLockedUntil throttle online guessing of the six-digit
+  // code. They live on the row rather than in process memory because a limiter
+  // that resets on deploy, or that a second replica doesn't see, is not a limit
+  // on an authentication factor.
+  totpSecret         String?
+  totpPendingSecret  String?
+  totpActivatedAt    DateTime?
+  totpFailedAttempts Int       @default(0)
+  totpLockedUntil    DateTime?
+  currentChallenge   String?
 
   accounts Account[]
   sessions Session[]
