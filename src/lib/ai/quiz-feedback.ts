@@ -50,6 +50,11 @@ export type GenerateQuizFeedbackInput = {
   items: QuizFeedbackItemInput[];
   mode: 'review' | 'practice' | 'exam';
   sourceSnippet?: string | null;
+  /**
+   * Serve canned feedback and never call a provider, regardless of AI_DEMO_MODE.
+   * Set for the shared public demo account — see src/lib/ai/entitlement.ts.
+   */
+  demoOnly?: boolean;
 };
 
 export type QuizFeedbackItemResult = {
@@ -157,7 +162,7 @@ export async function generateQuizFeedback(
   };
 
   const status = getAiRuntimeStatus();
-  if (status.demoMode) {
+  if (status.demoMode || input.demoOnly) {
     return fallbackResults(normalized, 'demo');
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { AiBudgetError } from '@/lib/ai/entitlement';
 import { AiProviderError } from '@/lib/ai/provider';
 import { streamGeneration } from '@/lib/ai/sse';
 import { jsonError, requireUser } from '@/lib/api-response';
@@ -54,6 +55,11 @@ export async function POST(request: Request) {
       emit({ type: 'done', result });
     } catch (error) {
       if (error instanceof QuizServiceError) {
+        emit({ type: 'error', message: error.message });
+        return;
+      }
+      // A budget refusal is the user's own limit, not a failure.
+      if (error instanceof AiBudgetError) {
         emit({ type: 'error', message: error.message });
         return;
       }

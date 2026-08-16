@@ -123,6 +123,12 @@ export interface GenerateFlashcardsInput {
   existingTopics?: string[];
   /** Raw file attachments (e.g. PDFs) passed through to the model. */
   attachments?: AiAttachment[];
+  /**
+   * Serve canned material and never call a provider, regardless of AI_DEMO_MODE.
+   * Set for the shared public demo account, which anonymous visitors can obtain
+   * a session for — see src/lib/ai/entitlement.ts.
+   */
+  demoOnly?: boolean;
   /** Optional live progress callback (enables streaming when supported). */
   onProgress?: AiProgressCallback;
 }
@@ -135,6 +141,12 @@ export interface GenerateQuizInput {
   existingTopics?: string[];
   /** Raw file attachments (e.g. PDFs) passed through to the model. */
   attachments?: AiAttachment[];
+  /**
+   * Serve canned material and never call a provider, regardless of AI_DEMO_MODE.
+   * Set for the shared public demo account, which anonymous visitors can obtain
+   * a session for — see src/lib/ai/entitlement.ts.
+   */
+  demoOnly?: boolean;
   /** Optional live progress callback (enables streaming when supported). */
   onProgress?: AiProgressCallback;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { AiBudgetError, claimAiGeneration } from '@/lib/ai/entitlement';
 import { AiProviderError } from '@/lib/ai/provider';
 import { parseCoursePlanText } from '@/lib/ai/planner-import';
 import { streamGeneration } from '@/lib/ai/sse';
@@ -56,10 +57,24 @@ export async function POST(request: Request) {
     return jsonError('Planner not found', 404);
   }
 
+  let claim;
+  try {
+    claim = await claimAiGeneration(authResult.user.id);
+  } catch (error) {
+    if (error instanceof AiBudgetError) {
+      return jsonError(error.message, 429, {
+        'Retry-After': String(error.retryAfterSeconds),
+      });
+    }
+    throw error;
+  }
+
   return streamGeneration(async (emit) => {
     try {
-      const result = await parseCoursePlanText(parsed.data.text, (p) =>
-        emit({ type: 'progress', ...p })
+      const result = await parseCoursePlanText(
+        parsed.data.text,
+        (p) => emit({ type: 'progress', ...p }),
+        claim.entitlement.demoOnly
       );
 
       if (result.draft.sections.length === 0) {
@@ -81,6 +96,8 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       emitPlannerImportError(emit, error);
+    } finally {
+      claim.release();
     }
   });
 }

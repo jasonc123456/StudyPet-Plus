@@ -238,8 +238,10 @@ export async function generateFlashcards(
     count,
   });
 
-  // Demo ONLY when AI_DEMO_MODE === "true" — never as a silent fallback.
-  if (status.demoMode) {
+  // Demo when AI_DEMO_MODE === "true", or when the caller is not entitled to
+  // spend provider credit (the shared public demo account). Never a silent
+  // fallback for anyone else.
+  if (status.demoMode || input.demoOnly) {
     console.warn('[ai] generateFlashcards selected provider=demo');
     return { items: demoFlashcards(count, input.topicHint), provider: 'demo' };
   }
@@ -371,7 +373,7 @@ export async function generateQuiz(
     count,
   });
 
-  if (status.demoMode) {
+  if (status.demoMode || input.demoOnly) {
     console.warn('[ai] generateQuiz selected provider=demo');
     return { items: demoQuiz(count, input.topicHint), provider: 'demo' };
   }

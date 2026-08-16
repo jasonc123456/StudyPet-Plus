@@ -921,7 +921,9 @@ function demoPlannerImport(source: string): PlannerImportDraft {
  */
 export async function parseCoursePlanText(
   sourceText: string,
-  onProgress?: AiProgressCallback
+  onProgress?: AiProgressCallback,
+  /** Serve canned material and never call a provider — see ai/entitlement.ts. */
+  demoOnly = false
 ): Promise<PlannerImportResult> {
   const source = prepareSource(sourceText);
   if (!source) {
@@ -948,7 +950,7 @@ export async function parseCoursePlanText(
     };
   };
 
-  if (status.demoMode) {
+  if (status.demoMode || demoOnly) {
     console.warn('[ai] parseCoursePlanText selected provider=demo');
     return finish(demoPlannerImport(source), 'demo');
   }

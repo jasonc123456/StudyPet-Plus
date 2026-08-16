@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireActionUser } from '@/lib/action-auth';
+import { AiBudgetError } from '@/lib/ai/entitlement';
 import { AiProviderError } from '@/lib/ai/provider';
 import {
   FlashcardServiceError,
@@ -68,6 +69,10 @@ function mapServiceError(error: unknown): GenerateFlashcardsActionState {
       error: error.message,
       code: error.code,
     };
+  }
+
+  if (error instanceof AiBudgetError) {
+    return { ok: false, error: error.message, code: 'LIMIT_REACHED' };
   }
 
   if (error instanceof AiProviderError) {

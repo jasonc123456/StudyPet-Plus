@@ -4,6 +4,7 @@
 // them as a new FlashcardSet (deck) with its source-note links.
 
 import { dedupeFlashcards, generateFlashcards } from '@/lib/ai';
+import { claimAiGeneration } from '@/lib/ai/entitlement';
 import {
   flashcardResponseSchema,
   type AiProgressCallback,
@@ -86,18 +87,32 @@ export async function generateAndSaveFlashcards(
   // into the same categories instead of minting near-duplicate ones.
   const existingTopics = await listCourseTopics(courseId, input.userId);
 
-  const { items, provider } = await generateFlashcards({
-    sourceText,
-    count: input.count,
-    topicHint,
-    existingTopics,
-    attachments,
-    onProgress: input.onProgress,
-  });
+  // Claimed here rather than in the route so the server actions are covered by
+  // the same budget — they reach this function too.
+  const { entitlement, release } = await claimAiGeneration(input.userId);
+  let generated;
+  try {
+    generated = await generateFlashcards({
+      sourceText,
+      count: input.count,
+      topicHint,
+      existingTopics,
+      attachments,
+      demoOnly: entitlement.demoOnly,
+      onProgress: input.onProgress,
+    });
+  } finally {
+    release();
+  }
+  const { items, provider } = generated;
 
   // Never persist demo material unless the caller explicitly requested demo mode
   // (AI layer only returns provider:'demo' when AI_DEMO_MODE === "true").
-  if (provider === 'demo' && process.env['AI_DEMO_MODE'] !== 'true') {
+  if (
+    provider === 'demo' &&
+    !entitlement.demoOnly &&
+    process.env['AI_DEMO_MODE'] !== 'true'
+  ) {
     throw new Error('Refusing to persist demo flashcards while AI mode is on');
   }
 

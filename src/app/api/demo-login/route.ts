@@ -28,13 +28,14 @@ import { cookies } from 'next/headers';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { jsonError, jsonOk } from '@/lib/api-response';
+// Shared with the AI entitlement check, which must recognise this account.
+import { DEMO_EMAIL } from '@/lib/demo-account';
 import { prisma } from '@/lib/prisma';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
 
 // Always run on the server per request — never cache (it sets a cookie).
 export const dynamic = 'force-dynamic';
 
-const DEMO_EMAIL = 'demo@studypetplus.app';
 const DEMO_NAME = 'Demo Student';
 
 /**

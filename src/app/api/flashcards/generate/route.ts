@@ -1,6 +1,7 @@
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 
+import { AiBudgetError } from '@/lib/ai/entitlement';
 import { AiProviderError } from '@/lib/ai/provider';
 import { streamGeneration } from '@/lib/ai/sse';
 import { jsonError, requireUser } from '@/lib/api-response';
@@ -107,6 +108,12 @@ function emitFlashcardError(
   error: unknown
 ) {
   if (error instanceof FlashcardServiceError) {
+    emit({ type: 'error', message: error.message });
+    return;
+  }
+  // A budget refusal is the user's own limit, not a failure — say so plainly
+  // rather than reporting a generic generation error.
+  if (error instanceof AiBudgetError) {
     emit({ type: 'error', message: error.message });
     return;
   }

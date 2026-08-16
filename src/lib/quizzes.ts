@@ -4,6 +4,7 @@
 // then persists a Quiz batch with child QuizQuestion rows.
 
 import { generateQuiz } from '@/lib/ai';
+import { claimAiGeneration } from '@/lib/ai/entitlement';
 import {
   quizResponseSchema,
   type AiProgressCallback,
@@ -142,16 +143,28 @@ export async function generateAndSaveQuiz(
   // into the same categories instead of minting near-duplicate ones.
   const existingTopics = await listCourseTopics(courseId, input.userId);
 
-  const { items, provider } = await generateQuiz({
-    sourceText,
-    count: input.count,
-    topicHint,
-    existingTopics,
-    attachments,
-    onProgress: input.onProgress,
-  });
+  const { entitlement, release } = await claimAiGeneration(input.userId);
+  let generated;
+  try {
+    generated = await generateQuiz({
+      sourceText,
+      count: input.count,
+      topicHint,
+      existingTopics,
+      attachments,
+      demoOnly: entitlement.demoOnly,
+      onProgress: input.onProgress,
+    });
+  } finally {
+    release();
+  }
+  const { items, provider } = generated;
 
-  if (provider === 'demo' && process.env['AI_DEMO_MODE'] !== 'true') {
+  if (
+    provider === 'demo' &&
+    !entitlement.demoOnly &&
+    process.env['AI_DEMO_MODE'] !== 'true'
+  ) {
     throw new Error('Refusing to persist demo quiz while AI mode is on');
   }
 
