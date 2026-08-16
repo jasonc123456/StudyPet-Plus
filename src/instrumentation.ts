@@ -12,4 +12,36 @@ export async function register() {
 
   const { assertSecureOriginInProduction } = await import('@/lib/site-url');
   assertSecureOriginInProduction();
+
+  scheduleUploadSweep();
+}
+
+/** How often abandoned note uploads are cleared off disk. */
+const UPLOAD_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Clear abandoned note uploads on a timer.
+ *
+ * The upload path sweeps opportunistically too, but that only fires while
+ * someone is uploading — an instance that goes quiet with expired files still
+ * holding disk would never clean them up. `unref()` so this never holds the
+ * process open on shutdown.
+ */
+function scheduleUploadSweep() {
+  const sweep = async () => {
+    try {
+      const { sweepExpiredUploads } = await import('@/lib/note-pdf');
+      const removed = await sweepExpiredUploads();
+      if (removed > 0) {
+        console.info(`[uploads] swept ${removed} expired upload(s)`);
+      }
+    } catch (error) {
+      // A failed sweep is not worth taking the server down for; the next tick
+      // and the next upload both retry.
+      console.error('[uploads] sweep failed', error);
+    }
+  };
+
+  setInterval(sweep, UPLOAD_SWEEP_INTERVAL_MS).unref();
+  void sweep();
 }

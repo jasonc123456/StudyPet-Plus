@@ -92,6 +92,7 @@ model User {
   sessions Session[]
   authenticators Authenticator[]
   webAuthnChallenges WebAuthnChallenge[]
+  pendingUploads     PendingUpload[]
   emailChangeRequests EmailChangeRequest[]
 
   // Sprint 2 — planner + gamification relations.
@@ -895,4 +896,27 @@ model WebAuthnChallenge {
 enum WebAuthnCeremony {
   AUTHENTICATION
   REGISTRATION
+}
+
+/// A note attachment that has been written to disk but not yet attached to a
+/// Note.
+///
+/// The upload endpoint accepts up to 10 MiB and writes it straight to the
+/// temporary directory. Without a record of that file there was nothing to
+/// enforce a quota against and nothing to clean up: a client that simply never
+/// finished the note left the bytes on disk forever, and repeating that filled
+/// the volume. Each pending file now has an owner, a size and an expiry, so
+/// uploads can be budgeted per user and abandoned ones swept.
+model PendingUpload {
+  /// The on-disk temporary filename, e.g. "upload-<uuid>.pdf".
+  id        String   @id
+  userId    String
+  byteSize  Int
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

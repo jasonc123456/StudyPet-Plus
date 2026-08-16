@@ -2,6 +2,8 @@ import { createHmac, randomUUID } from 'crypto';
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 
+import { prisma } from '@/lib/prisma';
+
 // Storage root for note attachments.
 //
 // Deliberately NOT under public/. Next.js serves everything in public/ as a
@@ -22,6 +24,17 @@ const NOTE_PDF_FILE_PREFIX = 'file-';
 const NOTE_PDF_TMP_PREFIX = 'upload-';
 const NOTE_PDF_ROUTE_PREFIX = '/api/notes/files/';
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
+// Budget for uploads that have been written but not yet attached to a note.
+//
+// The upload endpoint commits bytes to disk before a Note exists, and a client
+// that simply never finishes leaves them there. Nothing expired them and nothing
+// counted them, so the only bound on how much disk one account could occupy was
+// how long it cared to keep uploading. Pending files now cost against a per-user
+// budget and are swept once they age out.
+const MAX_PENDING_UPLOADS = 10;
+const MAX_PENDING_BYTES = 50 * 1024 * 1024;
+const PENDING_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
 const PDF_MAGIC_HEADER = '%PDF-';
 
 function getPdfSigningSecret() {
@@ -94,14 +107,75 @@ function assertPdfContent(file: File, bytes: Buffer) {
   }
 }
 
+/**
+ * Delete pending uploads past their TTL, on disk and in the database.
+ *
+ * Safe to call concurrently: a file that is already gone is not an error, and
+ * the row delete is idempotent.
+ */
+export async function sweepExpiredUploads(): Promise<number> {
+  const expired = await prisma.pendingUpload.findMany({
+    where: { expiresAt: { lt: new Date() } },
+    select: { id: true },
+  });
+
+  if (expired.length === 0) return 0;
+
+  await Promise.allSettled(
+    expired.map((upload) => unlink(getTmpUploadPath(upload.id)))
+  );
+  await prisma.pendingUpload.deleteMany({
+    where: { id: { in: expired.map((upload) => upload.id) } },
+  });
+
+  return expired.length;
+}
+
+/** Refuse an upload that would put this user over their pending budget. */
+async function assertPendingBudget(userId: string, incomingBytes: number) {
+  const [count, totals] = await Promise.all([
+    prisma.pendingUpload.count({ where: { userId } }),
+    prisma.pendingUpload.aggregate({
+      where: { userId },
+      _sum: { byteSize: true },
+    }),
+  ]);
+
+  if (count >= MAX_PENDING_UPLOADS) {
+    throw new Error(
+      'Too many uploads waiting to be attached to a note. Finish or discard one first.'
+    );
+  }
+
+  const pendingBytes = totals._sum.byteSize ?? 0;
+  if (pendingBytes + incomingBytes > MAX_PENDING_BYTES) {
+    throw new Error(
+      'Upload storage limit reached. Attach or discard your pending uploads first.'
+    );
+  }
+}
+
 export async function saveNotePdfUpload(file: File, userId: string) {
   const bytes = Buffer.from(await file.arrayBuffer());
   assertPdfContent(file, bytes);
+
+  await sweepExpiredUploads();
+  await assertPendingBudget(userId, bytes.byteLength);
 
   const uploadId = `${NOTE_PDF_TMP_PREFIX}${randomUUID()}.pdf`;
 
   await ensurePdfDirectories();
   await writeFile(getTmpUploadPath(uploadId), bytes, { flag: 'wx' });
+
+  // Recorded after the write so a row never claims disk that isn't there.
+  await prisma.pendingUpload.create({
+    data: {
+      id: uploadId,
+      userId,
+      byteSize: bytes.byteLength,
+      expiresAt: new Date(Date.now() + PENDING_UPLOAD_TTL_MS),
+    },
+  });
 
   return {
     pdfName: sanitizePdfDisplayName(file.name),
@@ -147,6 +221,8 @@ export async function finalizeNotePdfUpload({
       throw new Error('Uploaded PDF could not be finalized');
     }
   }
+
+  await prisma.pendingUpload.deleteMany({ where: { id: uploadId } });
 
   return {
     pdfUrl: `${NOTE_PDF_ROUTE_PREFIX}${fileId}`,
@@ -197,6 +273,7 @@ export async function deleteNotePdf(pdfUrl: string | null | undefined) {
   await Promise.allSettled([
     unlink(getStoredFilePath(fileId)),
     unlink(getTmpUploadPath(uploadId)),
+    prisma.pendingUpload.deleteMany({ where: { id: uploadId } }),
   ]);
 }
 
