@@ -70,6 +70,9 @@ export async function generateAndSaveFlashcards(
     if (assembled.reason === 'NOT_FOUND') {
       throw new FlashcardServiceError('NOT_FOUND', 'Note not found');
     }
+    if (assembled.reason === 'SOURCE_LIMIT') {
+      throw new FlashcardServiceError('LIMIT_REACHED', assembled.message);
+    }
     throw new FlashcardServiceError(
       'EMPTY_CONTENT',
       'Selected notes have no content to generate flashcards from'

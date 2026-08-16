@@ -31,7 +31,7 @@ import type {
 
 export class QuizServiceError extends Error {
   constructor(
-    public readonly code: 'NOT_FOUND' | 'EMPTY_CONTENT',
+    public readonly code: 'NOT_FOUND' | 'EMPTY_CONTENT' | 'LIMIT_REACHED',
     message: string
   ) {
     super(message);
@@ -125,6 +125,9 @@ export async function generateAndSaveQuiz(
   if (!assembled.ok) {
     if (assembled.reason === 'NOT_FOUND') {
       throw new QuizServiceError('NOT_FOUND', 'Note not found');
+    }
+    if (assembled.reason === 'SOURCE_LIMIT') {
+      throw new QuizServiceError('LIMIT_REACHED', assembled.message);
     }
     throw new QuizServiceError(
       'EMPTY_CONTENT',

@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from 'crypto';
-import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises';
+import { mkdir, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 
 const NOTE_PDF_DIR = path.join(process.cwd(), 'public', 'note-pdfs');
@@ -149,6 +149,23 @@ export async function readNotePdfFile(pdfUrl: string) {
     fileId,
     bytes: await readFile(getStoredFilePath(fileId)),
   };
+}
+
+/**
+ * Size of a stored attachment without reading it.
+ *
+ * Lets a caller price a whole batch of PDFs before loading any of them — the
+ * difference between rejecting an oversized AI request up front and discovering
+ * it a few hundred megabytes into the read.
+ */
+export async function statNotePdfFile(pdfUrl: string) {
+  const fileId = extractPdfFileId(pdfUrl);
+  if (!fileId) {
+    throw new Error('Invalid PDF reference');
+  }
+
+  const { size } = await stat(getStoredFilePath(fileId));
+  return { fileId, size };
 }
 
 export async function deleteNotePdf(pdfUrl: string | null | undefined) {

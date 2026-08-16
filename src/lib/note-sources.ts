@@ -7,11 +7,22 @@
 
 import type { AiAttachment } from '@/lib/ai/types';
 import { hasVisibleRichText, richTextToPlainText } from '@/lib/note-rich-text';
-import { readNotePdfFile } from '@/lib/note-pdf';
+import { readNotePdfFile, statNotePdfFile } from '@/lib/note-pdf';
 import { prisma } from '@/lib/prisma';
 
 /** Keep in step with the AI layer's own source cap. */
 export const MAX_SOURCE_CHARS = 12_000;
+
+// Attachment budget for a single generation request.
+//
+// The note cap alone (20) bounds nothing that matters: each note may carry a
+// 10 MiB PDF, so one request could pull 200 MiB off disk and hold ~267 MiB of
+// base64 on top of it before the model was even called. A handful of concurrent
+// requests would then be competing for the whole heap. These two limits are
+// what actually bound the memory a request can cost, and they are checked
+// against file sizes before a single byte is read.
+export const MAX_SOURCE_PDFS = 5;
+export const MAX_SOURCE_PDF_BYTES = 25 * 1024 * 1024;
 
 export type LoadedSourceNote = {
   id: string;
@@ -42,12 +53,15 @@ export type AssembledSource = {
 
 export type AssembleResult =
   | { ok: true; value: AssembledSource }
-  | { ok: false; reason: 'NOT_FOUND' | 'EMPTY_CONTENT' };
+  | { ok: false; reason: 'NOT_FOUND' | 'EMPTY_CONTENT' }
+  /** Over the attachment budget. Carries the message to show the user. */
+  | { ok: false; reason: 'SOURCE_LIMIT'; message: string };
 
 /**
  * Load + assemble the source text for the given owned notes.
  * `NOT_FOUND` when any id isn't an owned note; `EMPTY_CONTENT` when none of the
- * notes carry visible text.
+ * notes carry visible text; `SOURCE_LIMIT` when the selected PDFs exceed the
+ * per-request attachment budget.
  */
 export async function assembleNoteSource(
   noteIds: string[],
@@ -87,19 +101,55 @@ export async function assembleNoteSource(
 
   // Read attached PDFs here — the only point where a note's file reaches the
   // AI layer. Unreadable files are skipped rather than failing the whole run.
-  const attachments: AiAttachment[] = [];
-  for (const id of orderedIds) {
-    const row = byId.get(id)!;
-    if (!row.pdfUrl) continue;
+  const pdfNotes = orderedIds
+    .map((id) => byId.get(id)!)
+    .filter((row) => Boolean(row.pdfUrl));
+
+  if (pdfNotes.length > MAX_SOURCE_PDFS) {
+    return {
+      ok: false,
+      reason: 'SOURCE_LIMIT',
+      message: `Select at most ${MAX_SOURCE_PDFS} notes with PDF attachments at a time.`,
+    };
+  }
+
+  // Price the batch before loading any of it. Sizes come from stat, so an
+  // over-budget request is refused without ever holding the files in memory —
+  // which is the whole point of the budget.
+  let budgetedBytes = 0;
+  for (const row of pdfNotes) {
     try {
-      const { bytes } = await readNotePdfFile(row.pdfUrl);
+      const { size } = await statNotePdfFile(row.pdfUrl!);
+      budgetedBytes += size;
+    } catch (error) {
+      // Unreadable here means unreadable below too; it contributes nothing.
+      console.error('[note-sources] failed to stat note PDF', row.id, error);
+    }
+  }
+
+  if (budgetedBytes > MAX_SOURCE_PDF_BYTES) {
+    const limitMb = Math.floor(MAX_SOURCE_PDF_BYTES / (1024 * 1024));
+    return {
+      ok: false,
+      reason: 'SOURCE_LIMIT',
+      message: `The selected PDFs total more than ${limitMb} MB. Generate from fewer notes at a time.`,
+    };
+  }
+
+  const attachments: AiAttachment[] = [];
+  for (const row of pdfNotes) {
+    try {
+      // One file in flight at a time: the raw Buffer goes out of scope as soon
+      // as it is encoded, so peak memory is the base64 set plus one file, not
+      // both copies of everything.
+      const { bytes } = await readNotePdfFile(row.pdfUrl!);
       attachments.push({
         filename: row.pdfName ?? 'attachment.pdf',
         mimeType: 'application/pdf',
         base64: bytes.toString('base64'),
       });
     } catch (error) {
-      console.error('[note-sources] failed to read note PDF', id, error);
+      console.error('[note-sources] failed to read note PDF', row.id, error);
     }
   }
 
