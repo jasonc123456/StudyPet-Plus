@@ -1,8 +1,14 @@
 // Passkey registration — step 2 of 2 (US-4.S1).
 //
 // Verifies the browser's attestation against the challenge stashed in step 1,
-// then persists the new credential. Registering a passkey also clears the
-// current session's MFA gate: the user just proved possession.
+// then persists the new credential.
+//
+// Registration proves possession of the *new* credential, which says nothing
+// about the factor already on the account. Two things keep that from being a
+// bypass: requireUser() refuses a session that hasn't cleared the existing
+// factor, and the session is marked MFA-verified below only when this passkey
+// is the account's first factor — otherwise enrolling an attacker-controlled
+// key would have been enough to clear the gate on its own.
 
 import { NextResponse } from 'next/server';
 import {
@@ -40,11 +46,19 @@ export async function POST(request: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { currentChallenge: true },
+    select: {
+      currentChallenge: true,
+      totpActivatedAt: true,
+      _count: { select: { authenticators: true } },
+    },
   });
   if (!user?.currentChallenge) {
     return jsonError('Passkey setup expired — start again', 400);
   }
+
+  // Read before the write below: was the account unprotected until now?
+  const isFirstFactor =
+    !user.totpActivatedAt && user._count.authenticators === 0;
 
   let verification;
   try {
@@ -83,8 +97,14 @@ export async function POST(request: Request) {
     }),
   ]);
 
-  const token = getSessionToken();
-  if (token) await markSessionMfaVerified(token);
+  // Only the first factor clears the gate, and only because there was nothing
+  // to prove a moment ago — without this the user would be bounced to /mfa the
+  // instant they finished enrolling. A session enrolling an *additional* key
+  // already passed requireUser(), so it is verified regardless.
+  if (isFirstFactor) {
+    const token = getSessionToken();
+    if (token) await markSessionMfaVerified(token);
+  }
 
   return jsonOk({ ok: true }, 201);
 }
