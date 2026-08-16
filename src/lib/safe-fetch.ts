@@ -71,36 +71,178 @@ export type SafeFetchResult = {
 const DEFAULT_MAX_REDIRECTS = 3;
 
 /**
+ * Expand an IPv6 literal to its 16 bytes, or null if it isn't one.
+ *
+ * Everything here is byte-level on purpose. Matching IPv6 by string prefix — the
+ * shape this replaced — reads only one spelling of an address, and IPv6 has many
+ * for the same destination: ::ffff:127.0.0.1 and ::ffff:7f00:1 are the same
+ * loopback, "fe80" as a prefix test misses the rest of fe80::/10, and a textual
+ * check has no answer at all for 2002:: or 64:ff9b:: carrying an IPv4 payload.
+ */
+function ipv6ToBytes(address: string): Uint8Array | null {
+  let text = address.toLowerCase();
+
+  // Scope/zone id ("fe80::1%eth0") names an interface, never a destination.
+  const zone = text.indexOf('%');
+  if (zone !== -1) text = text.slice(0, zone);
+
+  const bytes = new Uint8Array(16);
+
+  // A trailing dotted quad ("::ffff:127.0.0.1") occupies the last four bytes.
+  let tail: number[] = [];
+  const lastColon = text.lastIndexOf(':');
+  const trailer = text.slice(lastColon + 1);
+  if (trailer.includes('.')) {
+    const quad = ipv4ToBytes(trailer);
+    if (!quad) return null;
+    tail = Array.from(quad);
+    // Drop the quad and the colon introducing it, but never break up a "::" —
+    // "::127.0.0.1" must keep its compression marker to expand correctly.
+    const head = text.slice(0, lastColon + 1);
+    text = head.endsWith('::') ? head : head.slice(0, -1);
+  }
+
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+
+  const parseGroups = (part: string): number[] | null => {
+    if (part === '') return [];
+    const groups: number[] = [];
+    for (const group of part.split(':')) {
+      if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+      groups.push(parseInt(group, 16));
+    }
+    return groups;
+  };
+
+  const head = parseGroups(halves[0] ?? '');
+  const rest = halves.length === 2 ? parseGroups(halves[1] ?? '') : null;
+  if (!head || (halves.length === 2 && !rest)) return null;
+
+  const groups: number[] =
+    halves.length === 2
+      ? [
+          ...head,
+          ...new Array(8 - head.length - rest!.length - tail.length / 2).fill(
+            0
+          ),
+          ...rest!,
+        ]
+      : head;
+
+  const expected = 8 - tail.length / 2;
+  if (groups.length !== expected) return null;
+
+  groups.forEach((group, index) => {
+    bytes[index * 2] = (group >> 8) & 0xff;
+    bytes[index * 2 + 1] = group & 0xff;
+  });
+  tail.forEach((byte, index) => {
+    bytes[12 + index] = byte;
+  });
+
+  return bytes;
+}
+
+/** Parse a dotted-quad IPv4 literal to its 4 bytes, or null. */
+function ipv4ToBytes(address: string): Uint8Array | null {
+  const parts = address.split('.');
+  if (parts.length !== 4) return null;
+
+  const bytes = new Uint8Array(4);
+  for (let index = 0; index < 4; index += 1) {
+    const part = parts[index]!;
+    // No leading zeros: "0177.0.0.1" is octal loopback to some resolvers.
+    if (!/^(0|[1-9][0-9]{0,2})$/.test(part)) return null;
+    const value = Number(part);
+    if (value > 255) return null;
+    bytes[index] = value;
+  }
+
+  return bytes;
+}
+
+/** True for IPv4 ranges that must never be dialed. */
+function isPrivateIpv4(bytes: Uint8Array): boolean {
+  const [a, b, c] = bytes as unknown as [number, number, number, number];
+
+  if (a === 0) return true; // "this network"
+  if (a === 10) return true; // RFC 1918
+  if (a === 127) return true; // loopback
+  if (a === 169 && b === 254) return true; // link-local, incl. 169.254.169.254
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC 1918
+  if (a === 192 && b === 168) return true; // RFC 1918
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  if (a === 192 && b === 0 && c === 0) return true; // IETF protocol assignments
+  if (a === 192 && b === 0 && c === 2) return true; // documentation
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+  if (a === 198 && b === 51 && c === 100) return true; // documentation
+  if (a === 203 && b === 0 && c === 113) return true; // documentation
+  if (a >= 224) return true; // multicast, reserved, broadcast
+
+  return false;
+}
+
+/**
  * True for any address the server must never fetch: loopback, private (RFC 1918
  * / CGNAT), link-local — which includes the cloud metadata endpoint
- * 169.254.169.254 — multicast, and the IPv6 equivalents. Anything unparseable is
- * refused too. This is the allow/deny core of the SSRF guard.
+ * 169.254.169.254 — multicast, documentation and reserved ranges, and every IPv6
+ * spelling of the same. Anything unparseable is refused too. This is the
+ * allow/deny core of the SSRF guard.
  */
 export function isPrivateAddress(address: string): boolean {
   const version = isIP(address);
 
   if (version === 4) {
-    const parts = address.split('.').map(Number);
-    if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
-      return true;
-    }
-    const [a, b] = parts as [number, number, number, number];
-    if (a === 0 || a === 10 || a === 127) return true; // this-network, private, loopback
-    if (a === 169 && b === 254) return true; // link-local (incl. cloud metadata)
-    if (a === 172 && b >= 16 && b <= 31) return true; // private
-    if (a === 192 && b === 168) return true; // private
-    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-    if (a >= 224) return true; // multicast + reserved
-    return false;
+    const bytes = ipv4ToBytes(address);
+    return bytes ? isPrivateIpv4(bytes) : true;
   }
 
   if (version === 6) {
-    const addr = address.toLowerCase();
-    if (addr === '::1' || addr === '::') return true; // loopback / unspecified
-    if (addr.startsWith('fe80')) return true; // link-local
-    if (addr.startsWith('fc') || addr.startsWith('fd')) return true; // unique-local
-    const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr);
-    if (mapped) return isPrivateAddress(mapped[1]!); // IPv4-mapped
+    const bytes = ipv6ToBytes(address);
+    if (!bytes) return true;
+
+    const allZero = bytes.every((byte) => byte === 0);
+    if (allZero) return true; // :: unspecified
+
+    const isLoopback =
+      bytes.slice(0, 15).every((byte) => byte === 0) && bytes[15] === 1;
+    if (isLoopback) return true; // ::1
+
+    const [b0, b1, b2, b3] = bytes as unknown as number[];
+
+    if (b0 === 0xff) return true; // ff00::/8 multicast
+    if (b0 === 0xfe && (b1! & 0xc0) === 0x80) return true; // fe80::/10 link-local
+    if (b0 === 0xfe && (b1! & 0xc0) === 0xc0) return true; // fec0::/10 site-local
+    if ((b0! & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
+    if (b0 === 0x01 && b1 === 0x00 && b2 === 0x00 && b3 === 0x00) return true; // 100::/64 discard
+    if (b0 === 0x20 && b1 === 0x01 && b2 === 0x0d && b3 === 0xb8) return true; // 2001:db8::/32 docs
+    if (b0 === 0x20 && b1 === 0x01 && b2 === 0x00 && b3 === 0x00) return true; // 2001::/32 Teredo
+
+    // Forms that carry an IPv4 destination inside an IPv6 address. Each one is
+    // resolved back to those four bytes and judged as IPv4, so ::ffff:7f00:1 is
+    // refused for the same reason 127.0.0.1 is.
+    const embedded = (offset: number) => bytes.slice(offset, offset + 4);
+
+    const isMapped =
+      bytes.slice(0, 10).every((byte) => byte === 0) &&
+      bytes[10] === 0xff &&
+      bytes[11] === 0xff;
+    if (isMapped) return isPrivateIpv4(embedded(12)); // ::ffff:a.b.c.d
+
+    const isCompatible = bytes.slice(0, 12).every((byte) => byte === 0);
+    if (isCompatible) return isPrivateIpv4(embedded(12)); // ::a.b.c.d (deprecated)
+
+    const isNat64 =
+      b0 === 0x00 &&
+      b1 === 0x64 &&
+      b2 === 0xff &&
+      b3 === 0x9b &&
+      bytes.slice(4, 12).every((byte) => byte === 0);
+    if (isNat64) return isPrivateIpv4(embedded(12)); // 64:ff9b::/96
+
+    if (b0 === 0x20 && b1 === 0x02) return isPrivateIpv4(embedded(2)); // 2002::/16 6to4
+
     return false;
   }
 
