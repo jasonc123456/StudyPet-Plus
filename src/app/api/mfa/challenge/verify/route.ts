@@ -11,7 +11,7 @@ import {
   type AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
 
-import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { jsonError, jsonOk, requireUserPreMfa } from '@/lib/api-response';
 import {
   expectedOrigin,
   getSessionToken,
@@ -23,7 +23,7 @@ import { prisma } from '@/lib/prisma';
 import { passkeyAssertionSchema, zodFirstError } from '@/lib/validators';
 
 export async function POST(request: Request) {
-  const authResult = await requireUser();
+  const authResult = await requireUserPreMfa();
   if (authResult instanceof NextResponse) return authResult;
   const userId = authResult.user.id;
 

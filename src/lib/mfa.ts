@@ -178,14 +178,60 @@ export async function markSessionMfaVerified(
   });
 }
 
+export type MfaGateState = {
+  /** The user has at least one active second factor. */
+  active: boolean;
+  /** This session has already cleared that factor. */
+  verified: boolean;
+};
+
+/**
+ * The MFA gate state for the request's own session, in one query.
+ *
+ * Every authenticated API call runs this (see requireUser), so it reads the
+ * session row and the two factor signals together rather than issuing the three
+ * round-trips isMfaActive + isSessionMfaVerified would cost. A session token
+ * that doesn't resolve, or resolves to a different user than the caller claims,
+ * reports "no factor, not verified" — the 401 path owns that case.
+ */
+export async function getSessionMfaGateState(
+  userId: string
+): Promise<MfaGateState> {
+  const token = getSessionToken();
+  if (!token) return { active: false, verified: false };
+
+  const session = await prisma.session.findUnique({
+    where: { sessionToken: token },
+    select: {
+      userId: true,
+      mfaVerifiedAt: true,
+      user: {
+        select: {
+          totpActivatedAt: true,
+          _count: { select: { authenticators: true } },
+        },
+      },
+    },
+  });
+
+  if (!session || session.userId !== userId) {
+    return { active: false, verified: false };
+  }
+
+  return {
+    active:
+      Boolean(session.user.totpActivatedAt) ||
+      session.user._count.authenticators > 0,
+    verified: Boolean(session.mfaVerifiedAt),
+  };
+}
+
 /**
  * Whether the request's session still needs to pass the MFA gate: the user has
  * a factor enrolled and this session has not yet cleared it. Returns false when
  * there is no session token (unauthenticated — handled elsewhere).
  */
 export async function requiresMfaChallenge(userId: string): Promise<boolean> {
-  if (!(await isMfaActive(userId))) return false;
-  const token = getSessionToken();
-  if (!token) return false;
-  return !(await isSessionMfaVerified(token));
+  const state = await getSessionMfaGateState(userId);
+  return state.active && !state.verified;
 }

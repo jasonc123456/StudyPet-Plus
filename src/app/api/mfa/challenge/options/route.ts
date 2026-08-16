@@ -7,13 +7,13 @@
 import { NextResponse } from 'next/server';
 import { generateAuthenticationOptions } from '@simplewebauthn/server';
 
-import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { jsonError, jsonOk, requireUserPreMfa } from '@/lib/api-response';
 import { parseTransports, rpID } from '@/lib/mfa';
 import { prisma } from '@/lib/prisma';
 import type { AuthenticatorTransportFuture } from '@simplewebauthn/server';
 
 export async function POST() {
-  const authResult = await requireUser();
+  const authResult = await requireUserPreMfa();
   if (authResult instanceof NextResponse) return authResult;
   const userId = authResult.user.id;
 
