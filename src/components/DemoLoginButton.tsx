@@ -65,8 +65,11 @@ export default function DemoLoginButton({
     }
   }
 
+  // The wrapper stacks the button over its error text. Its alignment stays
+  // neutral so the caller's layout decides where the button sits — the landing
+  // page hero row and the centered login form want different things.
   return (
-    <span className="inline-flex flex-col items-center gap-1 lg:items-start">
+    <span className="inline-flex flex-col items-center gap-1">
       <button
         type="button"
         onClick={startDemo}
