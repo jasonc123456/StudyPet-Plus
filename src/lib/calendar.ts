@@ -1,11 +1,9 @@
-import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
-
 import { Prisma } from '@prisma/client';
 
 import { cleanIcsText } from '@/lib/calendar-text';
 import { isMissingGroupTables } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
+import { fetchPublicText, SafeFetchError } from '@/lib/safe-fetch';
 
 export type CalendarEventSource =
   'assignment' | 'quest' | 'group_task' | 'imported' | 'personal';
@@ -123,115 +121,40 @@ function positiveIntOrNull(raw: string | undefined): number | null {
 }
 
 /**
- * True for any address the server must never fetch: loopback, private (RFC 1918
- * / CGNAT), link-local — which includes the cloud metadata endpoint
- * 169.254.169.254 — multicast, and the IPv6 equivalents. Anything unparseable is
- * refused too. This is the allow/deny core of the SSRF guard below.
+ * Deadlines for a feed fetch. Both halves matter: a publisher that never sends
+ * headers is caught by the first, and one that trickles the body a byte at a
+ * time — staying under MAX_ICS_BYTES indefinitely — is caught by the second.
+ * Before these existed, either shape could hold a render or a sync worker open
+ * for as long as the publisher cared to.
  */
-function isPrivateAddress(address: string): boolean {
-  const kind = isIP(address);
+const FEED_HEADERS_TIMEOUT_MS = 8_000;
+const FEED_TOTAL_TIMEOUT_MS = 20_000;
 
-  if (kind === 4) {
-    const parts = address.split('.').map(Number);
-    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n))) {
-      return true;
-    }
-    const [a, b] = parts;
-    if (a === 0 || a === 10 || a === 127) return true; // this-host, private, loopback
-    if (a === 169 && b === 254) return true; // link-local incl. cloud metadata
-    if (a === 172 && b >= 16 && b <= 31) return true; // private
-    if (a === 192 && b === 168) return true; // private
-    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-    if (a >= 224) return true; // multicast / reserved
-    return false;
-  }
-
-  if (kind === 6) {
-    const addr = address.toLowerCase();
-    if (addr === '::1' || addr === '::') return true; // loopback / unspecified
-    if (addr.startsWith('fe80')) return true; // link-local
-    if (addr.startsWith('fc') || addr.startsWith('fd')) return true; // unique-local
-    const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr);
-    if (mapped) return isPrivateAddress(mapped[1]); // IPv4-mapped
-    return false;
-  }
-
-  return true; // not a valid IP literal — refuse
-}
+const FEED_REQUEST_HEADERS = {
+  accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8',
+};
 
 /**
- * Guards the one place this app fetches a user-controlled URL. The ICS link is
- * pasted by the student, so without this a "feed" of http://169.254.169.254/…
- * or http://127.0.0.1:5432 would make the server issue requests to internal
- * resources on the attacker's behalf (SSRF). We resolve the host and refuse any
- * private/loopback/link-local address.
+ * Fetch a feed through the hardened outbound client.
  *
- * Residual gap: a public host that redirects to — or later re-resolves to — an
- * internal address can still slip through (redirect following, DNS rebinding).
- * Closing that needs a pinned-IP dispatcher; tracked in the sprint plan.
+ * Everything about SSRF and resource limits lives in safe-fetch: per-hop
+ * redirect revalidation, connect-time address pinning (which is what closes DNS
+ * rebinding), the byte cap, and the two deadlines above. This module just says
+ * what a calendar feed is allowed to cost.
  */
-async function assertPublicHttpUrl(rawUrl: string): Promise<void> {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw new Error('Invalid calendar URL');
+async function fetchFeedText(icsUrl: string): Promise<string> {
+  const result = await fetchPublicText(icsUrl, {
+    maxBytes: MAX_ICS_BYTES,
+    headersTimeoutMs: FEED_HEADERS_TIMEOUT_MS,
+    totalTimeoutMs: FEED_TOTAL_TIMEOUT_MS,
+    headers: FEED_REQUEST_HEADERS,
+  });
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`Calendar responded with ${result.status}`);
   }
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Calendar URL must use http or https');
-  }
-
-  const host = url.hostname.replace(/^\[|\]$/g, ''); // strip IPv6 brackets
-  if (isIP(host)) {
-    if (isPrivateAddress(host)) throw new Error('Calendar URL is not allowed');
-    return;
-  }
-
-  let records: Array<{ address: string }>;
-  try {
-    records = await lookup(host, { all: true });
-  } catch {
-    throw new Error('Could not resolve the calendar host');
-  }
-
-  if (
-    records.length === 0 ||
-    records.some((record) => isPrivateAddress(record.address))
-  ) {
-    throw new Error('Calendar URL is not allowed');
-  }
-}
-
-/**
- * Read a response body as text, aborting past MAX_ICS_BYTES so a feed that
- * streams gigabytes (or lies in Content-Length) can't exhaust server memory.
- */
-async function readCappedText(response: Response): Promise<string> {
-  const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > MAX_ICS_BYTES) {
-    throw new Error('Calendar feed is too large');
-  }
-
-  const body = response.body;
-  if (!body) return response.text();
-
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    if (total > MAX_ICS_BYTES) {
-      await reader.cancel();
-      throw new Error('Calendar feed is too large');
-    }
-    chunks.push(value);
-  }
-
-  return Buffer.concat(chunks).toString('utf8');
+  return result.text;
 }
 
 /** How far `timeZone` sits from UTC at the given instant, in milliseconds. */
@@ -728,26 +651,18 @@ function writeFeedCache(icsUrl: string, events: Promise<ParsedIcsEvent[]>) {
 }
 
 async function fetchIcsEventsUncached(icsUrl: string) {
-  await assertPublicHttpUrl(icsUrl);
-
-  // `no-store` on purpose. Next's data cache is stale-while-revalidate: an
-  // expired entry is handed to the caller *and then* refreshed in the
-  // background, so two callers a second apart can legitimately see two
-  // different generations of the same feed. That is exactly what broke
+  // Never cached by the runtime, on purpose. Next's data cache is
+  // stale-while-revalidate: an expired entry is handed to the caller *and then*
+  // refreshed in the background, so two callers a second apart can legitimately
+  // see two different generations of the same feed. That is exactly what broke
   // auto-sync — see the note on `fetchIcsEvents`. Freshness is managed above
-  // instead, where both callers share one generation.
-  const response = await fetch(icsUrl, {
-    cache: 'no-store',
-    headers: {
-      Accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Calendar responded with ${response.status}`);
-  }
-
-  return parseIcsEvents(await readCappedText(response));
+  // instead, where both callers share one generation. fetchPublicText goes
+  // straight to the socket, so there is no runtime cache in play at all.
+  //
+  // Note this runs on every stored feed, not just at add time: a URL that was
+  // public when the student pasted it is re-validated here on each pull, so a
+  // host that later points somewhere internal is refused.
+  return parseIcsEvents(await fetchFeedText(icsUrl));
 }
 
 /**
@@ -917,32 +832,25 @@ export async function verifyIcsFeed(
   icsUrl: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await assertPublicHttpUrl(icsUrl);
-  } catch {
-    return {
-      ok: false,
-      error:
-        'That calendar link points to a private or unreachable address. Paste a public https:// feed URL (in Canvas: Calendar → "Calendar Feed").',
-    };
-  }
-
-  try {
-    const response = await fetch(icsUrl, {
-      redirect: 'follow',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(8000),
-      headers: { Accept: 'text/calendar,text/plain;q=0.9,*/*;q=0.8' },
+    // Same client as the recurring pulls. It used to differ here — this check
+    // validated the pasted host and then followed redirects, so a public
+    // redirector could send the verification request anywhere on the internal
+    // network. Sharing one client is what stops the two paths drifting apart.
+    const result = await fetchPublicText(icsUrl, {
+      maxBytes: MAX_ICS_BYTES,
+      headersTimeoutMs: FEED_HEADERS_TIMEOUT_MS,
+      totalTimeoutMs: FEED_TOTAL_TIMEOUT_MS,
+      headers: FEED_REQUEST_HEADERS,
     });
 
-    if (!response.ok) {
+    if (result.status < 200 || result.status >= 300) {
       return {
         ok: false,
-        error: `The calendar link responded with ${response.status}. Double-check the URL and that the feed is still active.`,
+        error: `The calendar link responded with ${result.status}. Double-check the URL and that the feed is still active.`,
       };
     }
 
-    const text = await readCappedText(response);
-    if (!text.includes('BEGIN:VCALENDAR')) {
+    if (!result.text.includes('BEGIN:VCALENDAR')) {
       return {
         ok: false,
         error:
@@ -952,12 +860,28 @@ export async function verifyIcsFeed(
 
     return { ok: true };
   } catch (error) {
-    if (error instanceof Error && error.name === 'TimeoutError') {
-      return {
-        ok: false,
-        error:
-          'The calendar link took too long to respond. Try again in a moment.',
-      };
+    if (error instanceof SafeFetchError) {
+      switch (error.kind) {
+        case 'blocked':
+        case 'redirect':
+          return {
+            ok: false,
+            error:
+              'That calendar link points to a private or unreachable address. Paste a public https:// feed URL (in Canvas: Calendar → "Calendar Feed").',
+          };
+        case 'timeout':
+          return {
+            ok: false,
+            error:
+              'The calendar link took too long to respond. Try again in a moment.',
+          };
+        case 'too-large':
+          return {
+            ok: false,
+            error:
+              'That calendar feed is too large to import. Try a feed limited to a single term.',
+          };
+      }
     }
     return {
       ok: false,
