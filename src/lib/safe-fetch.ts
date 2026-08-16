@@ -468,7 +468,12 @@ export async function fetchPublicText(
     const status = res.statusCode ?? 0;
 
     if (isRedirect(status)) {
-      res.resume(); // drain and free the socket; we only want the Location
+      // Destroyed, not drained. res.resume() reads the body to completion with
+      // no deadline of its own, so a server that sends headers promptly and then
+      // trickles an endless body keeps the socket alive past every timeout here.
+      // Nothing in a redirect or error body is wanted, so the socket is closed
+      // outright rather than read to the end.
+      res.destroy();
       if (hop >= maxRedirects) {
         throw new SafeFetchError('Too many redirects', 'redirect');
       }
@@ -483,7 +488,7 @@ export async function fetchPublicText(
     }
 
     if (status < 200 || status >= 300) {
-      res.resume();
+      res.destroy();
       return { status, finalUrl: url.toString(), text: '' };
     }
 
