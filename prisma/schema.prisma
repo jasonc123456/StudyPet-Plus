@@ -93,6 +93,7 @@ model User {
   authenticators Authenticator[]
   webAuthnChallenges WebAuthnChallenge[]
   pendingUploads     PendingUpload[]
+  importDrafts       ImportDraft[]
   emailChangeRequests EmailChangeRequest[]
 
   // Sprint 2 — planner + gamification relations.
@@ -912,6 +913,30 @@ model PendingUpload {
   id        String   @id
   userId    String
   byteSize  Int
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Permission to run one planner import.
+///
+/// Confirming an import writes up to 600 planned courses. The size of a single
+/// request was capped, but nothing stopped the same request being replayed, so
+/// repeating it grew the database without bound and re-opened the transaction
+/// each time. Parsing a plan now mints one of these, and confirming consumes it
+/// — a replayed confirmation finds nothing to consume and does no work.
+///
+/// The draft contents are not stored here: the user edits the preview before
+/// confirming, so the courses still arrive with the confirmation. This row is
+/// the permission, not the payload.
+model ImportDraft {
+  id        String   @id @default(cuid())
+  userId    String
+  plannerId String
   createdAt DateTime @default(now())
   expiresAt DateTime
 

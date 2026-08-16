@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import {
+  consumeImportDraft,
+  MAX_COURSES_PER_PLANNER,
+} from '@/lib/import-draft';
 import { getOwnedCoursePlanner } from '@/lib/planner';
 import { prisma } from '@/lib/prisma';
 import {
@@ -18,6 +22,11 @@ import {
  * an oversized plan before this route opens a transaction, and courses are
  * written one statement per section rather than one per course — together those
  * put a ceiling on how long a single import can hold the transaction open.
+ *
+ * Those bound one request. Repetition is bounded separately: the draft token
+ * issued by the parse step is spent here, so replaying a confirmation finds
+ * nothing to spend, and the planner has a total course ceiling regardless of how
+ * many distinct imports are run against it.
  */
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -41,6 +50,34 @@ export async function POST(request: Request) {
   );
   if (!planner) {
     return jsonError('Planner not found', 404);
+  }
+
+  // Spent before any work: a replay stops here, and two confirmations racing the
+  // same token mean exactly one of them proceeds.
+  const spent = await consumeImportDraft(
+    parsed.data.draftToken,
+    authResult.user.id,
+    planner.id
+  );
+  if (!spent) {
+    return jsonError(
+      'This import has already been saved, or the preview expired. Parse the plan again.',
+      409
+    );
+  }
+
+  const incomingCourses = parsed.data.sections.reduce(
+    (total, section) => total + section.courses.length,
+    0
+  );
+  const existingCourses = await prisma.plannedCourse.count({
+    where: { section: { plannerId: planner.id } },
+  });
+  if (existingCourses + incomingCourses > MAX_COURSES_PER_PLANNER) {
+    return jsonError(
+      `This planner can hold at most ${MAX_COURSES_PER_PLANNER} courses.`,
+      400
+    );
   }
 
   const existingSections = await prisma.coursePlannerSection.findMany({

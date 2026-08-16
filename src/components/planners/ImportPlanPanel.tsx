@@ -59,6 +59,8 @@ export function ImportPlanPanel({
   const [text, setText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [draft, setDraft] = useState<PlannerImportDraft | null>(null);
+  // Single-use permission from the parse step; spent by the save below.
+  const [draftToken, setDraftToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -75,6 +77,7 @@ export function ImportPlanPanel({
 
   function resetImport() {
     setDraft(null);
+    setDraftToken(null);
     setError(null);
     setStatus(null);
     setParsing(false);
@@ -94,6 +97,7 @@ export function ImportPlanPanel({
   async function handleFileChange(file: File | null) {
     setError(null);
     setDraft(null);
+    setDraftToken(null);
     setStatus(null);
 
     if (!file) {
@@ -146,12 +150,14 @@ export function ImportPlanPanel({
     setError(null);
     setStatus(null);
     setDraft(null);
+    setDraftToken(null);
     setParsing(true);
     progress.begin();
 
     try {
       const data = await consumeGenerationStream<{
         draft?: PlannerImportDraft;
+        draftToken?: string;
         provider?: string;
         stats?: { keptCourses?: number; ignoredRows?: number };
       }>(
@@ -173,6 +179,7 @@ export function ImportPlanPanel({
           ? ` Filtered out non-course form text and only included likely planned courses. Imported ${kept} possible course${kept === 1 ? '' : 's'}. Ignored ${ignored} non-course row${ignored === 1 ? '' : 's'}.`
           : ' Filtered out non-course form text and only included likely planned courses.';
       setDraft(data.draft);
+      setDraftToken(data.draftToken ?? null);
       setStatus(
         (parsedWith ? `Parsed with ${parsedWith}.` : 'Parsed successfully.') +
           filterNote +
@@ -222,6 +229,11 @@ export function ImportPlanPanel({
       return;
     }
 
+    if (!draftToken) {
+      setError('This preview has expired. Parse the plan again.');
+      return;
+    }
+
     setError(null);
     setStatus(null);
     setConfirming(true);
@@ -232,6 +244,7 @@ export function ImportPlanPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plannerId,
+          draftToken,
           sections: draft.sections,
         }),
       });
@@ -243,6 +256,8 @@ export function ImportPlanPanel({
       } | null;
 
       if (!res.ok) {
+        // A rejected token is spent or expired; the preview can't be saved again.
+        if (res.status === 409) setDraftToken(null);
         setError(data?.error ?? 'Failed to save imported courses');
         return;
       }
@@ -321,6 +336,7 @@ export function ImportPlanPanel({
                   if (nextId && onSelectPlanner) {
                     onSelectPlanner(nextId);
                     setDraft(null);
+                    setDraftToken(null);
                     setError(null);
                   }
                 }}
@@ -364,6 +380,7 @@ export function ImportPlanPanel({
                 setText(e.target.value);
                 if (draft) {
                   setDraft(null);
+                  setDraftToken(null);
                   setStatus(null);
                 }
               }}

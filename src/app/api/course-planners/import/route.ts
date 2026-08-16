@@ -4,6 +4,7 @@ import { AiProviderError } from '@/lib/ai/provider';
 import { parseCoursePlanText } from '@/lib/ai/planner-import';
 import { streamGeneration } from '@/lib/ai/sse';
 import { jsonError, requireUser } from '@/lib/api-response';
+import { issueImportDraft } from '@/lib/import-draft';
 import { getOwnedCoursePlanner } from '@/lib/planner';
 import {
   parseCoursePlannerImportSchema,
@@ -66,10 +67,14 @@ export async function POST(request: Request) {
         return;
       }
 
+      // The confirmation step spends this, so one parse authorises one save.
+      const draftToken = await issueImportDraft(authResult.user.id, planner.id);
+
       emit({
         type: 'done',
         result: {
           draft: result.draft,
+          draftToken,
           provider: result.provider,
           stats: result.stats,
         },

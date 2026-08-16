@@ -768,6 +768,9 @@ export const confirmCoursePlannerImportSectionSchema = z.object({
 export const confirmCoursePlannerImportSchema = z
   .object({
     plannerId: z.string().trim().min(1, 'Select a planner to import into'),
+    // Issued by the parse step and spent here, so one parse authorises exactly
+    // one save. See src/lib/import-draft.ts.
+    draftToken: z.string().trim().min(1, 'Parse the plan again before saving'),
     sections: z
       .array(confirmCoursePlannerImportSectionSchema)
       .min(1, 'No courses to import')
