@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
-import { sendEmailChangeVerification } from '@/lib/email';
+import { sendEmailChangeAlert, sendEmailChangeVerification } from '@/lib/email';
 import {
+  buildEmailChangeCancelUrl,
   buildEmailChangeConfirmUrl,
   createEmailChangeToken,
   EMAIL_CHANGE_TTL_MS,
@@ -128,6 +129,22 @@ export async function PUT(request: Request) {
       'Could not send the verification email. Please try again.',
       502
     );
+  }
+
+  // Out-of-band alert to the address being moved away from. Best-effort: the
+  // change request is already valid and the user is waiting, so a bounce here
+  // must not fail the call — but it does get logged, because a silent gap in
+  // this channel is what makes an unauthorized change invisible.
+  if (currentUser.email) {
+    try {
+      await sendEmailChangeAlert({
+        to: currentUser.email,
+        newEmail: requestedEmail,
+        cancelUrl: buildEmailChangeCancelUrl(token),
+      });
+    } catch (error) {
+      console.error('PUT /api/profile — email change alert failed', error);
+    }
   }
 
   return jsonOk({

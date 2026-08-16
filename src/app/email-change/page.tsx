@@ -1,11 +1,13 @@
-// Landing page after a user clicks the "confirm your new email" link. The
-// GET /api/profile/email/verify route does the work, then redirects here with a
-// ?status telling us which message to show. Purely presentational, matching the
-// playful magic-link pages so the flow feels consistent.
+// Landing page after a user acts on an email-change link — either confirming
+// the change from the new address, or revoking it from the old one. The
+// /api/profile/email/{verify,cancel} routes do the work, then redirect here
+// with a ?status telling us which message to show. Purely presentational,
+// matching the playful magic-link pages so the flow feels consistent.
 
 import Link from 'next/link';
 
-type ResultStatus = 'success' | 'invalid' | 'expired' | 'conflict';
+type ResultStatus =
+  'success' | 'invalid' | 'expired' | 'conflict' | 'cancelled';
 
 const MESSAGES: Record<
   ResultStatus,
@@ -31,6 +33,11 @@ const MESSAGES: Record<
     title: 'Link not valid',
     body: 'This confirmation link is invalid or has already been used. Open Settings and request the email change again if you still need to.',
   },
+  cancelled: {
+    emoji: '🛡️',
+    title: 'Email change cancelled',
+    body: 'Your account email is unchanged and the confirmation link no longer works. If you did not request that change, sign in and review your two-factor settings.',
+  },
 };
 
 const FLOATERS = [
@@ -47,7 +54,8 @@ function normalizeStatus(value: string | string[] | undefined): ResultStatus {
     status === 'success' ||
     status === 'expired' ||
     status === 'conflict' ||
-    status === 'invalid'
+    status === 'invalid' ||
+    status === 'cancelled'
   ) {
     return status;
   }

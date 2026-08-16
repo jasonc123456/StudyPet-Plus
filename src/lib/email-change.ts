@@ -35,3 +35,16 @@ export { absoluteUrl };
 export function buildEmailChangeConfirmUrl(token: string): string {
   return absoluteUrl(`/email-change/confirm?token=${token}`);
 }
+
+/**
+ * Where the *old* address is sent to kill a change it didn't ask for.
+ *
+ * Same read-only-page-then-POST shape as the confirm link, and the same token:
+ * whoever already holds it can only confirm or cancel the one pending request,
+ * and cancelling is the safe direction. Handing it to the current owner of the
+ * account is what makes an unauthorized change recoverable from the mailbox
+ * that still works, rather than only from the one the attacker chose.
+ */
+export function buildEmailChangeCancelUrl(token: string): string {
+  return absoluteUrl(`/email-change/cancel?token=${token}`);
+}
