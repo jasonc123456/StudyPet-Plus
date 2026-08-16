@@ -9,6 +9,8 @@
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 
+import DemoLoginButton from '@/components/DemoLoginButton';
+
 // Decorative pet-themed emoji that bob around behind the card.
 const FLOATERS = [
   { e: '🐾', pos: 'left-[12%] top-[18%]', delay: '0s' },
@@ -110,18 +112,15 @@ export function LoginForm({ googleEnabled }: LoginFormProps) {
           <span className="h-px flex-1 bg-slate-200" />
         </div>
 
-        {/* One-click demo — skips the magic-link email entirely. Plain anchor so
-            it hits the /api/demo-login server route (mints a demo session and
-            redirects) rather than client-routing/prefetching the endpoint. */}
+        {/* One-click demo — skips the magic-link email entirely. Signing in is
+            a state change, so this posts with a CSRF token rather than being a
+            link; see DemoLoginButton. */}
         <p className="text-sm text-slate-500">
           Haven&rsquo;t made up your mind yet? Try our demo!
         </p>
-        <a
-          href="/api/demo-login"
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-300 bg-white px-5 py-2.5 font-semibold text-brand-700 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95"
-        >
+        <DemoLoginButton className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-300 bg-white px-5 py-2.5 font-semibold text-brand-700 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95">
           🚀 Try the demo
-        </a>
+        </DemoLoginButton>
       </form>
     </main>
   );

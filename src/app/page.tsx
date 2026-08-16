@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
+import DemoLoginButton from '@/components/DemoLoginButton';
 import FlashcardDemo from '@/components/FlashcardDemo';
 import StudyPetHero from '@/components/StudyPetHero';
 import ThemeModeToggle from '@/components/ThemeModeToggle';
@@ -132,12 +133,9 @@ export default async function LandingPage() {
               gamified pet system so the next best study action feels obvious.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-              <a
-                href="/api/demo-login"
-                className="btn-primary px-6 py-3 text-base"
-              >
+              <DemoLoginButton className="btn-primary px-6 py-3 text-base">
                 🚀 Try the demo
-              </a>
+              </DemoLoginButton>
               <Link href="/login" className="btn-secondary px-6 py-3 text-base">
                 Log in / Sign up
               </Link>
