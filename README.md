@@ -191,6 +191,38 @@ the private-cache or sandbox headers the API route sets. The Compose stack keeps
 this directory on a named volume (`notepdfs`) so attachments survive rebuilds;
 `uploads/` is gitignored.
 
+### AI cost limits
+
+Generation costs money at the provider, so every signed-in account has an
+allowance. Three optional variables tune it, each falling back to the default
+shown if unset or unparseable:
+
+| Variable | Default | What it caps |
+| --- | --- | --- |
+| `AI_DAILY_GENERATION_LIMIT` | `60` | Generations one account may run per day |
+| `AI_MAX_CONCURRENT_PER_USER` | `2` | Generations one account may have running at once |
+| `AI_MAX_CONCURRENT_GLOBAL` | `8` | Generations this process may have running at once |
+
+The daily count lives in the `AiUsage` table, one row per account per day, and
+the day is the **user's** calendar day — the allowance rolls over at their local
+midnight, not the server's. It is counted on the attempt rather than on success,
+because a generation that fails at the provider has still cost a call. Users see
+what they have left on a meter above **Settings** in the sidebar, fed by
+`GET /api/ai/usage`.
+
+The two concurrency caps are per-process and held in memory, since they describe
+what this container is doing right now. Run several replicas and the effective
+ceiling multiplies by the replica count. Neither limit is a billing system —
+provider-side spend limits are the real backstop.
+
+The public demo account is exempt from all of it: it is always served the
+built-in canned material and can never reach a provider, so there is nothing to
+meter. The sidebar tells demo visitors that, instead of showing a bar.
+
+Like `TRUSTED_PROXY_HOPS`, these are read from `.env` at startup by `next start`
+via `@next/env`, so a change takes effect on the next build-and-swap — the
+container does not need recreating.
+
 ### 1. Configure environment
 
 ```bash

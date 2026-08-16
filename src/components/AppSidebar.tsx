@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+import { AiUsageMeter } from '@/components/AiUsageMeter';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 
 // ---------------------------------------------------------------------------
@@ -415,27 +416,34 @@ function SidebarNav({ pathname, onNavigate, onOpenSettings }: SidebarNavProps) {
         })}
       </nav>
 
-      <div className="app-sidebar-divider space-y-1 border-t p-3">
-        <button
-          type="button"
-          onClick={() => {
-            onOpenSettings();
-            onNavigate?.();
-          }}
-          className="app-sidebar-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
-        >
-          <SettingsIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
-          Settings
-        </button>
+      <div className="app-sidebar-divider border-t p-3">
+        {/* Sits directly above Settings: the allowance is a setting-shaped fact
+            about the account, and it is the last thing in the column, so it
+            never pushes the navigation around as it loads. */}
+        <AiUsageMeter />
 
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="app-sidebar-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
-        >
-          <SignOutIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
-          Sign out
-        </button>
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenSettings();
+              onNavigate?.();
+            }}
+            className="app-sidebar-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
+          >
+            <SettingsIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
+            Settings
+          </button>
+
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="app-sidebar-link group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
+          >
+            <SignOutIcon className="h-5 w-5 shrink-0 text-slate-400 transition-all duration-200 group-hover:text-slate-600" />
+            Sign out
+          </button>
+        </div>
       </div>
     </>
   );

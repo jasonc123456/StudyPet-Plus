@@ -5,6 +5,7 @@
 // failures come back as ordinary JSON (not a stream) and are thrown as errors,
 // as are `error` events emitted mid-stream.
 
+import { notifyAiUsageChanged } from '@/lib/ai-usage-event';
 import type { GenerationStreamEvent } from '@/lib/generation-events';
 
 export type GenerationProgress = {
@@ -14,6 +15,20 @@ export type GenerationProgress = {
 };
 
 export async function consumeGenerationStream<T>(
+  url: string,
+  body: unknown,
+  onProgress: (progress: GenerationProgress) => void
+): Promise<T> {
+  try {
+    return await runGenerationStream<T>(url, body, onProgress);
+  } finally {
+    // The daily allowance is spent on the attempt, not on the result, so the
+    // sidebar meter is refreshed whether this succeeded or threw.
+    notifyAiUsageChanged();
+  }
+}
+
+async function runGenerationStream<T>(
   url: string,
   body: unknown,
   onProgress: (progress: GenerationProgress) => void
