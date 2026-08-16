@@ -13,6 +13,11 @@ import {
  *
  * Persist a user-confirmed import draft into an existing planner.
  * Existing sections/courses are preserved; matching section labels are reused.
+ *
+ * Size is bounded by the schema (see MAX_IMPORT_* in validators), which rejects
+ * an oversized plan before this route opens a transaction, and courses are
+ * written one statement per section rather than one per course — together those
+ * put a ceiling on how long a single import can hold the transaction open.
  */
 export async function POST(request: Request) {
   const authResult = await requireUser();
@@ -80,23 +85,24 @@ export async function POST(request: Request) {
           sectionsCreated += 1;
         }
 
-        for (const course of draftSection.courses) {
-          await tx.plannedCourse.create({
-            data: {
-              sectionId: section.id,
-              title: course.title,
-              courseNumber: course.courseNumber ?? null,
-              units: course.units ?? null,
-              professor: course.professor ?? null,
-              lectureDays: course.lectureDays ?? null,
-              lectureTime: course.lectureTime ?? null,
-              lectureLocation: course.lectureLocation ?? null,
-              isAlternate: course.isAlternate ?? false,
-              notes: course.notes ?? null,
-            },
-          });
-          coursesCreated += 1;
-        }
+        // One statement per section instead of one per course. The old loop
+        // awaited a round-trip for every single course, so a large plan held
+        // the transaction — and its locks — open for the sum of all of them.
+        const { count } = await tx.plannedCourse.createMany({
+          data: draftSection.courses.map((course) => ({
+            sectionId: section.id,
+            title: course.title,
+            courseNumber: course.courseNumber ?? null,
+            units: course.units ?? null,
+            professor: course.professor ?? null,
+            lectureDays: course.lectureDays ?? null,
+            lectureTime: course.lectureTime ?? null,
+            lectureLocation: course.lectureLocation ?? null,
+            isAlternate: course.isAlternate ?? false,
+            notes: course.notes ?? null,
+          })),
+        });
+        coursesCreated += count;
       }
 
       await tx.coursePlanner.update({

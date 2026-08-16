@@ -742,19 +742,53 @@ export const confirmCoursePlannerImportCourseSchema = z.object({
   isAlternate: z.boolean().optional().default(false),
 });
 
+// Cardinality limits for one planner import.
+//
+// These arrays were unbounded, and the confirm route turns every element into
+// its own INSERT inside a single transaction — so one request near the proxy's
+// 10 MiB body limit could amplify into thousands of serial writes holding a
+// long transaction open. Generous against a real degree plan (a four-year plan
+// is ~12 terms of ~6 courses), tight enough that the worst accepted request is
+// a known quantity.
+export const MAX_IMPORT_SECTIONS = 30;
+export const MAX_IMPORT_COURSES_PER_SECTION = 60;
+export const MAX_IMPORT_COURSES_TOTAL = 600;
+
 export const confirmCoursePlannerImportSectionSchema = z.object({
   label: z.string().trim().min(1, 'Section name is required').max(100),
   courses: z
     .array(confirmCoursePlannerImportCourseSchema)
-    .min(1, 'Each section needs at least one course'),
+    .min(1, 'Each section needs at least one course')
+    .max(
+      MAX_IMPORT_COURSES_PER_SECTION,
+      `A term can hold at most ${MAX_IMPORT_COURSES_PER_SECTION} courses`
+    ),
 });
 
-export const confirmCoursePlannerImportSchema = z.object({
-  plannerId: z.string().trim().min(1, 'Select a planner to import into'),
-  sections: z
-    .array(confirmCoursePlannerImportSectionSchema)
-    .min(1, 'No courses to import'),
-});
+export const confirmCoursePlannerImportSchema = z
+  .object({
+    plannerId: z.string().trim().min(1, 'Select a planner to import into'),
+    sections: z
+      .array(confirmCoursePlannerImportSectionSchema)
+      .min(1, 'No courses to import')
+      .max(
+        MAX_IMPORT_SECTIONS,
+        `An import can hold at most ${MAX_IMPORT_SECTIONS} terms`
+      ),
+  })
+  // Per-array caps alone would still permit 30 x 60 = 1800 courses, so the
+  // total is bounded too. Checked here, before the route opens a transaction.
+  .refine(
+    (data) =>
+      data.sections.reduce(
+        (total, section) => total + section.courses.length,
+        0
+      ) <= MAX_IMPORT_COURSES_TOTAL,
+    {
+      message: `An import can hold at most ${MAX_IMPORT_COURSES_TOTAL} courses in total`,
+      path: ['sections'],
+    }
+  );
 
 /** Client-safe draft shape returned by POST /api/course-planners/import. */
 export type PlannerImportDraftCourse = {
