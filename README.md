@@ -151,12 +151,25 @@ Two things keep a misconfiguration from going unnoticed:
   brought up with no terminator fails at boot instead of quietly serving
   authentication traffic in the clear.
 - HSTS (`max-age=63072000; includeSubDomains`) is sent automatically once the
-  origin is HTTPS, and is deliberately *not* sent otherwise — see
+  origin is HTTPS, and is deliberately _not_ sent otherwise — see
   [next.config.mjs](next.config.mjs).
 
 To run the stack standalone with its own certificates instead, follow the notes
 at the bottom of [deploy/nginx/conf.d/default.conf](deploy/nginx/conf.d/default.conf)
 and publish `443` in [docker-compose.yml](docker-compose.yml).
+
+### Where note attachments are stored
+
+Uploaded note PDFs are private documents. They are written to `uploads/note-pdfs`
+(override with `NOTE_PDF_STORAGE_DIR`) and served **only** through
+`/api/notes/files/<id>`, which checks that the requester owns the note.
+
+Do not move this directory under `public/`. Next.js serves everything in
+`public/` as a static file, so an attachment placed there is downloadable by
+anyone who has or guesses the URL — no session, no ownership check, and none of
+the private-cache or sandbox headers the API route sets. The Compose stack keeps
+this directory on a named volume (`notepdfs`) so attachments survive rebuilds;
+`uploads/` is gitignored.
 
 ### 1. Configure environment
 

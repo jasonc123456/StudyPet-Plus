@@ -28,3 +28,6 @@ public/*
 
 #graphify
 graphify-out/*
+
+# Private user uploads. Never under public/ — Next.js serves that statically.
+uploads/

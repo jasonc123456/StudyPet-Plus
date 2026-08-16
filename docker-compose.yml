@@ -34,7 +34,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studypet} -d ${POSTGRES_DB:-studypet}"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-studypet} -d ${POSTGRES_DB:-studypet}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -61,7 +65,13 @@ services:
       postgres:
         condition: service_healthy
     expose:
-      - "3000"
+      - '3000'
+    volumes:
+      # Note attachments. These are private documents served only through
+      # /api/notes/files/<id>, which checks ownership — they must never be put
+      # back under public/, where Next.js would serve them to anyone with the
+      # URL. A named volume keeps them across rebuilds.
+      - notepdfs:/app/uploads/note-pdfs
 
   nginx:
     image: nginx:1.27-alpine
@@ -72,7 +82,7 @@ services:
       # Bound to loopback: this is the hop a TLS terminator on the same host
       # proxies to, not a public listener. Change to "80:80" only if something
       # else in front is already terminating TLS on another host/network.
-      - "127.0.0.1:80:80"
+      - '127.0.0.1:80:80'
       # - "443:443"   # enable after adding TLS certs + an HTTPS server block
     volumes:
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
@@ -80,3 +90,4 @@ services:
 
 volumes:
   pgdata:
+  notepdfs:

@@ -2,7 +2,21 @@ import { createHmac, randomUUID } from 'crypto';
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 
-const NOTE_PDF_DIR = path.join(process.cwd(), 'public', 'note-pdfs');
+// Storage root for note attachments.
+//
+// Deliberately NOT under public/. Next.js serves everything in public/ as a
+// static file, so while these PDFs were kept there any of them could be fetched
+// at /note-pdfs/<file>.pdf by anyone who had the URL — no session, no ownership
+// check, none of the private-cache and sandbox headers the download route sets.
+// The UUID filename was the only thing standing in the way, and a URL is not a
+// secret. Attachments now live outside the web root and are reachable only
+// through /api/notes/files/<id>, which checks the owner.
+//
+// Override with NOTE_PDF_STORAGE_DIR to point at a mounted volume; the default
+// is a directory the deploy is expected to persist.
+const NOTE_PDF_DIR =
+  process.env.NOTE_PDF_STORAGE_DIR ??
+  path.join(process.cwd(), 'uploads', 'note-pdfs');
 const NOTE_PDF_TMP_DIR = path.join(NOTE_PDF_DIR, 'tmp');
 const NOTE_PDF_FILE_PREFIX = 'file-';
 const NOTE_PDF_TMP_PREFIX = 'upload-';
