@@ -17,3 +17,40 @@ export function siteOrigin(): string {
 export function absoluteUrl(path: string): string {
   return `${siteOrigin()}${path.startsWith('/') ? path : `/${path}`}`;
 }
+
+/** True when the canonical public origin is HTTPS. */
+export function isSecureOrigin(): boolean {
+  return siteOrigin().startsWith('https://');
+}
+
+/**
+ * Refuse to serve production over a plaintext origin.
+ *
+ * Session cookies, magic links and MFA all cross this origin, so an http://
+ * NEXTAUTH_URL in production means a network-positioned attacker can read or
+ * replace any of them. The checked-in Compose stack terminates nothing itself
+ * — nginx there is the internal hop behind a TLS terminator (see README) — so
+ * nothing else in the repo would catch a deployment published on plain HTTP.
+ *
+ * Throwing is deliberate: this is a misconfiguration that cannot be safely
+ * degraded around, and failing at startup surfaces it before any user does.
+ * Development is exempt, where http://localhost is normal and fine.
+ */
+export function assertSecureOriginInProduction(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const origin = siteOrigin();
+
+  if (!origin) {
+    throw new Error(
+      'NEXTAUTH_URL is not set. Production requires the canonical https:// origin.'
+    );
+  }
+
+  if (!isSecureOrigin()) {
+    throw new Error(
+      `NEXTAUTH_URL must be https:// in production (got "${origin}"). ` +
+        'Terminate TLS in front of this app and set NEXTAUTH_URL to the public HTTPS origin.'
+    );
+  }
+}

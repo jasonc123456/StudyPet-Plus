@@ -1,6 +1,20 @@
 # StudyPet+ production deployment stack.
 #
-#   nginx (:80) ── reverse proxy ──> app (Next.js :3000) ──> postgres (:5432)
+#   TLS terminator ──> nginx (:80) ── reverse proxy ──> app (:3000) ──> postgres
+#
+# REQUIRES A TLS TERMINATOR IN FRONT. This stack has no public HTTPS listener:
+# nginx here is the internal hop, and the terminator in front of it owns the
+# certificates, the public :443 listener, and the http->https redirect. The live
+# deployment uses Nginx Proxy Manager; any reverse proxy or load balancer works.
+# Do not publish port 80 below to the internet directly — authentication traffic
+# would cross the network in the clear.
+#
+# NEXTAUTH_URL must be the public https:// origin. The app refuses to start in
+# production otherwise (src/instrumentation.ts), so a stack brought up without a
+# terminator fails loudly instead of quietly serving plaintext.
+#
+# To run this stack standalone with its own TLS, see the notes in
+# deploy/nginx/conf.d/default.conf.
 #
 # Usage:
 #   cp .env.example .env      # fill in real secrets
@@ -55,7 +69,10 @@ services:
     depends_on:
       - app
     ports:
-      - "80:80"
+      # Bound to loopback: this is the hop a TLS terminator on the same host
+      # proxies to, not a public listener. Change to "80:80" only if something
+      # else in front is already terminating TLS on another host/network.
+      - "127.0.0.1:80:80"
       # - "443:443"   # enable after adding TLS certs + an HTTPS server block
     volumes:
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro

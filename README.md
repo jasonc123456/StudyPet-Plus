@@ -128,12 +128,35 @@ Node or PostgreSQL installed on the host, only **Docker** (with the Compose
 plugin). The stack runs three services:
 
 ```
-nginx (:80)  ──reverse proxy──>  app (Next.js :3000)  ──>  postgres (:5432)
+TLS terminator (:443)  ──>  nginx (:80)  ──>  app (Next.js :3000)  ──>  postgres (:5432)
+   you provide this          this stack        this stack               this stack
 ```
 
 - **`postgres`** — PostgreSQL 16, data persisted in the `pgdata` named volume; not exposed to the host.
 - **`app`** — the Next.js app built from the [Dockerfile](Dockerfile); runs `prisma migrate deploy` on boot, then `next start`. Not exposed directly — only nginx reaches it.
-- **`nginx`** — reverse proxy on port 80, config in [deploy/nginx/conf.d/default.conf](deploy/nginx/conf.d/default.conf).
+- **`nginx`** — reverse proxy, config in [deploy/nginx/conf.d/default.conf](deploy/nginx/conf.d/default.conf). Bound to `127.0.0.1:80` — it is the **internal** hop, not the public edge.
+
+### HTTPS is required, and this stack does not provide it
+
+Session cookies, magic-link sign-in URLs and MFA all cross the public origin, so
+it must be HTTPS. **This stack has no public TLS listener** — you put a
+terminator in front of it (the live deployment uses Nginx Proxy Manager; Caddy,
+Traefik, a cloud load balancer, or another nginx all work). The terminator owns
+the certificates, listens on :443, and redirects `http://` to `https://`.
+
+Two things keep a misconfiguration from going unnoticed:
+
+- The app **refuses to start** in production when `NEXTAUTH_URL` is not
+  `https://` (see [src/instrumentation.ts](src/instrumentation.ts)), so a stack
+  brought up with no terminator fails at boot instead of quietly serving
+  authentication traffic in the clear.
+- HSTS (`max-age=63072000; includeSubDomains`) is sent automatically once the
+  origin is HTTPS, and is deliberately *not* sent otherwise — see
+  [next.config.mjs](next.config.mjs).
+
+To run the stack standalone with its own certificates instead, follow the notes
+at the bottom of [deploy/nginx/conf.d/default.conf](deploy/nginx/conf.d/default.conf)
+and publish `443` in [docker-compose.yml](docker-compose.yml).
 
 ### 1. Configure environment
 
@@ -144,7 +167,7 @@ cp .env.example .env
 Set real values in `.env`:
 
 - `NEXTAUTH_SECRET` — `openssl rand -base64 32`
-- `NEXTAUTH_URL` — the **public** URL (e.g. `https://your-domain`); must match what users hit through nginx, or magic-link callbacks break.
+- `NEXTAUTH_URL` — the **public HTTPS** URL (e.g. `https://your-domain`); must match what users hit through the TLS terminator, or magic-link callbacks break. Production refuses to start if this is not `https://`.
 - `EMAIL_SERVER_*` / `EMAIL_FROM` — SMTP for magic links.
 - `GEMINI_API_KEY` (or `DEEPSEEK_API_KEY`) — required for real flashcard/quiz generation from notes. Leave `AI_DEMO_MODE` unset/`false`.
 - `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` — credentials for the bundled database (defaults: `studypet` / `studypet` / `studypet`).
@@ -159,8 +182,9 @@ points at the `postgres` service — you don't set it for the compose deploy.
 docker compose up -d --build
 ```
 
-Migrations are applied automatically when the `app` container starts. The app is
-then reachable through nginx at **http://localhost** (port 80).
+Migrations are applied automatically when the `app` container starts. nginx then
+serves the app on **127.0.0.1:80**, which is what you point your TLS terminator
+at; users reach it at the `https://` origin you set in `NEXTAUTH_URL`.
 
 ### 3. Manage the stack
 
