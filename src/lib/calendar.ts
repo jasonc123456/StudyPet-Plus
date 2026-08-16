@@ -110,6 +110,15 @@ const DEFAULT_IMPORTED_COLOR = '#0ea5e9';
 const MAX_RECURRENCE_STEPS = 1000;
 /** Cap on VEVENTs parsed from one feed. A real Canvas term is a few hundred. */
 const MAX_FEED_EVENTS = 5000;
+/**
+ * Cap on candidate occurrences one *feed* may expand to, across all its events.
+ *
+ * The per-rule cap alone bounds nothing useful: 5,000 events each allowed 1,000
+ * candidates multiplies out to five million objects and five million date
+ * comparisons for a single page render. The two limits are independent — this
+ * one is what a hostile feed actually runs into.
+ */
+const MAX_FEED_OCCURRENCES = 20_000;
 /** Cap on feed download size. A large Canvas feed is well under 1 MB. */
 const MAX_ICS_BYTES = 5 * 1024 * 1024;
 
@@ -433,10 +442,19 @@ function intersectsRange(
   return end >= rangeStart && startsAt <= rangeEnd;
 }
 
-function expandRecurringEvent(
+/** Shared, mutable expansion allowance for one feed. */
+type ExpansionBudget = { remaining: number };
+
+export function createExpansionBudget(): ExpansionBudget {
+  return { remaining: MAX_FEED_OCCURRENCES };
+}
+
+/** Exported for the resource-limit tests in calendar-recurrence.test.ts. */
+export function expandRecurringEvent(
   event: ParsedIcsEvent,
   rangeStart: Date,
-  rangeEnd: Date
+  rangeEnd: Date,
+  budget: ExpansionBudget
 ) {
   const rule = parseRRule(event.rrule);
   if (!rule?.FREQ) return [event];
@@ -462,6 +480,13 @@ function expandRecurringEvent(
     if (generated >= MAX_RECURRENCE_STEPS) {
       return false;
     }
+    // The feed-wide allowance. Once it is spent every remaining event in this
+    // feed stops expanding too, which is the point: the limit is on the work one
+    // fetch can cause, not on any single rule.
+    if (budget.remaining <= 0) {
+      return false;
+    }
+    budget.remaining -= 1;
     if (countLimit !== null && generated >= countLimit) {
       return false;
     }
@@ -506,9 +531,15 @@ function expandRecurringEvent(
   }
 
   if (rule.FREQ === 'WEEKLY') {
-    const byDays = (rule.BYDAY?.split(',').filter(Boolean) ?? [
-      ICAL_DAY_KEYS[event.startsAt.getDay()],
-    ]) as string[];
+    // Deduplicated: "BYDAY=MO,MO,MO" is the same Monday three times, and
+    // without this each repeat costs another occurrence out of the budget.
+    const byDays = [
+      ...new Set(
+        rule.BYDAY?.split(',')
+          .map((day) => day.trim())
+          .filter(Boolean) ?? [ICAL_DAY_KEYS[event.startsAt.getDay()]]
+      ),
+    ] as string[];
     let weekStart = startOfDay(
       addDays(event.startsAt, -event.startsAt.getDay())
     );
@@ -771,8 +802,11 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
       .filter((event) => isSyncableFeedEvent(event, ignoredUids, syncWindow))
       .map((event) => event.uid);
 
+    const budget = createExpansionBudget();
     const events = parsedEvents
-      .flatMap((event) => expandRecurringEvent(event, rangeStart, rangeEnd))
+      .flatMap((event) =>
+        expandRecurringEvent(event, rangeStart, rangeEnd, budget)
+      )
       .filter((event) =>
         intersectsRange(event.startsAt, event.endsAt, rangeStart, rangeEnd)
       )
