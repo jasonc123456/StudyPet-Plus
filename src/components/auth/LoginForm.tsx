@@ -118,7 +118,10 @@ export function LoginForm({ googleEnabled }: LoginFormProps) {
         <p className="text-sm text-slate-500">
           Haven&rsquo;t made up your mind yet? Try our demo!
         </p>
-        <DemoLoginButton className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-300 bg-white px-5 py-2.5 font-semibold text-brand-700 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95">
+        {/* w-full to match the magic-link button: that one is a direct child of
+            this flex column and stretches on its own, but this one sits inside
+            DemoLoginButton's wrapper, so it has to be asked. */}
+        <DemoLoginButton className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-300 bg-white px-5 py-2.5 font-semibold text-brand-700 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95">
           🚀 Try the demo
         </DemoLoginButton>
       </form>
