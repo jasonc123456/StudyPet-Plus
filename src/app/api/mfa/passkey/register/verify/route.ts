@@ -25,6 +25,7 @@ import {
   serializeTransports,
 } from '@/lib/mfa';
 import { prisma } from '@/lib/prisma';
+import { consumeChallenge, WebAuthnCeremony } from '@/lib/webauthn-challenge';
 import { passkeyRegisterSchema, zodFirstError } from '@/lib/validators';
 
 export async function POST(request: Request) {
@@ -44,15 +45,25 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      currentChallenge: true,
-      totpActivatedAt: true,
-      _count: { select: { authenticators: true } },
-    },
-  });
-  if (!user?.currentChallenge) {
+  const sessionToken = getSessionToken();
+  if (!sessionToken) {
+    return jsonError('No active session', 401);
+  }
+
+  const [user, matchesChallenge] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        totpActivatedAt: true,
+        _count: { select: { authenticators: true } },
+      },
+    }),
+    consumeChallenge(userId, sessionToken, WebAuthnCeremony.REGISTRATION),
+  ]);
+  if (!user) {
+    return jsonError('Passkey setup expired — start again', 400);
+  }
+  if (!matchesChallenge) {
     return jsonError('Passkey setup expired — start again', 400);
   }
 
@@ -64,7 +75,7 @@ export async function POST(request: Request) {
   try {
     verification = await verifyRegistrationResponse({
       response: parsed.data.response as unknown as RegistrationResponseJSON,
-      expectedChallenge: user.currentChallenge,
+      expectedChallenge: matchesChallenge,
       expectedOrigin: expectedOrigin(),
       expectedRPID: rpID(),
       requireUserVerification: false,
@@ -80,22 +91,16 @@ export async function POST(request: Request) {
 
   const { credential } = verification.registrationInfo;
 
-  await prisma.$transaction([
-    prisma.authenticator.create({
-      data: {
-        userId,
-        credentialID: credential.id,
-        publicKey: Buffer.from(credential.publicKey),
-        counter: credential.counter,
-        transports: serializeTransports(credential.transports),
-        deviceName: parsed.data.deviceName?.trim() || 'Passkey',
-      },
-    }),
-    prisma.user.update({
-      where: { id: userId },
-      data: { currentChallenge: null },
-    }),
-  ]);
+  await prisma.authenticator.create({
+    data: {
+      userId,
+      credentialID: credential.id,
+      publicKey: Buffer.from(credential.publicKey),
+      counter: credential.counter,
+      transports: serializeTransports(credential.transports),
+      deviceName: parsed.data.deviceName?.trim() || 'Passkey',
+    },
+  });
 
   // Only the first factor clears the gate, and only because there was nothing
   // to prove a moment ago — without this the user would be bounced to /mfa the

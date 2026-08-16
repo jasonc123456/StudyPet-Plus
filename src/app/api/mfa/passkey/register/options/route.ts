@@ -9,8 +9,9 @@ import { NextResponse } from 'next/server';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
 
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
-import { parseTransports, RP_NAME, rpID } from '@/lib/mfa';
+import { getSessionToken, parseTransports, RP_NAME, rpID } from '@/lib/mfa';
 import { prisma } from '@/lib/prisma';
+import { storeChallenge, WebAuthnCeremony } from '@/lib/webauthn-challenge';
 import type { AuthenticatorTransportFuture } from '@simplewebauthn/server';
 
 export async function POST() {
@@ -41,10 +42,17 @@ export async function POST() {
       },
     });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { currentChallenge: options.challenge },
-    });
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+      return jsonError('No active session', 401);
+    }
+
+    await storeChallenge(
+      userId,
+      sessionToken,
+      WebAuthnCeremony.REGISTRATION,
+      options.challenge
+    );
 
     return jsonOk(options);
   } catch (error) {

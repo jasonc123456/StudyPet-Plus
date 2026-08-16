@@ -76,9 +76,8 @@ model User {
   // secret lands in totpPendingSecret and is promoted only once the user
   // proves possession by entering a valid code. Keeping the two apart means a
   // re-enrollment cannot destroy the working factor before the replacement is
-  // proven. currentChallenge stores the one-time WebAuthn ceremony challenge
-  // (registration or authentication) between the "options" and "verify"
-  // round-trips. Passkeys live in the Authenticator table.
+  // proven. Passkeys live in the Authenticator table and their in-flight
+  // ceremonies in WebAuthnChallenge — one row per session, not one slot per user.
   // totpFailedAttempts/totpLockedUntil throttle online guessing of the six-digit
   // code. They live on the row rather than in process memory because a limiter
   // that resets on deploy, or that a second replica doesn't see, is not a limit
@@ -88,11 +87,11 @@ model User {
   totpActivatedAt    DateTime?
   totpFailedAttempts Int       @default(0)
   totpLockedUntil    DateTime?
-  currentChallenge   String?
 
   accounts Account[]
   sessions Session[]
   authenticators Authenticator[]
+  webAuthnChallenges WebAuthnChallenge[]
   emailChangeRequests EmailChangeRequest[]
 
   // Sprint 2 — planner + gamification relations.
@@ -862,4 +861,38 @@ model GradeItem {
 
   @@index([categoryId])
   @@index([assignmentId])
+}
+
+/// One in-flight WebAuthn ceremony.
+///
+/// This used to be a single `currentChallenge` string on User, which made every
+/// ceremony for an account share one slot: starting a registration overwrote a
+/// passkey sign-in that was already in progress, a second tab overwrote the
+/// first, and anyone holding a pre-MFA session could invalidate the real user's
+/// challenge on repeat. A row per (session, ceremony) lets independent ceremonies
+/// run at once, and gives each one an expiry and a single-use guarantee.
+///
+/// challengeHash is a SHA-256 of the challenge, never the challenge itself —
+/// verification hashes what the browser returns and compares, so a database read
+/// alone does not hand over a usable ceremony value.
+model WebAuthnChallenge {
+  id            String           @id @default(cuid())
+  userId        String
+  /// Binds the ceremony to the session that started it.
+  sessionToken  String
+  ceremony      WebAuthnCeremony
+  challengeHash String
+  expiresAt     DateTime
+  createdAt     DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionToken, ceremony])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum WebAuthnCeremony {
+  AUTHENTICATION
+  REGISTRATION
 }

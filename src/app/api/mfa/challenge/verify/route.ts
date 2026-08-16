@@ -20,6 +20,7 @@ import {
   rpID,
 } from '@/lib/mfa';
 import { prisma } from '@/lib/prisma';
+import { consumeChallenge, WebAuthnCeremony } from '@/lib/webauthn-challenge';
 import { passkeyAssertionSchema, zodFirstError } from '@/lib/validators';
 
 export async function POST(request: Request) {
@@ -42,17 +43,21 @@ export async function POST(request: Request) {
   const response = parsed.data
     .response as unknown as AuthenticationResponseJSON;
 
-  const [user, authenticator] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { currentChallenge: true },
-    }),
+  const sessionToken = getSessionToken();
+  if (!sessionToken) {
+    return jsonError('No active session', 401);
+  }
+
+  // Consumed before verification, so a challenge is spent whether or not the
+  // assertion turns out to be good. A failed attempt costs a round-trip.
+  const [matchesChallenge, authenticator] = await Promise.all([
+    consumeChallenge(userId, sessionToken, WebAuthnCeremony.AUTHENTICATION),
     prisma.authenticator.findUnique({
       where: { credentialID: response.id },
     }),
   ]);
 
-  if (!user?.currentChallenge) {
+  if (!matchesChallenge) {
     return jsonError('Challenge expired — try again', 400);
   }
   if (!authenticator || authenticator.userId !== userId) {
@@ -63,7 +68,7 @@ export async function POST(request: Request) {
   try {
     verification = await verifyAuthenticationResponse({
       response,
-      expectedChallenge: user.currentChallenge,
+      expectedChallenge: matchesChallenge,
       expectedOrigin: expectedOrigin(),
       expectedRPID: rpID(),
       requireUserVerification: false,
@@ -84,19 +89,13 @@ export async function POST(request: Request) {
     return jsonError('Passkey verification failed', 400);
   }
 
-  await prisma.$transaction([
-    prisma.authenticator.update({
-      where: { id: authenticator.id },
-      data: {
-        counter: verification.authenticationInfo.newCounter,
-        lastUsedAt: new Date(),
-      },
-    }),
-    prisma.user.update({
-      where: { id: userId },
-      data: { currentChallenge: null },
-    }),
-  ]);
+  await prisma.authenticator.update({
+    where: { id: authenticator.id },
+    data: {
+      counter: verification.authenticationInfo.newCounter,
+      lastUsedAt: new Date(),
+    },
+  });
 
   const token = getSessionToken();
   if (token) await markSessionMfaVerified(token);
