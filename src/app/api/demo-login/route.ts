@@ -39,6 +39,15 @@ export const dynamic = 'force-dynamic';
 const DEMO_NAME = 'Demo Student';
 
 /**
+ * Advisory lock id for demo seeding. Any constant works as long as nothing else
+ * in this database picks the same one; it is namespaced by being large and
+ * arbitrary.
+ */
+const DEMO_SEED_LOCK_KEY = BigInt('4294967411');
+/** Separate lock so session creation and seeding never wait on each other. */
+const DEMO_SESSION_LOCK_KEY = BigInt('4294967412');
+
+/**
  * One day, not thirty. A demo session is for a sitting, and the old 30-day
  * expiry meant every request left a long-lived row behind forever.
  */
@@ -186,15 +195,44 @@ const demoPet = {
  * once per cooldown.
  */
 async function seedDemoPlannerIfStale(userId: string) {
+  // Fast path: the common case is a warm demo inside its cooldown, and that
+  // should not queue on a lock. This read is advisory only — the decision that
+  // matters is re-made under the lock below.
   const courseCount = await prisma.course.count({ where: { userId } });
-  const isEmpty = courseCount === 0;
-
-  if (!isEmpty && Date.now() - lastSeededAt < RESEED_COOLDOWN_MS) {
+  if (courseCount > 0 && Date.now() - lastSeededAt < RESEED_COOLDOWN_MS) {
     return;
   }
 
-  await seedDemoPlanner(userId);
-  lastSeededAt = Date.now();
+  // The check above is not enough on its own. Seeding deletes the demo data and
+  // rebuilds it, and two requests that both got past the check would interleave
+  // those deletes and creates — every concurrent visitor wiping the rows the
+  // others were writing. A Postgres advisory lock makes the whole thing
+  // single-file across requests and processes; pg_try_advisory_lock returns
+  // immediately rather than queueing, so a visitor who arrives mid-seed just
+  // uses the data being built instead of waiting.
+  const [{ locked }] = await prisma.$queryRaw<[{ locked: boolean }]>`
+    SELECT pg_try_advisory_lock(${DEMO_SEED_LOCK_KEY}::bigint) AS locked
+  `;
+
+  if (!locked) return;
+
+  try {
+    // Re-read under the lock rather than reusing the count from above. The
+    // earlier read is a snapshot from before the queue formed: on an empty
+    // database every concurrent visitor sees "empty", so each one that later
+    // takes the lock would seed again over the work of the one before it.
+    const seededCount = await prisma.course.count({ where: { userId } });
+    if (seededCount > 0 && Date.now() - lastSeededAt < RESEED_COOLDOWN_MS) {
+      return;
+    }
+
+    await seedDemoPlanner(userId);
+    lastSeededAt = Date.now();
+  } finally {
+    await prisma.$queryRaw`
+      SELECT pg_advisory_unlock(${DEMO_SEED_LOCK_KEY}::bigint)
+    `;
+  }
 }
 
 async function seedDemoPlanner(userId: string) {
@@ -317,13 +355,42 @@ async function getOrCreateDemoSession(userId: string) {
   if (reusable) return reusable;
 
   // A NextAuth database session is just a random token + expiry tied to a user.
-  const sessionToken = randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + SESSION_HOURS * 60 * 60 * 1000);
-  await prisma.session.create({
-    data: { sessionToken, userId, expires },
-  });
+  //
+  // Concurrent visitors finding no reusable session would each create one, which
+  // is why this is not simply a create: the second and later callers re-read
+  // first and adopt whatever the winner made. Tokens are random, so a create
+  // never collides — the waste is the point being avoided, not a conflict.
+  const [{ locked }] = await prisma.$queryRaw<[{ locked: boolean }]>`
+    SELECT pg_try_advisory_lock(${DEMO_SESSION_LOCK_KEY}::bigint) AS locked
+  `;
 
-  return { sessionToken, expires };
+  if (!locked) {
+    const adopted = await prisma.session.findFirst({
+      where: {
+        userId,
+        expires: { gt: new Date(Date.now() + SESSION_REUSE_MIN_REMAINING_MS) },
+      },
+      orderBy: { expires: 'desc' },
+      select: { sessionToken: true, expires: true },
+    });
+    if (adopted) return adopted;
+  }
+
+  try {
+    const sessionToken = randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + SESSION_HOURS * 60 * 60 * 1000);
+    await prisma.session.create({
+      data: { sessionToken, userId, expires },
+    });
+
+    return { sessionToken, expires };
+  } finally {
+    if (locked) {
+      await prisma.$queryRaw`
+        SELECT pg_advisory_unlock(${DEMO_SESSION_LOCK_KEY}::bigint)
+      `;
+    }
+  }
 }
 
 /**
