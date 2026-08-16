@@ -158,6 +158,26 @@ To run the stack standalone with its own certificates instead, follow the notes
 at the bottom of [deploy/nginx/conf.d/default.conf](deploy/nginx/conf.d/default.conf)
 and publish `443` in [docker-compose.yml](docker-compose.yml).
 
+### Tell the app how many proxies are in front of it
+
+Set `TRUSTED_PROXY_HOPS` to the number of `X-Forwarded-For` entries your own
+infrastructure appends, counting from the right. Rate limiting uses it to pick
+the real client address out of the chain.
+
+Every proxy appends the address it heard from, so the header reads
+`<whatever the client sent>, <client>, <proxy>, <proxy>…`. The left-most entry is
+written by the client, and a caller who varies it gets a fresh rate-limit bucket
+on every request — so the app counts in from the right instead.
+
+| Deployment                                            | Value |
+| ----------------------------------------------------- | ----- |
+| Local dev, or the bundled nginx with nothing in front | `0`   |
+| One terminator in front of the bundled nginx          | `1`   |
+| Cloudflare → Nginx Proxy Manager → nginx → app        | `2`   |
+
+If the chain arrives shorter than configured, the request is throttled under a
+single shared identity rather than a spoofable one.
+
 ### Where note attachments are stored
 
 Uploaded note PDFs are private documents. They are written to `uploads/note-pdfs`
