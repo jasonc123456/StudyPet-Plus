@@ -115,6 +115,20 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     return jsonError('The owner cannot be removed', 400);
   }
 
-  await prisma.groupMembership.delete({ where: { id: params.memberId } });
+  // Removing the membership row is not on its own a revocation: task assignments
+  // point at the User directly, and the calendar reads them by user id. Left
+  // behind, they keep feeding the removed member every assigned task's title,
+  // description, status, due date and group name. Both go in one transaction so
+  // a failure can't leave the grant without the membership.
+  await prisma.$transaction([
+    prisma.groupTaskAssignee.deleteMany({
+      where: {
+        userId: targetMembership.userId,
+        task: { groupId: params.groupId },
+      },
+    }),
+    prisma.groupMembership.delete({ where: { id: params.memberId } }),
+  ]);
+
   return jsonOk({ success: true });
 }

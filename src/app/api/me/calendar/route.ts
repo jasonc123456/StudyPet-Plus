@@ -1,4 +1,5 @@
 import { jsonError, jsonOk, requireUser } from '@/lib/api-response';
+import { assignedTaskWhere } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
@@ -24,7 +25,7 @@ export async function GET() {
       ],
     }),
     prisma.groupTaskAssignee.findMany({
-      where: { userId: authResult.user.id },
+      where: assignedTaskWhere(authResult.user.id),
       orderBy: [{ task: { dueAt: { sort: 'asc', nulls: 'last' } } }],
       include: {
         task: {

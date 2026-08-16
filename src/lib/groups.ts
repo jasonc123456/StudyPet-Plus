@@ -34,6 +34,27 @@ export async function getGroupMembership(groupId: string, userId: string) {
   });
 }
 
+/**
+ * Where-fragment for "task assignments this user may still see".
+ *
+ * A GroupTaskAssignee row points at the User, not at the membership, so it
+ * outlives removal from the group. Reads that filtered on `userId` alone were
+ * therefore treating a stale assignment as its own standing grant, and a removed
+ * member kept receiving assigned tasks. Every read of assigned tasks spreads
+ * this in, so current membership is re-checked at read time rather than trusted
+ * to have been cleaned up at write time.
+ */
+export function assignedTaskWhere(userId: string) {
+  return {
+    userId,
+    task: {
+      group: {
+        memberships: { some: { userId } },
+      },
+    },
+  } satisfies Prisma.GroupTaskAssigneeWhereInput;
+}
+
 export async function getGroupById(groupId: string) {
   return prisma.studyGroup.findUnique({
     where: { id: groupId },

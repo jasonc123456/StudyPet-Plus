@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 
 import { cleanIcsText } from '@/lib/calendar-text';
-import { isMissingGroupTables } from '@/lib/groups';
+import { assignedTaskWhere, isMissingGroupTables } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
 import { fetchPublicText, SafeFetchError } from '@/lib/safe-fetch';
 
@@ -954,10 +954,13 @@ async function loadAssignedGroupTasks(
   }
 
   try {
+    const { task: taskWhere, ...rest } = assignedTaskWhere(userId);
+
     return await groupTaskAssignee.findMany({
       where: {
-        userId,
+        ...rest,
         task: {
+          ...taskWhere,
           dueAt: { gte: gridStart, lte: gridEnd },
         },
       },
