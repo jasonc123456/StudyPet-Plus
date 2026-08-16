@@ -13,35 +13,9 @@ export async function register() {
   const { assertSecureOriginInProduction } = await import('@/lib/site-url');
   assertSecureOriginInProduction();
 
-  scheduleUploadSweep();
-}
-
-/** How often abandoned note uploads are cleared off disk. */
-const UPLOAD_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
-
-/**
- * Clear abandoned note uploads on a timer.
- *
- * The upload path sweeps opportunistically too, but that only fires while
- * someone is uploading — an instance that goes quiet with expired files still
- * holding disk would never clean them up. `unref()` so this never holds the
- * process open on shutdown.
- */
-function scheduleUploadSweep() {
-  const sweep = async () => {
-    try {
-      const { sweepExpiredUploads } = await import('@/lib/note-pdf');
-      const removed = await sweepExpiredUploads();
-      if (removed > 0) {
-        console.info(`[uploads] swept ${removed} expired upload(s)`);
-      }
-    } catch (error) {
-      // A failed sweep is not worth taking the server down for; the next tick
-      // and the next upload both retry.
-      console.error('[uploads] sweep failed', error);
-    }
-  };
-
-  setInterval(sweep, UPLOAD_SWEEP_INTERVAL_MS).unref();
-  void sweep();
+  // The upload sweeper deliberately does NOT live here. This file is compiled
+  // for the Edge runtime as well as Node, and anything it reaches — statically
+  // or through a dynamic import — has to resolve in both. src/lib/note-pdf.ts
+  // uses node:fs and node:path, so pulling it in from here fails the Edge
+  // compile. It starts its own timer instead, on first import by a Node route.
 }

@@ -131,6 +131,33 @@ export async function sweepExpiredUploads(): Promise<number> {
   return expired.length;
 }
 
+/** How often abandoned uploads are cleared off disk. */
+const UPLOAD_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Sweep on a timer as well as on upload.
+ *
+ * Opportunistic sweeping only fires while someone is uploading, so a quiet
+ * instance would sit on expired files indefinitely. The timer lives here rather
+ * than in src/instrumentation.ts because that file is also compiled for the Edge
+ * runtime, which cannot resolve the node: imports above.
+ *
+ * unref() so it never holds the process open at shutdown.
+ */
+if (process.env.NEXT_RUNTIME === 'nodejs') {
+  setInterval(() => {
+    void sweepExpiredUploads()
+      .then((removed) => {
+        if (removed > 0) console.info(`[uploads] swept ${removed} expired`);
+      })
+      .catch((error) => {
+        // The next tick and the next upload both retry; never crash the server
+        // over housekeeping.
+        console.error('[uploads] sweep failed', error);
+      });
+  }, UPLOAD_SWEEP_INTERVAL_MS).unref();
+}
+
 /** Refuse an upload that would put this user over their pending budget. */
 async function assertPendingBudget(userId: string, incomingBytes: number) {
   const [count, totals] = await Promise.all([
