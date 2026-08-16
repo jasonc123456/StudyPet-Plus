@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { auth } from '@/auth';
+import { requireActionUser } from '@/lib/action-auth';
 import { AiProviderError } from '@/lib/ai/provider';
 import {
   FlashcardServiceError,
@@ -24,6 +24,7 @@ import type { Flashcard as FlashcardRow } from '@prisma/client';
 
 export type FlashcardActionErrorCode =
   | 'UNAUTHORIZED'
+  | 'MFA_REQUIRED'
   | 'NOT_FOUND'
   | 'EMPTY_CONTENT'
   | 'LIMIT_REACHED'
@@ -97,19 +98,13 @@ export async function generateFlashcardsAction(
   noteId: string,
   count?: number
 ): Promise<GenerateFlashcardsActionState> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return {
-      ok: false,
-      error: 'You must be signed in to generate flashcards.',
-      code: 'UNAUTHORIZED',
-    };
-  }
+  const authResult = await requireActionUser();
+  if (!authResult.ok) return authResult;
 
   try {
     const result = await generateAndSaveFlashcards({
       noteIds: [noteId],
-      userId: session.user.id,
+      userId: authResult.userId,
       count,
     });
 
@@ -133,14 +128,8 @@ export async function createFlashcardsFromPasteAction(input: {
   content: string;
   count?: number;
 }): Promise<GenerateFlashcardsActionState> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return {
-      ok: false,
-      error: 'You must be signed in to generate flashcards.',
-      code: 'UNAUTHORIZED',
-    };
-  }
+  const authResult = await requireActionUser();
+  if (!authResult.ok) return authResult;
 
   const parsed = createFlashcardsFromPasteSchema.safeParse(input);
   if (!parsed.success) {
@@ -153,7 +142,7 @@ export async function createFlashcardsFromPasteAction(input: {
 
   try {
     const result = await createNoteAndGenerateFlashcards({
-      userId: session.user.id,
+      userId: authResult.userId,
       content: parsed.data.content,
       title: parsed.data.title,
       count: parsed.data.count,
@@ -180,14 +169,8 @@ export async function createFlashcardAction(input: {
   front: string;
   back: string;
 }): Promise<FlashcardMutationState> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return {
-      ok: false,
-      error: 'You must be signed in.',
-      code: 'UNAUTHORIZED',
-    };
-  }
+  const authResult = await requireActionUser();
+  if (!authResult.ok) return authResult;
 
   const parsed = createFlashcardSchema.safeParse(input);
   if (!parsed.success) {
@@ -200,7 +183,7 @@ export async function createFlashcardAction(input: {
 
   try {
     const flashcard = await createOwnedFlashcard({
-      userId: session.user.id,
+      userId: authResult.userId,
       ...parsed.data,
     });
     revalidateFlashcardPaths(parsed.data.setId);
@@ -220,14 +203,8 @@ export async function updateFlashcardAction(input: {
   front: string;
   back: string;
 }): Promise<FlashcardMutationState> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return {
-      ok: false,
-      error: 'You must be signed in.',
-      code: 'UNAUTHORIZED',
-    };
-  }
+  const authResult = await requireActionUser();
+  if (!authResult.ok) return authResult;
 
   const parsed = updateFlashcardSchema.safeParse(input);
   if (!parsed.success) {
@@ -240,7 +217,7 @@ export async function updateFlashcardAction(input: {
 
   try {
     const flashcard = await updateOwnedFlashcard({
-      userId: session.user.id,
+      userId: authResult.userId,
       ...parsed.data,
     });
     revalidateFlashcardPaths(flashcard.noteId);
@@ -257,14 +234,8 @@ export async function updateFlashcardAction(input: {
 export async function deleteFlashcardAction(
   id: string
 ): Promise<FlashcardMutationState> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return {
-      ok: false,
-      error: 'You must be signed in.',
-      code: 'UNAUTHORIZED',
-    };
-  }
+  const authResult = await requireActionUser();
+  if (!authResult.ok) return authResult;
 
   if (!id || typeof id !== 'string') {
     return { ok: false, error: 'Invalid flashcard.', code: 'VALIDATION' };
@@ -272,10 +243,10 @@ export async function deleteFlashcardAction(
 
   try {
     const existing = await prisma.flashcard.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: authResult.userId },
       select: { noteId: true },
     });
-    await deleteOwnedFlashcard(id, session.user.id);
+    await deleteOwnedFlashcard(id, authResult.userId);
     revalidateFlashcardPaths(existing?.noteId);
     return { ok: true, deletedCount: 1 };
   } catch (error) {
@@ -290,21 +261,18 @@ export async function deleteFlashcardAction(
 export async function deleteFlashcardSetAction(
   setId: string
 ): Promise<FlashcardMutationState> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return {
-      ok: false,
-      error: 'You must be signed in.',
-      code: 'UNAUTHORIZED',
-    };
-  }
+  const authResult = await requireActionUser();
+  if (!authResult.ok) return authResult;
 
   if (!setId || typeof setId !== 'string') {
     return { ok: false, error: 'Invalid deck.', code: 'VALIDATION' };
   }
 
   try {
-    const deletedCount = await deleteOwnedFlashcardSet(setId, session.user.id);
+    const deletedCount = await deleteOwnedFlashcardSet(
+      setId,
+      authResult.userId
+    );
     revalidateFlashcardPaths(setId);
     return { ok: true, deletedCount };
   } catch (error) {
