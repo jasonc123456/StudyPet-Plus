@@ -71,15 +71,18 @@ model User {
   calendarFeedTokenHash String? @unique
 
   // ---- Multi-factor auth (US-4.S1) ----
-  // totpSecret holds a base32 TOTP secret. It is written at the start of
-  // enrollment (pending) and only becomes an active factor once the user
-  // proves possession by entering a valid code, at which point
-  // totpActivatedAt is set. currentChallenge stores the one-time WebAuthn
-  // ceremony challenge (registration or authentication) between the "options"
-  // and "verify" round-trips. Passkeys live in the Authenticator table.
-  totpSecret       String?
-  totpActivatedAt  DateTime?
-  currentChallenge String?
+  // totpSecret holds the *active* base32 TOTP secret; totpActivatedAt is the
+  // moment it became a real factor. Enrollment never writes to either: a new
+  // secret lands in totpPendingSecret and is promoted only once the user
+  // proves possession by entering a valid code. Keeping the two apart means a
+  // re-enrollment cannot destroy the working factor before the replacement is
+  // proven. currentChallenge stores the one-time WebAuthn ceremony challenge
+  // (registration or authentication) between the "options" and "verify"
+  // round-trips. Passkeys live in the Authenticator table.
+  totpSecret        String?
+  totpPendingSecret String?
+  totpActivatedAt   DateTime?
+  currentChallenge  String?
 
   accounts Account[]
   sessions Session[]

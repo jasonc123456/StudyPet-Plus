@@ -1,7 +1,17 @@
 // TOTP enrollment (US-4.S1). One route, three actions:
-//   setup    — mint a pending secret, return the otpauth URI + QR to scan
-//   activate — confirm a code, making TOTP an active second factor
+//   setup    — stage a pending secret, return the otpauth URI + QR to scan
+//   activate — confirm a code, promoting the pending secret to the active factor
 //   disable  — remove TOTP as a factor
+//
+// Enrollment is two-phase on purpose. `setup` writes only totpPendingSecret;
+// the active totpSecret/totpActivatedAt pair is untouched until `activate`
+// verifies a code against the pending one. Before that split, re-running setup
+// wiped the working factor up front, so an abandoned (or hostile) enrollment
+// left the account with no second factor at all.
+//
+// requireUser() already refuses a session that hasn't cleared the MFA gate, so
+// every action here is reachable only by a session that either proved the
+// existing factor or has no factor to prove (first-time enrollment).
 //
 // Activating also marks the current session MFA-verified: the user just proved
 // possession, so we don't immediately bounce them to the /mfa gate.
@@ -39,10 +49,11 @@ export async function POST(request: Request) {
 
   if (parsed.data.action === 'setup') {
     const secret = generateTotpSecret();
-    // Store as pending: totpSecret set, totpActivatedAt still null.
+    // Staged only. The active factor keeps working until `activate` proves the
+    // user really holds this new secret.
     await prisma.user.update({
       where: { id: userId },
-      data: { totpSecret: secret, totpActivatedAt: null },
+      data: { totpPendingSecret: secret },
     });
     const otpauthUrl = buildOtpAuthUrl(secret, authResult.user.email ?? userId);
     const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
@@ -57,18 +68,24 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { totpSecret: true },
+      select: { totpPendingSecret: true },
     });
-    if (!user?.totpSecret) {
+    if (!user?.totpPendingSecret) {
       return jsonError('Start TOTP setup before confirming a code', 400);
     }
-    if (!(await verifyTotp(code, user.totpSecret))) {
+    if (!(await verifyTotp(code, user.totpPendingSecret))) {
       return jsonError('That code is not valid. Try the current one.', 400);
     }
 
+    // Promote: the staged secret becomes the active factor in one write, so
+    // there is no window where the account has neither.
     await prisma.user.update({
       where: { id: userId },
-      data: { totpActivatedAt: new Date() },
+      data: {
+        totpSecret: user.totpPendingSecret,
+        totpPendingSecret: null,
+        totpActivatedAt: new Date(),
+      },
     });
 
     const token = getSessionToken();
@@ -77,10 +94,14 @@ export async function POST(request: Request) {
     return jsonOk({ ok: true });
   }
 
-  // disable
+  // disable — also drops any half-finished enrollment.
   await prisma.user.update({
     where: { id: userId },
-    data: { totpSecret: null, totpActivatedAt: null },
+    data: {
+      totpSecret: null,
+      totpPendingSecret: null,
+      totpActivatedAt: null,
+    },
   });
   return jsonOk({ ok: true });
 }
