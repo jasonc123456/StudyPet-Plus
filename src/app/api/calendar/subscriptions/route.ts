@@ -10,6 +10,15 @@ import {
   zodFirstError,
 } from '@/lib/validators';
 
+/**
+ * Cap on connected feeds per account.
+ *
+ * Every feed is an outbound fetch on each calendar render and each sync, so an
+ * unlimited list is an unlimited fan-out that one account can point wherever it
+ * likes. A student has a handful of calendars; this is well clear of real use.
+ */
+const MAX_SUBSCRIPTIONS_PER_USER = 20;
+
 function calendarTableMissing(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -80,6 +89,18 @@ export async function POST(request: Request) {
 
   if (existing) {
     return jsonError('This ICS calendar is already connected', 409);
+  }
+
+  // Counted before the feed is verified, so hitting the limit costs no outbound
+  // request at all.
+  const subscriptionCount = await prisma.calendarSubscription.count({
+    where: { userId: authResult.user.id },
+  });
+  if (subscriptionCount >= MAX_SUBSCRIPTIONS_PER_USER) {
+    return jsonError(
+      `You can connect at most ${MAX_SUBSCRIPTIONS_PER_USER} calendars. Remove one first.`,
+      400
+    );
   }
 
   const feedCheck = await verifyIcsFeed(icsUrl);

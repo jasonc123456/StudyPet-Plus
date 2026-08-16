@@ -119,6 +119,15 @@ const MAX_FEED_EVENTS = 5000;
  * one is what a hostile feed actually runs into.
  */
 const MAX_FEED_OCCURRENCES = 20_000;
+/**
+ * How many feeds one page render fetches at a time.
+ *
+ * Promise.all over the whole list opened every connection at once, so the
+ * sockets and memory a single render could tie up scaled with however many
+ * calendars the account had connected. Feeds are also capped per user
+ * (MAX_SUBSCRIPTIONS_PER_USER); this bounds the burst regardless.
+ */
+const MAX_CONCURRENT_FEED_FETCHES = 4;
 /** Cap on feed download size. A large Canvas feed is well under 1 MB. */
 const MAX_ICS_BYTES = 5 * 1024 * 1024;
 
@@ -440,6 +449,35 @@ function intersectsRange(
 ) {
   const end = endsAt ?? startsAt;
   return end >= rangeStart && startsAt <= rangeEnd;
+}
+
+/**
+ * Run `task` over `items`, at most `limit` at a time, preserving order.
+ *
+ * Workers pull from a shared cursor rather than being pre-partitioned, so one
+ * slow feed doesn't idle a lane while others wait behind it.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await task(items[index]!);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker)
+  );
+
+  return results;
 }
 
 /** Shared, mutable expansion allowance for one feed. */
@@ -1291,8 +1329,10 @@ export async function getCalendarPageData(
 
   const syncWindow = getSyncWindow();
 
-  const importedResults = await Promise.all(
-    subscriptions.map((subscription) =>
+  const importedResults = await mapWithConcurrency(
+    subscriptions,
+    MAX_CONCURRENT_FEED_FETCHES,
+    (subscription) =>
       fetchSubscriptionEvents(
         subscription,
         gridStart,
@@ -1301,7 +1341,6 @@ export async function getCalendarPageData(
         timeZone,
         syncWindow
       )
-    )
   );
 
   // Feed events an auto-sync feed is carrying that have no assignment behind

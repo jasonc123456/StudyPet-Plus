@@ -317,13 +317,40 @@ async function syncSubscription(
 }
 
 /**
+ * Syncs currently running, keyed by user.
+ *
+ * `force` skips the per-feed throttle, which left "Sync now" with no bound at
+ * all: repeated calls stacked concurrent runs over the same feeds, each pulling
+ * upstream and writing the same rows. A second caller now joins the run already
+ * in flight instead of starting another.
+ */
+const inFlightSyncs = new Map<string, Promise<CalendarSyncResult>>();
+
+/**
  * Sync every auto-sync-enabled feed for a user. Safe to call on every calendar
  * page view: throttled to one upstream pull per feed per 10 minutes unless
  * `force` is set (the "Sync now" button).
+ *
+ * Concurrent calls for the same user share one run — see inFlightSyncs.
  */
 export async function syncUserCalendars(
   userId: string,
   { force = false }: { force?: boolean } = {}
+): Promise<CalendarSyncResult> {
+  const running = inFlightSyncs.get(userId);
+  if (running) return running;
+
+  const run = runUserCalendarSync(userId, force).finally(() => {
+    inFlightSyncs.delete(userId);
+  });
+  inFlightSyncs.set(userId, run);
+
+  return run;
+}
+
+async function runUserCalendarSync(
+  userId: string,
+  force: boolean
 ): Promise<CalendarSyncResult> {
   // The feeds Canvas publishes carry no timezone at all, so an all-day due date
   // is only meaningful relative to the student. Theirs is the zone we use.
