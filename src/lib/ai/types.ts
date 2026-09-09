@@ -65,8 +65,14 @@ export const flashcardSchema = z.object({
 
 export type Flashcard = z.infer<typeof flashcardSchema>;
 
-/** The object we ask the model to return (json_object mode can't return a bare array). */
+/**
+ * The object we ask the model to return (json_object mode can't return a bare
+ * array). `topics` is the theme list the lean prompt asks for up front; it is
+ * advisory — used only to snap item tags onto a consistent spelling — so it
+ * stays optional and the full prompts simply omit it.
+ */
 export const flashcardResponseSchema = z.object({
+  topics: z.array(z.string().trim().min(1).max(80)).optional(),
   cards: z.array(flashcardSchema).min(1),
 });
 
@@ -105,6 +111,8 @@ export const quizQuestionSchema = z
 export type QuizQuestion = z.infer<typeof quizQuestionSchema>;
 
 export const quizResponseSchema = z.object({
+  /** Advisory theme list from the lean prompt — see flashcardResponseSchema. */
+  topics: z.array(z.string().trim().min(1).max(80)).optional(),
   questions: z.array(quizQuestionSchema).min(1),
 });
 

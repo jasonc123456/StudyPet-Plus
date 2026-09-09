@@ -7,7 +7,11 @@
 // AI_DEMO_MODE !== "true". Gemini is the hosted fallback. Demo cards are returned
 // ONLY when AI_DEMO_MODE === "true".
 
-import { AI_NOT_CONFIGURED_MESSAGE, getAiRuntimeStatus } from '@/lib/ai/config';
+import {
+  AI_NOT_CONFIGURED_MESSAGE,
+  getAiRuntimeStatus,
+  isLeanMode,
+} from '@/lib/ai/config';
 import {
   AiProviderError,
   hasConfiguredProvider,
@@ -32,6 +36,9 @@ const MIN_COUNT = 1;
 // flashcard requests are separately capped lower by their request validator.
 const MAX_COUNT = 50;
 const MAX_SOURCE_CHARS = 12_000;
+// Lean mode halves the source window: prompt length drives prefill cost on a
+// self-hosted box just as much as the generated answer drives decode cost.
+const LEAN_MAX_SOURCE_CHARS = 6_000;
 
 function clampCount(count: number | undefined): number {
   if (!count || !Number.isFinite(count)) return DEFAULT_COUNT;
@@ -39,7 +46,13 @@ function clampCount(count: number | undefined): number {
 }
 
 function prepareSource(text: string): string {
-  return text.trim().slice(0, MAX_SOURCE_CHARS);
+  const cap = isLeanMode() ? LEAN_MAX_SOURCE_CHARS : MAX_SOURCE_CHARS;
+  return text.trim().slice(0, cap);
+}
+
+/** ~3-4 items per topic: enough to show which area a student is weak on. */
+function targetTopicCount(count: number): number {
+  return Math.max(1, Math.round(count / 3));
 }
 
 /**
@@ -78,7 +91,7 @@ function topicPolicySection(
 ): string {
   // Guidance, not a cap: aim for ~3-4 items per topic so a student can tell
   // which area they're weak on, while still allowing a genuine one-off topic.
-  const targetTopics = Math.max(1, Math.round(count / 3));
+  const targetTopics = targetTopicCount(count);
   const course = topicHint?.trim();
   const known = (existingTopics ?? [])
     .map((topic) => topic.trim())
@@ -120,6 +133,43 @@ function topicPolicySection(
   return lines.join('\n');
 }
 
+/**
+ * The lean counterpart to topicPolicySection.
+ *
+ * Grouping items into a few shared themes is a planning task, and planning is
+ * what the model's reasoning phase normally pays for. Rather than restate the
+ * long policy, the lean prompts make the planning explicit and cheap: the model
+ * emits the topic list FIRST and every item then copies a string out of it.
+ * Because generation is left-to-right, deciding the buckets up front recovers
+ * most of the benefit for the price of a handful of tokens — which is what
+ * keeps topic tagging usable with LOCAL_AI_DISABLE_THINKING=true.
+ */
+function leanTopicSection(
+  count: number,
+  topicHint?: string,
+  existingTopics?: string[]
+): string {
+  const known = (existingTopics ?? [])
+    .map((topic) => topic.trim())
+    .filter(Boolean);
+  const course = topicHint?.trim();
+
+  const lines = [
+    `\n\nTOPICS: pick about ${targetTopicCount(count)} broad themes (1-4 words, ` +
+      'Title Case) that each cover several items. Never one topic per item.',
+  ];
+  if (course) {
+    lines.push(`Do NOT prefix topics with "${course}" — tag the concept only.`);
+  }
+  if (known.length > 0) {
+    lines.push(
+      'Reuse these EXACT strings where they fit, and only invent a topic when ' +
+        `none does: ${known.map((topic) => `"${topic}"`).join(', ')}`
+    );
+  }
+  return lines.join('\n');
+}
+
 /** Collapse equivalent cards (same front+back, case/whitespace-insensitive). */
 export function dedupeFlashcards(cards: Flashcard[]): Flashcard[] {
   const seen = new Set<string>();
@@ -154,6 +204,20 @@ function providerDisplayName(provider: AiProviderName): string {
  * differs only in case or punctuation, so the UI doesn't show two spellings of
  * the same category.
  */
+/**
+ * The course's existing tags plus the theme list the model declared for this
+ * batch. Existing tags come first so canonicalizeTopic prefers a spelling the
+ * course already shows in its UI over a freshly invented one.
+ */
+function mergeTopics(
+  existingTopics?: string[],
+  declaredTopics?: string[]
+): string[] {
+  return [...(existingTopics ?? []), ...(declaredTopics ?? [])]
+    .map((topic) => topic.trim())
+    .filter(Boolean);
+}
+
 function canonicalizeTopic(
   topic: string,
   topicHint?: string,
@@ -185,6 +249,33 @@ function canonicalizeTopic(
   return match ?? cleaned;
 }
 
+/** Short prompt, same JSON contract — see leanTopicSection for the topics-first trick. */
+function leanFlashcardPrompt(
+  source: string,
+  count: number,
+  topicHint?: string,
+  attachments?: AiAttachment[],
+  existingTopics?: string[]
+): JsonPrompt {
+  return {
+    system:
+      "You turn a student's notes into flashcards. Use ONLY facts present in " +
+      'the source. Never invent anything. No study-skill or meta-learning ' +
+      'cards. Respond with JSON only.',
+    user:
+      `Create exactly ${count} flashcards from the source material.\n` +
+      'Return JSON: { "topics": string[], "cards": [ { "topic": string, ' +
+      '"front": string, "back": string } ] }\n' +
+      '- Emit "topics" first; every card\'s "topic" must be copied from it.\n' +
+      '- "front": a question about one specific fact. "back": a one-sentence ' +
+      'answer from the source.\n' +
+      '- No near-duplicate cards.' +
+      leanTopicSection(count, topicHint, existingTopics) +
+      sourceSection(source, attachments?.length ?? 0),
+    attachments,
+  };
+}
+
 function flashcardPrompt(
   source: string,
   count: number,
@@ -192,6 +283,15 @@ function flashcardPrompt(
   attachments?: AiAttachment[],
   existingTopics?: string[]
 ): JsonPrompt {
+  if (isLeanMode()) {
+    return leanFlashcardPrompt(
+      source,
+      count,
+      topicHint,
+      attachments,
+      existingTopics
+    );
+  }
   const hint = topicHint?.trim()
     ? ` The course/subject context is "${topicHint.trim()}" — use it only for topic tags when it fits the source.`
     : '';
@@ -268,15 +368,12 @@ export async function generateFlashcards(
   );
 
   const parsed = flashcardResponseSchema.parse(run.value);
+  const knownTopics = mergeTopics(input.existingTopics, parsed.topics);
   const cards = dedupeFlashcards(parsed.cards)
     .slice(0, count)
     .map((card) => ({
       ...card,
-      topic: canonicalizeTopic(
-        card.topic,
-        input.topicHint,
-        input.existingTopics
-      ),
+      topic: canonicalizeTopic(card.topic, input.topicHint, knownTopics),
     }));
 
   if (cards.length === 0) {
@@ -302,6 +399,45 @@ export async function generateFlashcards(
 // Quizzes
 // ---------------------------------------------------------------------------
 
+/**
+ * Short prompt, same JSON contract.
+ *
+ * `misconception` and `choiceRationales` are dropped and `explanation` is cut
+ * to one sentence: all three are optional in quizResponseSchema, quizzes.ts
+ * degrades missing rationales to deterministic fallback text, and the live
+ * tutor (ai/quiz-feedback.ts) already writes the richer version at the moment a
+ * student actually answers. That removes ~4 of the 6 generated strings per
+ * question — the bulk of the decode cost — without changing what is stored.
+ */
+function leanQuizPrompt(
+  source: string,
+  count: number,
+  topicHint?: string,
+  attachments?: AiAttachment[],
+  existingTopics?: string[]
+): JsonPrompt {
+  return {
+    system:
+      "You write multiple-choice quiz questions from a student's notes. " +
+      'Ground every question in the source, but explain by reasoning, never by ' +
+      'citing the notes ("the notes say", "the source identifies"). ' +
+      'Respond with JSON only.',
+    user:
+      `Write ${count} multiple-choice questions from the study material.\n` +
+      'Return JSON: { "topics": string[], "questions": [ { "topic": string, ' +
+      '"question": string, "choices": string[], "answerIndex": number, ' +
+      '"explanation": string, "hint": string } ] }\n' +
+      '- Emit "topics" first; every question\'s "topic" must be copied from it.\n' +
+      '- 4 "choices", exactly one correct. "answerIndex" is its 0-based index.\n' +
+      '- Check the answer is actually correct before moving to the next question.\n' +
+      '- "explanation": ONE sentence on why that choice is right.\n' +
+      '- "hint": one short nudge that does not name the answer.' +
+      leanTopicSection(count, topicHint, existingTopics) +
+      sourceSection(source, attachments?.length ?? 0),
+    attachments,
+  };
+}
+
 function quizPrompt(
   source: string,
   count: number,
@@ -309,6 +445,15 @@ function quizPrompt(
   attachments?: AiAttachment[],
   existingTopics?: string[]
 ): JsonPrompt {
+  if (isLeanMode()) {
+    return leanQuizPrompt(
+      source,
+      count,
+      topicHint,
+      attachments,
+      existingTopics
+    );
+  }
   const hint = topicHint?.trim()
     ? ` The course/subject context is "${topicHint.trim()}".`
     : '';
@@ -400,13 +545,10 @@ export async function generateQuiz(
   );
 
   const parsedQuiz = quizResponseSchema.parse(run.value);
+  const knownQuizTopics = mergeTopics(input.existingTopics, parsedQuiz.topics);
   const questions = parsedQuiz.questions.map((question) => ({
     ...question,
-    topic: canonicalizeTopic(
-      question.topic,
-      input.topicHint,
-      input.existingTopics
-    ),
+    topic: canonicalizeTopic(question.topic, input.topicHint, knownQuizTopics),
   }));
   console.info('[ai] generateQuiz ok', {
     provider: run.provider,

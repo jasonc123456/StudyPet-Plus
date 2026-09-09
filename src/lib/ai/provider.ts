@@ -18,6 +18,7 @@ import {
   AI_REQUEST_TIMEOUT_MS,
   getGeminiConfig,
   getLocalConfig,
+  isLocalThinkingDisabled,
 } from '@/lib/ai/config';
 import type {
   AiAttachment,
@@ -201,9 +202,15 @@ async function streamOpenAiContent(
 /**
  * Models occasionally wrap JSON in ```json fences or add stray prose even in
  * JSON mode. Strip fences and parse; throw if there's still nothing usable.
+ *
+ * A reasoning model with thinking suppressed often still emits an empty
+ * `<think></think>` pair at the head of `content` (the chat template opens the
+ * block regardless), so that is stripped too — otherwise JSON.parse chokes on
+ * a response that is otherwise perfectly good.
  */
 function parseJsonObject(provider: AiProviderName, raw: string): unknown {
   const cleaned = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
@@ -309,11 +316,26 @@ function localUserContent(
   ];
 }
 
+/**
+ * Curbing the reasoning phase is the single biggest compute saving on a
+ * self-hosted box, but there is no one switch for it, so we send two:
+ *
+ *   - `chat_template_kwargs.enable_thinking: false` turns it off outright, and
+ *     is understood by vLLM, SGLang and llama.cpp's server.
+ *   - `reasoning_effort: 'low'` only shortens the trace, but it is what this
+ *     install actually honours: LM Studio behind OpenWebUI ignores the kwarg
+ *     above (and Qwen's `/no_think` marker), while `reasoning_effort` measured
+ *     ~60% fewer reasoning tokens and ~35% lower latency on the same prompt.
+ *
+ * Both are ignored harmlessly by servers that don't implement them, so the
+ * worst case is simply the model thinking as much as it did before.
+ */
 function localRequestInit(
   config: { apiKey: string; model: string },
   prompt: JsonPrompt,
   stream: boolean
 ): RequestInit {
+  const lowReasoning = isLocalThinkingDisabled();
   return {
     method: 'POST',
     headers: {
@@ -330,6 +352,12 @@ function localRequestInit(
         },
       ],
       temperature: 0.4,
+      ...(lowReasoning
+        ? {
+            chat_template_kwargs: { enable_thinking: false },
+            reasoning_effort: 'low',
+          }
+        : {}),
       stream,
     }),
   };

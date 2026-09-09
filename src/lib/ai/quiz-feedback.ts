@@ -5,7 +5,11 @@
  * with a deterministic fallback when the model is unavailable.
  */
 
-import { AI_NOT_CONFIGURED_MESSAGE, getAiRuntimeStatus } from '@/lib/ai/config';
+import {
+  AI_NOT_CONFIGURED_MESSAGE,
+  getAiRuntimeStatus,
+  isLeanMode,
+} from '@/lib/ai/config';
 import {
   AiProviderError,
   hasConfiguredProvider,
@@ -69,7 +73,10 @@ function clip(text: string | null | undefined, max: number): string {
 }
 
 function feedbackPrompt(input: GenerateQuizFeedbackInput): JsonPrompt {
-  const snippet = clip(input.sourceSnippet, 2500);
+  const lean = isLeanMode();
+  // Lean mode also shortens the grounding snippet — it is prepended to every
+  // feedback call, which is the most frequently hit AI path in the app.
+  const snippet = clip(input.sourceSnippet, lean ? 900 : 2500);
   const itemsJson = input.items.map((item, index) => ({
     index,
     id: item.id ?? null,
@@ -82,6 +89,27 @@ function feedbackPrompt(input: GenerateQuizFeedbackInput): JsonPrompt {
     answeredCorrectly:
       item.correct === null || item.correct === undefined ? null : item.correct,
   }));
+
+  if (lean) {
+    return {
+      system:
+        'You are a concise AI tutor. Return JSON only. One short sentence per ' +
+        'field. Explain by reasoning, never by citing the notes. Hints must ' +
+        'not reveal the correct answer.',
+      user:
+        `Write tutor feedback for ${itemsJson.length} quiz item(s).\n` +
+        'Return JSON: { "items": [ { "hint": string, "whyCorrect": string, ' +
+        '"whySelectedMisses": string|null, "conceptToReview": string, ' +
+        '"reviewNextReason": string } ] } — one entry per item, same order.\n' +
+        '- hint: a nudge that does not name the correct choice.\n' +
+        '- whyCorrect: why the correct answer makes sense.\n' +
+        '- whySelectedMisses: how the selected answer differs; null if the ' +
+        'item was unanswered or correct.\n' +
+        '- conceptToReview: short topic name. reviewNextReason: what to do next.' +
+        (snippet ? `\n\nContext (do not cite it):\n"""${snippet}"""` : '') +
+        `\n\nItems:\n${JSON.stringify(itemsJson)}`,
+    };
+  }
 
   return {
     system:

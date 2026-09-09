@@ -61,9 +61,34 @@ export function isDemoModeForced(): boolean {
   return process.env['AI_DEMO_MODE'] === 'true';
 }
 
+/**
+ * Lean mode swaps the generation prompts for shorter ones that ask the model
+ * for far less prose per item (see src/lib/ai/index.ts). Intended for a
+ * modest self-hosted box: same JSON shape, a fraction of the output tokens.
+ */
+export function isLeanMode(): boolean {
+  return process.env['AI_LEAN_MODE'] === 'true';
+}
+
+/**
+ * Asks the local model to think as little as possible — see localRequestInit in
+ * provider.ts for the two request fields this sends and which servers honour
+ * which. Kept separate from lean mode on purpose: the reasoning trace is the
+ * single largest compute cost, but it is also what keeps answerIndex honest on
+ * derivational material, so the two are switched independently and can be A/B'd.
+ *
+ * Note the name is aspirational on some backends: LM Studio only shortens the
+ * trace rather than skipping it.
+ */
+export function isLocalThinkingDisabled(): boolean {
+  return process.env['LOCAL_AI_DISABLE_THINKING'] === 'true';
+}
+
 /** Safe status for logs / errors — never includes secret values. */
 export function getAiRuntimeStatus(): {
   demoMode: boolean;
+  leanMode: boolean;
+  localThinkingDisabled: boolean;
   localConfigured: boolean;
   geminiConfigured: boolean;
   localModel: string | null;
@@ -73,6 +98,8 @@ export function getAiRuntimeStatus(): {
   const gemini = getGeminiConfig();
   return {
     demoMode: isDemoModeForced(),
+    leanMode: isLeanMode(),
+    localThinkingDisabled: isLocalThinkingDisabled(),
     localConfigured: local !== null,
     geminiConfigured: gemini !== null,
     localModel: local?.model ?? null,
