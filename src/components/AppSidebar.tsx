@@ -320,6 +320,30 @@ function CloseIcon({ className }: { className?: string }) {
   );
 }
 
+function AdminIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.8}
+      stroke="currentColor"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3l7.5 3v5.25c0 4.28-3.05 8.28-7.5 9.75-4.45-1.47-7.5-5.47-7.5-9.75V6L12 3z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.75 12l1.5 1.5 3-3.5"
+      />
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Nav link definitions
 // ---------------------------------------------------------------------------
@@ -349,6 +373,8 @@ type AppChromeUser = {
   image?: string | null;
   petName?: string | null;
   timezone?: string | null;
+  /** Renders the Admin link. False for everyone else — see the layout. */
+  isAdmin?: boolean;
 };
 
 function isNavActive(pathname: string, href: string) {
@@ -379,9 +405,15 @@ type SidebarNavProps = {
   pathname: string;
   onNavigate?: () => void;
   onOpenSettings: () => void;
+  isAdmin?: boolean;
 };
 
-function SidebarNav({ pathname, onNavigate, onOpenSettings }: SidebarNavProps) {
+function SidebarNav({
+  pathname,
+  onNavigate,
+  onOpenSettings,
+  isAdmin = false,
+}: SidebarNavProps) {
   const linkClass = (active: boolean) =>
     [
       'app-sidebar-link group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
@@ -423,6 +455,22 @@ function SidebarNav({ pathname, onNavigate, onOpenSettings }: SidebarNavProps) {
         <AiUsageMeter />
 
         <div className="space-y-1">
+          {isAdmin && (
+            <Link
+              href="/dashboard/admin"
+              onClick={onNavigate}
+              className={linkClass(isNavActive(pathname, '/dashboard/admin'))}
+              aria-current={
+                isNavActive(pathname, '/dashboard/admin') ? 'page' : undefined
+              }
+            >
+              <AdminIcon
+                className={iconClass(isNavActive(pathname, '/dashboard/admin'))}
+              />
+              Admin
+            </Link>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -486,6 +534,7 @@ function SidebarShell({
           pathname={pathname}
           onNavigate={onNavigate}
           onOpenSettings={() => setSettingsOpen(true)}
+          isAdmin={user.isAdmin}
         />
       </div>
 

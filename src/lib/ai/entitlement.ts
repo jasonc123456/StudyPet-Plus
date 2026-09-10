@@ -86,7 +86,25 @@ type UsageContext = {
   demoOnly: boolean;
   day: string;
   resetAt: Date;
+  /** DAILY_GENERATION_LIMIT, or this account's admin-set override. */
+  limit: number;
 };
+
+/**
+ * The allowance that applies to one account.
+ *
+ * An admin can raise or lower a single account from the console
+ * (User.aiDailyLimitOverride). Null — the normal case — means "whatever the
+ * deployment default is", so changing AI_DAILY_GENERATION_LIMIT still moves
+ * everyone who has no override. A non-positive override is ignored rather than
+ * honoured: zero would be indistinguishable from "unset" to the reader, and
+ * negative is always a mistake.
+ */
+function effectiveLimit(override: number | null | undefined): number {
+  return typeof override === 'number' && override > 0
+    ? override
+    : DAILY_GENERATION_LIMIT;
+}
 
 /**
  * The account's demo status and its current local day, in one read.
@@ -97,13 +115,14 @@ type UsageContext = {
 async function usageContext(userId: string, now = new Date()) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { email: true, timezone: true },
+    select: { email: true, timezone: true, aiDailyLimitOverride: true },
   });
 
   return {
     demoOnly: user?.email === DEMO_EMAIL,
     day: localDayKey(now, user?.timezone),
     resetAt: nextLocalMidnight(now, user?.timezone),
+    limit: effectiveLimit(user?.aiDailyLimitOverride),
   } satisfies UsageContext;
 }
 
@@ -124,13 +143,13 @@ export async function isDemoAccount(userId: string): Promise<boolean> {
  * an account that has generated nothing today has no row, and that reads as 0.
  */
 export async function getAiUsage(userId: string): Promise<AiUsageSnapshot> {
-  const { demoOnly, day, resetAt } = await usageContext(userId);
+  const { demoOnly, day, resetAt, limit } = await usageContext(userId);
 
   if (demoOnly) {
     return {
       demoOnly: true,
       used: 0,
-      limit: DAILY_GENERATION_LIMIT,
+      limit,
       resetAt: resetAt.toISOString(),
     };
   }
@@ -144,8 +163,8 @@ export async function getAiUsage(userId: string): Promise<AiUsageSnapshot> {
     demoOnly: false,
     // A row can sit above the limit only if the limit was lowered mid-day;
     // clamp so the meter never renders past full.
-    used: Math.min(row?.count ?? 0, DAILY_GENERATION_LIMIT),
-    limit: DAILY_GENERATION_LIMIT,
+    used: Math.min(row?.count ?? 0, limit),
+    limit,
     resetAt: resetAt.toISOString(),
   };
 }
@@ -188,7 +207,7 @@ export async function claimAiGeneration(userId: string): Promise<{
   entitlement: AiEntitlement;
   release: () => void;
 }> {
-  const { demoOnly, day } = await usageContext(userId);
+  const { demoOnly, day, limit } = await usageContext(userId);
 
   // Canned generation costs nothing upstream, so the demo account is not metered
   // — it is simply never allowed to reach a provider.
@@ -197,7 +216,7 @@ export async function claimAiGeneration(userId: string): Promise<{
   }
 
   const used = await addToDailyCount(userId, day, 1);
-  if (used > DAILY_GENERATION_LIMIT) {
+  if (used > limit) {
     // Hand the slot straight back so a rejected attempt does not push the count
     // further past the limit on every retry.
     await addToDailyCount(userId, day, -1);

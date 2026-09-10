@@ -12,6 +12,7 @@ import {
 } from '@simplewebauthn/server';
 
 import { jsonError, jsonOk, requireUserPreMfa } from '@/lib/api-response';
+import { recordAuthEvent } from '@/lib/auth-events';
 import {
   expectedOrigin,
   getSessionToken,
@@ -86,6 +87,13 @@ export async function POST(request: Request) {
   }
 
   if (!verification.verified) {
+    await recordAuthEvent({
+      type: 'MFA_FAILED',
+      userId,
+      email: authResult.user.email ?? null,
+      method: 'passkey',
+      detail: 'Assertion rejected',
+    });
     return jsonError('Passkey verification failed', 400);
   }
 
@@ -99,6 +107,13 @@ export async function POST(request: Request) {
 
   const token = getSessionToken();
   if (token) await markSessionMfaVerified(token);
+
+  await recordAuthEvent({
+    type: 'MFA_SUCCESS',
+    userId,
+    email: authResult.user.email ?? null,
+    method: 'passkey',
+  });
 
   return jsonOk({ ok: true });
 }

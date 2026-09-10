@@ -3,6 +3,7 @@ import type { Session } from 'next-auth';
 
 import { auth } from '@/auth';
 import { requiresMfaChallenge } from '@/lib/mfa';
+import { prisma } from '@/lib/prisma';
 
 export function jsonOk<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
@@ -48,6 +49,12 @@ export async function requireUserPreMfa(): Promise<AuthedUser | NextResponse> {
  *
  * A user with no factor enrolled is not gated (nothing to prove), so first-time
  * enrollment still works.
+ *
+ * Suspension is enforced here too. An admin can suspend an account, but a
+ * suspended user may already be holding a live session — and sign-in is not the
+ * only way in. Checking on every authenticated request is what makes the
+ * suspension take effect now rather than whenever their cookie happens to
+ * expire.
  */
 export async function requireUser(): Promise<AuthedUser | NextResponse> {
   const result = await requireUserPreMfa();
@@ -55,6 +62,15 @@ export async function requireUser(): Promise<AuthedUser | NextResponse> {
 
   if (await requiresMfaChallenge(result.user.id)) {
     return jsonError('Two-factor verification required', 403);
+  }
+
+  const account = await prisma.user.findUnique({
+    where: { id: result.user.id },
+    select: { suspendedAt: true },
+  });
+
+  if (account?.suspendedAt) {
+    return jsonError('This account has been suspended.', 403);
   }
 
   return result;

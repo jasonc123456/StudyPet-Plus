@@ -4,6 +4,21 @@
 import { googleOAuthEnabled } from '@/auth';
 import { LoginForm } from '@/components/auth/LoginForm';
 
-export default function LoginPage() {
-  return <LoginForm googleEnabled={googleOAuthEnabled} />;
+/**
+ * `error` is read here rather than with useSearchParams in the form so the
+ * client component doesn't need a Suspense boundary to stay prerenderable.
+ * Auth.js sends its own codes (AccessDenied, Verification, ...); the dashboard
+ * layout adds AccountSuspended when it bounces a suspended session.
+ */
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: { error?: string };
+}) {
+  return (
+    <LoginForm
+      googleEnabled={googleOAuthEnabled}
+      error={searchParams.error ?? null}
+    />
+  );
 }

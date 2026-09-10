@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 
 import { jsonError, jsonOk, requireUserPreMfa } from '@/lib/api-response';
+import { recordAuthEvent } from '@/lib/auth-events';
 import {
   clearTotpFailures,
   getSessionToken,
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      email: true,
       totpSecret: true,
       totpActivatedAt: true,
       totpFailedAttempts: true,
@@ -58,6 +60,15 @@ export async function POST(request: Request) {
 
   if (!(await verifyTotp(parsed.data.code, user.totpSecret))) {
     const tripped = await recordTotpFailure(userId, user.totpFailedAttempts);
+    await recordAuthEvent({
+      type: 'MFA_FAILED',
+      userId,
+      email: user.email,
+      method: 'totp',
+      detail: tripped.locked
+        ? 'Incorrect code — account locked out'
+        : 'Incorrect code',
+    });
     if (tripped.locked) {
       return jsonError(
         'Too many incorrect codes. Try again in a few minutes.',
@@ -72,6 +83,13 @@ export async function POST(request: Request) {
 
   const token = getSessionToken();
   if (token) await markSessionMfaVerified(token);
+
+  await recordAuthEvent({
+    type: 'MFA_SUCCESS',
+    userId,
+    email: user.email,
+    method: 'totp',
+  });
 
   return jsonOk({ ok: true });
 }

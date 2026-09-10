@@ -33,6 +33,42 @@ enum GroupTaskStatus {
   DONE
 }
 
+// Application-wide role. Distinct from GroupRole, which is scoped to a single
+// study group — this one governs the admin console at /dashboard/admin and the
+// destructive account operations behind it. Everyone is USER until promoted.
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// What an AuthEvent row records. Failures are first-class: a burst of
+// SIGN_IN_FAILED or MFA_FAILED for one address is the signal an admin is
+// looking for, and it leaves no trace anywhere else in the schema.
+enum AuthEventType {
+  SIGN_IN
+  SIGN_IN_FAILED
+  SIGN_OUT
+  MFA_SUCCESS
+  MFA_FAILED
+  IMPERSONATION_START
+  IMPERSONATION_END
+}
+
+// What an admin did, for the audit trail. Every entry is an action that changed
+// another account or the admin roster.
+enum AdminActionType {
+  ROLE_GRANTED
+  ROLE_REVOKED
+  USER_SUSPENDED
+  USER_UNSUSPENDED
+  USER_DELETED
+  SESSIONS_REVOKED
+  MFA_RESET
+  AI_LIMIT_OVERRIDDEN
+  IMPERSONATION_START
+  IMPERSONATION_END
+}
+
 enum AcademicSystem {
   SEMESTER
   QUARTER
@@ -88,8 +124,31 @@ model User {
   totpFailedAttempts Int       @default(0)
   totpLockedUntil    DateTime?
 
+  // ---- Admin console (US-5.A1) ----
+  // role gates /dashboard/admin and every /api/admin route. It is deliberately
+  // a column on User rather than an env allowlist of emails: an allowlist can't
+  // be audited, can't be revoked without a deploy, and doesn't survive an email
+  // change (which this app supports — see EmailChangeRequest).
+  role UserRole @default(USER)
+
+  // Set when an admin suspends the account. A suspended user keeps their data
+  // but is refused by requireUser and bounced out of the dashboard, and their
+  // live sessions are dropped at suspend time so the block is immediate rather
+  // than "from their next sign-in".
+  suspendedAt     DateTime?
+  suspendedReason String?
+
+  // Per-account override of DAILY_GENERATION_LIMIT. Null means "use the
+  // deployment default", which is the normal case; a number here lets an admin
+  // raise a single power user or throttle an abusive one without an env change
+  // and a redeploy that would move the limit for everybody.
+  aiDailyLimitOverride Int?
+
   accounts Account[]
   sessions Session[]
+  authEvents      AuthEvent[]
+  adminActions    AdminAuditLog[] @relation("AdminAuditActor")
+  adminActionsOnMe AdminAuditLog[] @relation("AdminAuditTarget")
   authenticators Authenticator[]
   webAuthnChallenges WebAuthnChallenge[]
   pendingUploads     PendingUpload[]
@@ -157,7 +216,23 @@ model Session {
   // pre-existing session are unaffected.
   mfaVerifiedAt DateTime?
 
+  // When this session was minted. The Auth.js adapter doesn't record it, so the
+  // admin console had no way to say how old a live session was, or to sort
+  // them. Defaulted rather than required so the migration backfills existing
+  // rows instead of failing — those rows will read as "created at migration
+  // time", which is wrong but harmless and self-correcting as they expire.
+  createdAt DateTime @default(now())
+
+  // Set on a session an admin minted by impersonating this user, holding the
+  // admin's own user id. Non-null is what makes the impersonation banner show
+  // and what /api/admin/impersonate/stop checks before handing the browser back
+  // its original session, so an impersonated session can never be mistaken for
+  // the real user signing in.
+  impersonatedByUserId String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // A registered WebAuthn passkey / security key (US-4.S1). One row per
@@ -972,4 +1047,72 @@ model AiUsage {
   // from concurrent requests, so it has to be enforced by the database.
   @@id([userId, day])
   @@index([day])
+}
+
+
+// ---------------------------------------------------------------------------
+// Admin console (US-5.A1)
+// ---------------------------------------------------------------------------
+
+/// One authentication attempt, successful or not.
+///
+/// Nothing in the schema recorded this before: Session rows say who is signed
+/// in right now, but they carry no origin, they are replaced on every sign-in,
+/// and a failed attempt never created one at all. So "show me this account's
+/// recent sign-in activity" — and more importantly "is someone hammering this
+/// address" — had no answer. This table is that answer.
+///
+/// `email` is denormalised on purpose. A failed attempt often has no user to
+/// point at (an address that was never registered), and a deleted account must
+/// not take its own history with it — userId goes null there while the row
+/// still says which address was involved.
+///
+/// ip/userAgent are personal data. They are pruned by pruneAuthEvents() past
+/// AUTH_EVENT_RETENTION_DAYS rather than kept forever.
+model AuthEvent {
+  id        String        @id @default(cuid())
+  userId    String?
+  email     String?
+  type      AuthEventType
+  /// "email" (magic link), "google", "totp", "passkey", "impersonation".
+  method    String?
+  ip        String?
+  userAgent String?
+  /// Free-text detail for failures, e.g. why the attempt was refused.
+  detail    String?
+  createdAt DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([type, createdAt])
+  @@index([email, createdAt])
+}
+
+/// An action an admin took on another account.
+///
+/// The console can delete a user outright and can impersonate one, so the
+/// question "who did this, and to whom" has to be answerable after the fact —
+/// including after the target row is gone. Both sides are nullable relations
+/// with the email kept alongside, so deleting either party leaves the record
+/// standing instead of cascading the evidence away.
+model AdminAuditLog {
+  id            String          @id @default(cuid())
+  actorId       String?
+  actorEmail    String
+  targetUserId  String?
+  targetEmail   String?
+  action        AdminActionType
+  /// Human-readable summary, e.g. "daily AI limit 60 -> 200".
+  detail        String?
+  ip            String?
+  createdAt     DateTime        @default(now())
+
+  actor  User? @relation("AdminAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  target User? @relation("AdminAuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
 }

@@ -20,11 +20,31 @@ const FLOATERS = [
   { e: '📖', pos: 'left-[44%] top-[10%]', delay: '2.4s' },
 ];
 
-type LoginFormProps = {
-  googleEnabled: boolean;
+/**
+ * Sign-in failure codes worth explaining.
+ *
+ * A refused sign-in used to redirect back here with nothing on screen, so a
+ * suspended user simply saw the form again and assumed the link was broken.
+ * AccessDenied is what Auth.js sends when the signIn callback returns false —
+ * which, in this app, means the account is suspended.
+ */
+const ERROR_MESSAGES: Record<string, string> = {
+  AccountSuspended:
+    'This account has been suspended. Contact an administrator if you think this is a mistake.',
+  AccessDenied:
+    'This account has been suspended. Contact an administrator if you think this is a mistake.',
+  Verification:
+    'That sign-in link has expired or was already used. Request a new one below.',
+  OAuthAccountNotLinked:
+    'This email is already registered with a different sign-in method.',
 };
 
-export function LoginForm({ googleEnabled }: LoginFormProps) {
+type LoginFormProps = {
+  googleEnabled: boolean;
+  error?: string | null;
+};
+
+export function LoginForm({ googleEnabled, error = null }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -59,6 +79,16 @@ export function LoginForm({ googleEnabled }: LoginFormProps) {
           Enter your email and we&rsquo;ll send you a magic link &mdash; no
           password needed.
         </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {ERROR_MESSAGES[error] ??
+              'Something went wrong signing in. Please try again.'}
+          </p>
+        )}
 
         <input
           name="email"
