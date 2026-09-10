@@ -8,6 +8,8 @@
 // or Redis. It is a speed bump against amplification, not a security boundary,
 // and nothing else should be built on it.
 
+import { resolveClientIp } from '@/lib/client-ip';
+
 type Window = { count: number; resetAt: number };
 
 const windows = new Map<string, Window>();
@@ -79,56 +81,15 @@ export function rateLimit(
 }
 
 /**
- * How many X-Forwarded-For entries were appended by our own infrastructure,
- * counting from the right.
- *
- * Each proxy appends the address it heard from, so the chain reads
- * "<whatever the client sent>, <client>, <proxy>, <proxy>…". Reading the
- * left-most entry — which is what this did — reads the part the client wrote,
- * so a caller could mint a new rate-limit identity per request just by varying
- * a header. Counting in from the right instead lands on the address a proxy we
- * trust actually observed.
- *
- * The live chain is Cloudflare -> Nginx Proxy Manager -> nginx -> app: NPM
- * appends Cloudflare's address and nginx appends NPM's, so two entries sit to
- * the right of the real client and this is 2. A stack with no proxy in front
- * leaves it at 0.
- */
-const TRUSTED_PROXY_HOPS = Math.max(
-  0,
-  Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? '0', 10) || 0
-);
-
-/**
  * The client address as reported by the last proxy we trust.
  *
- * Only for coarse throttling, never authorization. When the chain is shorter
- * than the configured hop count the request did not arrive the way we expect,
- * so it gets a single shared bucket rather than a spoofable identity — that
- * throttles harder, which is the safe direction to be wrong in.
+ * Only for coarse throttling, never authorization. The header handling — and
+ * the optional Cloudflare CF-Connecting-IP path — lives in client-ip.ts, shared
+ * with the authentication log so the two cannot disagree about who a request
+ * came from.
  */
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-
-  if (forwarded) {
-    const chain = forwarded
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-
-    const index = chain.length - 1 - TRUSTED_PROXY_HOPS;
-    if (index >= 0) return chain[index]!;
-
-    return 'unverified';
-  }
-
-  // Set by our own nginx from the connection, so it is only meaningful when
-  // nothing else is in front. With proxies configured, prefer a shared bucket.
-  if (TRUSTED_PROXY_HOPS === 0) {
-    return request.headers.get('x-real-ip')?.trim() || 'unknown';
-  }
-
-  return 'unverified';
+  return resolveClientIp((name) => request.headers.get(name));
 }
 
 /** Test seam — the map is module state that would otherwise leak between runs. */

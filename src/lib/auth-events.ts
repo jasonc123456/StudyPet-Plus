@@ -19,6 +19,7 @@
 
 import { headers } from 'next/headers';
 
+import { resolveClientIp } from '@/lib/client-ip';
 import { prisma } from '@/lib/prisma';
 import type { AuthEventType } from '@prisma/client';
 
@@ -35,14 +36,6 @@ export const AUTH_EVENT_RETENTION_DAYS = (() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 90;
 })();
 
-// Mirrors the trusted-hop handling in src/lib/rate-limit.ts. Duplicated as a
-// header-map reader rather than imported because Auth.js events hand us no
-// Request object — see requestContext() below.
-const TRUSTED_PROXY_HOPS = Math.max(
-  0,
-  Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? '0', 10) || 0
-);
-
 /** A user agent long enough to be abuse rather than information. */
 const MAX_USER_AGENT = 512;
 
@@ -57,25 +50,6 @@ export type AuthEventInput = {
   ip?: string | null;
   userAgent?: string | null;
 };
-
-function ipFromChain(forwarded: string | null, realIp: string | null): string {
-  if (forwarded) {
-    const chain = forwarded
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-
-    const index = chain.length - 1 - TRUSTED_PROXY_HOPS;
-    if (index >= 0) return chain[index]!;
-
-    // Shorter chain than configured: the request did not arrive the way we
-    // expect, so record that rather than a value an attacker chose.
-    return 'unverified';
-  }
-
-  if (TRUSTED_PROXY_HOPS === 0) return realIp?.trim() || 'unknown';
-  return 'unverified';
-}
 
 /**
  * Address and user agent of the request in flight.
@@ -92,7 +66,7 @@ export function requestContext(): {
   try {
     const h = headers();
     return {
-      ip: ipFromChain(h.get('x-forwarded-for'), h.get('x-real-ip')),
+      ip: resolveClientIp((name) => h.get(name)),
       userAgent: h.get('user-agent')?.slice(0, MAX_USER_AGENT) ?? null,
     };
   } catch {
