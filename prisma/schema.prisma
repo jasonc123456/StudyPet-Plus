@@ -596,6 +596,13 @@ model Note {
   content   String   @default("")
   pdfName   String?
   pdfUrl    String?
+  /// Size of the attached PDF in bytes.
+  ///
+  /// Recorded so per-account storage is a database sum rather than a stat() of
+  /// every file on every admin page render. Null means the size was never
+  /// captured — attachments predating this column whose file has since gone
+  /// missing — and is treated as unknown, not as zero.
+  pdfBytes  Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

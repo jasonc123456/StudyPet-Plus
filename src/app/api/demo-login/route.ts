@@ -31,6 +31,7 @@ import { jsonError, jsonOk } from '@/lib/api-response';
 // Shared with the AI entitlement check, which must recognise this account.
 import { DEMO_EMAIL } from '@/lib/demo-account';
 import { prisma } from '@/lib/prisma';
+import { recordAuthEvent } from '@/lib/auth-events';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
 
 // Always run on the server per request — never cache (it sets a cookie).
@@ -455,6 +456,19 @@ async function handleDemoLogin(request: Request) {
   await seedDemoPlannerIfStale(user.id);
 
   const { sessionToken, expires } = await getOrCreateDemoSession(user.id);
+
+  // This route mints a Session row itself rather than going through Auth.js, so
+  // none of the events in src/auth.ts fire for it. Without this the demo — the
+  // one entry point an anonymous stranger can use — was the only way into the
+  // app that left no trace in the authentication log.
+  await recordAuthEvent({
+    type: 'SIGN_IN',
+    userId: user.id,
+    email: user.email,
+    method: 'demo',
+    ip: clientIp(request),
+    userAgent: request.headers.get('user-agent'),
+  });
 
   // On HTTPS, NextAuth reads the __Secure- prefixed cookie; match that exactly
   // so getServerSession() picks up the session we just created.

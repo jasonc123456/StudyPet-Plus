@@ -1,0 +1,12 @@
+-- Record the size of a note's PDF attachment.
+--
+-- Attachment sizes only ever existed on disk: Note.pdfUrl points at a file and
+-- nothing stored how big it was, so "how much storage is this account using"
+-- could only be answered by stat()-ing every file the account owns. That is
+-- fine for one user's detail page and wrong for a list of twenty-five.
+--
+-- Nullable with no default and no backfill here: the true sizes live on the
+-- filesystem, which SQL cannot read. scripts/backfill-note-pdf-bytes.mjs fills
+-- them in, and until it runs (or for a file that has since gone missing) null
+-- reads as "unknown", which the admin console reports separately from zero.
+ALTER TABLE "Note" ADD COLUMN "pdfBytes" INTEGER;

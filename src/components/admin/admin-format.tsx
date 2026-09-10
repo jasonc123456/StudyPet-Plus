@@ -8,6 +8,29 @@
 
 import type { AdminActionType, AuthEventType } from '@prisma/client';
 
+/**
+ * Bytes as something an operator can compare at a glance.
+ *
+ * Binary units (KiB steps shown as KB) to match what `du` and the OS report,
+ * so a figure here lines up with what they would see on the volume. Null is
+ * "unknown", which is not the same statement as 0 B.
+ */
+export function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return 'unknown';
+  if (value === 0) return '0 B';
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(Math.abs(value)) / Math.log(1024))
+  );
+  const scaled = value / 1024 ** exponent;
+
+  // One decimal below 10 so 1.4 MB and 9.8 MB stay distinguishable, none above
+  // — "437 MB" reads faster than "437.2 MB" and the precision is noise.
+  return `${scaled < 10 && exponent > 0 ? scaled.toFixed(1) : Math.round(scaled)} ${units[exponent]}`;
+}
+
 export function formatDateTime(
   value: Date | string | null | undefined
 ): string {

@@ -65,6 +65,7 @@ export async function POST(request: Request) {
   }
 
   let finalizedPdfUrl: string | null = null;
+  let finalizedPdfBytes: number | null = null;
   if (pdfUrl || pdfName || pdfToken) {
     if (!pdfUrl || !pdfName || !pdfToken) {
       return jsonError(
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
         pdfToken,
       });
       finalizedPdfUrl = finalized.pdfUrl;
+      finalizedPdfBytes = finalized.byteSize;
     } catch (error) {
       const message =
         error instanceof Error
@@ -97,6 +99,7 @@ export async function POST(request: Request) {
       courseId,
       pdfName: pdfName ?? null,
       pdfUrl: finalizedPdfUrl,
+      pdfBytes: finalizedPdfBytes,
     },
     include: {
       course: { select: { id: true, name: true, color: true } },

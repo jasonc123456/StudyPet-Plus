@@ -249,10 +249,30 @@ export async function finalizeNotePdfUpload({
     }
   }
 
+  // Read the recorded size before the pending row goes away — it is the one
+  // place the byte count is already known, so carrying it out to the caller
+  // saves a stat() and keeps Note.pdfBytes accurate from the first write.
+  const pending = await prisma.pendingUpload.findUnique({
+    where: { id: uploadId },
+    select: { byteSize: true },
+  });
+
   await prisma.pendingUpload.deleteMany({ where: { id: uploadId } });
+
+  let byteSize = pending?.byteSize ?? null;
+  if (byteSize === null) {
+    // No pending row (a retried finalize, say). Fall back to the file itself
+    // rather than leaving the size unknown.
+    try {
+      byteSize = (await stat(destinationPath)).size;
+    } catch {
+      byteSize = null;
+    }
+  }
 
   return {
     pdfUrl: `${NOTE_PDF_ROUTE_PREFIX}${fileId}`,
+    byteSize,
   };
 }
 

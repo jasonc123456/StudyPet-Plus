@@ -5,6 +5,7 @@ import {
   Badge,
   authEventLabel,
   authEventTone,
+  formatBytes,
   formatDateTime,
   formatRelative,
   shortUserAgent,
@@ -146,6 +147,52 @@ export default async function AdminUserDetailPage({
           </section>
 
           <section className="card p-4">
+            <h3 className="mb-1 text-sm font-semibold">Storage</h3>
+            <p className="theme-muted mb-3 text-sm">
+              {formatBytes(user.storage.totalBytes)} across{' '}
+              {user.storage.attachments} attachment
+              {user.storage.attachments === 1 ? '' : 's'}
+              {user.storage.pendingBytes > 0 &&
+                ` · ${formatBytes(user.storage.pendingBytes)} not yet attached`}
+              {user.storage.unknownAttachments > 0 &&
+                ` · ${user.storage.unknownAttachments} of unknown size`}
+            </p>
+
+            {user.attachments.length === 0 ? (
+              <p className="theme-muted text-sm">
+                This account has no uploaded files.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2 text-sm">
+                {user.attachments.map((file) => (
+                  <li
+                    key={file.id}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      {file.pdfName ?? 'Attachment'}
+                      <span className="theme-muted ml-2 text-xs">
+                        {file.title}
+                      </span>
+                    </span>
+                    <span className="theme-muted shrink-0 text-xs">
+                      {formatBytes(file.pdfBytes)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {user.pendingUploads.length > 0 && (
+              <p className="theme-muted mt-3 text-xs">
+                {user.pendingUploads.length} pending upload
+                {user.pendingUploads.length === 1 ? '' : 's'} awaiting a note —
+                these are swept automatically once they expire.
+              </p>
+            )}
+          </section>
+
+          <section className="card p-4">
             <h3 className="mb-3 text-sm font-semibold">
               Sessions ({liveSessions.length} live)
             </h3>
@@ -170,7 +217,10 @@ export default async function AdminUserDetailPage({
                       )}
                     </span>
                     <span className="theme-muted text-xs">
-                      started {formatRelative(session.createdAt)} · expires{' '}
+                      {session.createdAtKnown
+                        ? `started ${formatRelative(session.createdAt)} · `
+                        : 'start time not recorded · '}
+                      {session.expired ? 'expired' : 'expires'}{' '}
                       {formatRelative(session.expires)}
                     </span>
                   </li>
@@ -185,7 +235,9 @@ export default async function AdminUserDetailPage({
             </h3>
             {user.events.length === 0 ? (
               <p className="theme-muted text-sm">
-                Nothing recorded yet for this account.
+                Nothing recorded yet for this account. Authentication logging
+                started on 9 September 2026 — sign-ins before that were never
+                captured, and this fills in the next time the user signs in.
               </p>
             ) : (
               <div className="overflow-x-auto">

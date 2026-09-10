@@ -19,6 +19,7 @@ type RouteContext = {
 type PdfResolution = {
   nextPdfName: string | null | undefined;
   nextPdfUrl: string | null | undefined;
+  nextPdfBytes: number | null | undefined;
 };
 
 export async function GET(_request: Request, { params }: RouteContext) {
@@ -145,6 +146,7 @@ async function resolvePdfUpdateFields(args: {
 
   let nextPdfUrl = pdfUrl;
   let nextPdfName = pdfName;
+  let nextPdfBytes: number | null | undefined;
 
   const pdfChanged =
     pdfUrl !== undefined &&
@@ -166,6 +168,7 @@ async function resolvePdfUpdateFields(args: {
         pdfToken,
       });
       nextPdfUrl = finalized.pdfUrl;
+      nextPdfBytes = finalized.byteSize;
     } catch (error) {
       return jsonError(pdfFinalizeErrorMessage(error), 400);
     }
@@ -174,9 +177,12 @@ async function resolvePdfUpdateFields(args: {
   if (pdfUrl === null) {
     nextPdfName = null;
     nextPdfUrl = null;
+    // Clearing the attachment clears its recorded size too, or the account
+    // would keep being billed for storage it no longer uses.
+    nextPdfBytes = null;
   }
 
-  return { nextPdfName, nextPdfUrl };
+  return { nextPdfName, nextPdfUrl, nextPdfBytes };
 }
 
 function pdfFinalizeErrorMessage(error: unknown): string {
@@ -201,6 +207,7 @@ async function persistNoteUpdate(args: {
       ...(courseId !== undefined && { courseId }),
       ...(pdfName !== undefined && { pdfName: pdf.nextPdfName ?? null }),
       ...(pdfUrl !== undefined && { pdfUrl: pdf.nextPdfUrl ?? null }),
+      ...(pdfUrl !== undefined && { pdfBytes: pdf.nextPdfBytes ?? null }),
     },
     include: {
       course: { select: { id: true, name: true, color: true } },

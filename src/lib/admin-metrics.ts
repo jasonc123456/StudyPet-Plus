@@ -24,6 +24,28 @@ function daysAgo(days: number): Date {
   return new Date(Date.now() - days * DAY_MS);
 }
 
+/**
+ * Bytes an account occupies on disk.
+ *
+ * Two sources: PDF attachments that belong to a note (Note.pdfBytes) and
+ * uploads written but not yet attached (PendingUpload.byteSize, swept after a
+ * couple of hours). Both are recorded numbers, so this is a database sum — the
+ * sizes are deliberately not stat()-ed here, or listing twenty-five accounts
+ * would mean hundreds of filesystem round trips per page render.
+ *
+ * `unknownAttachments` counts attachments whose size was never captured. They
+ * are reported separately rather than folded in as zero, because zero would
+ * assert the account uses no storage when the honest answer is that we do not
+ * know.
+ */
+export type StorageUsage = {
+  attachmentBytes: number;
+  pendingBytes: number;
+  totalBytes: number;
+  attachments: number;
+  unknownAttachments: number;
+};
+
 /** The account's effective daily allowance — mirrors ai/entitlement.ts. */
 function effectiveLimit(override: number | null): number {
   return typeof override === 'number' && override > 0
@@ -50,6 +72,10 @@ export type AdminOverview = {
   aiGenerations30d: number;
   usersWithAiUsageToday: number;
   mfaEnabledUsers: number;
+  storageBytes: number;
+  pendingStorageBytes: number;
+  storedAttachments: number;
+  unknownSizeAttachments: number;
 };
 
 export async function getAdminOverview(): Promise<AdminOverview> {
@@ -77,6 +103,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     aiToday,
     ai30d,
     mfaEnabledUsers,
+    attachmentTotals,
+    unknownSizeAttachments,
+    pendingTotals,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: 'ADMIN' } }),
@@ -117,6 +146,13 @@ export async function getAdminOverview(): Promise<AdminOverview> {
         ],
       },
     }),
+    prisma.note.aggregate({
+      where: { pdfBytes: { not: null } },
+      _sum: { pdfBytes: true },
+      _count: { _all: true },
+    }),
+    prisma.note.count({ where: { pdfUrl: { not: null }, pdfBytes: null } }),
+    prisma.pendingUpload.aggregate({ _sum: { byteSize: true } }),
   ]);
 
   return {
@@ -134,6 +170,12 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     aiGenerations30d: ai30d._sum.count ?? 0,
     usersWithAiUsageToday: aiToday._count.userId ?? 0,
     mfaEnabledUsers,
+    storageBytes:
+      (attachmentTotals._sum.pdfBytes ?? 0) +
+      (pendingTotals._sum.byteSize ?? 0),
+    pendingStorageBytes: pendingTotals._sum.byteSize ?? 0,
+    storedAttachments: attachmentTotals._count._all ?? 0,
+    unknownSizeAttachments,
   };
 }
 
@@ -157,6 +199,8 @@ export type AdminUserRow = {
   aiLimit: number;
   hasOverride: boolean;
   mfaEnabled: boolean;
+  storageBytes: number;
+  unknownAttachments: number;
 };
 
 export type AdminUserList = {
@@ -227,7 +271,14 @@ export async function listAdminUsers(options: {
     users.map((user) => [user.id, localDayKey(now, user.timezone)])
   );
 
-  const [lastSignIns, sessionCounts, usageRows] = await Promise.all([
+  const [
+    lastSignIns,
+    sessionCounts,
+    usageRows,
+    attachmentRows,
+    pendingRows,
+    unknownRows,
+  ] = await Promise.all([
     ids.length
       ? prisma.authEvent.groupBy({
           by: ['userId'],
@@ -251,6 +302,29 @@ export async function listAdminUsers(options: {
           select: { userId: true, day: true, count: true },
         })
       : [],
+    // Storage, batched the same way as everything else on this page: one
+    // grouped query per source rather than two per row.
+    ids.length
+      ? prisma.note.groupBy({
+          by: ['userId'],
+          where: { userId: { in: ids }, pdfBytes: { not: null } },
+          _sum: { pdfBytes: true },
+        })
+      : [],
+    ids.length
+      ? prisma.pendingUpload.groupBy({
+          by: ['userId'],
+          where: { userId: { in: ids } },
+          _sum: { byteSize: true },
+        })
+      : [],
+    ids.length
+      ? prisma.note.groupBy({
+          by: ['userId'],
+          where: { userId: { in: ids }, pdfUrl: { not: null }, pdfBytes: null },
+          _count: { _all: true },
+        })
+      : [],
   ]);
 
   const lastSignInByUser = new Map(
@@ -263,6 +337,15 @@ export async function listAdminUsers(options: {
     usageRows
       .filter((row) => dayByUser.get(row.userId) === row.day)
       .map((row) => [row.userId, row.count])
+  );
+  const attachmentBytesByUser = new Map(
+    attachmentRows.map((row) => [row.userId, row._sum.pdfBytes ?? 0])
+  );
+  const pendingBytesByUser = new Map(
+    pendingRows.map((row) => [row.userId, row._sum.byteSize ?? 0])
+  );
+  const unknownByUser = new Map(
+    unknownRows.map((row) => [row.userId, row._count._all])
   );
 
   return {
@@ -283,6 +366,10 @@ export async function listAdminUsers(options: {
       hasOverride: user.aiDailyLimitOverride !== null,
       mfaEnabled:
         user.totpActivatedAt !== null || user._count.authenticators > 0,
+      storageBytes:
+        (attachmentBytesByUser.get(user.id) ?? 0) +
+        (pendingBytesByUser.get(user.id) ?? 0),
+      unknownAttachments: unknownByUser.get(user.id) ?? 0,
     })),
     total,
     page,
@@ -335,46 +422,81 @@ export async function getAdminUserDetail(userId: string) {
   const now = new Date();
   const day = localDayKey(now, user.timezone);
 
-  const [sessions, events, usage, todayUsage] = await Promise.all([
-    prisma.session.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        createdAt: true,
-        expires: true,
-        mfaVerifiedAt: true,
-        impersonatedByUserId: true,
-      },
-    }),
-    prisma.authEvent.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        type: true,
-        method: true,
-        ip: true,
-        userAgent: true,
-        detail: true,
-        createdAt: true,
-      },
-    }),
-    prisma.aiUsage.findMany({
-      where: { userId, day: { gte: localDayKey(daysAgo(30), user.timezone) } },
-      orderBy: { day: 'asc' },
-      select: { day: true, count: true },
-    }),
-    prisma.aiUsage.findUnique({
-      where: { userId_day: { userId, day } },
-      select: { count: true },
-    }),
-  ]);
+  const [sessions, events, usage, todayUsage, attachments, pendingUploads] =
+    await Promise.all([
+      prisma.session.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          createdAt: true,
+          expires: true,
+          mfaVerifiedAt: true,
+          impersonatedByUserId: true,
+        },
+      }),
+      prisma.authEvent.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          type: true,
+          method: true,
+          ip: true,
+          userAgent: true,
+          detail: true,
+          createdAt: true,
+        },
+      }),
+      prisma.aiUsage.findMany({
+        where: {
+          userId,
+          day: { gte: localDayKey(daysAgo(30), user.timezone) },
+        },
+        orderBy: { day: 'asc' },
+        select: { day: true, count: true },
+      }),
+      prisma.aiUsage.findUnique({
+        where: { userId_day: { userId, day } },
+        select: { count: true },
+      }),
+      // Listed rather than summed: a detail page can afford to name the files,
+      // and "which note is holding 9 MB" is the question that actually follows
+      // from seeing a large number.
+      prisma.note.findMany({
+        where: { userId, pdfUrl: { not: null } },
+        orderBy: { pdfBytes: { sort: 'desc', nulls: 'last' } },
+        select: { id: true, title: true, pdfName: true, pdfBytes: true },
+      }),
+      prisma.pendingUpload.findMany({
+        where: { userId },
+        select: { id: true, byteSize: true, expiresAt: true },
+      }),
+    ]);
+
+  const attachmentBytes = attachments.reduce(
+    (sum, row) => sum + (row.pdfBytes ?? 0),
+    0
+  );
+  const pendingBytes = pendingUploads.reduce(
+    (sum, row) => sum + row.byteSize,
+    0
+  );
 
   return {
     ...user,
+    storage: {
+      attachmentBytes,
+      pendingBytes,
+      totalBytes: attachmentBytes + pendingBytes,
+      attachments: attachments.length,
+      unknownAttachments: attachments.filter((row) => row.pdfBytes === null)
+        .length,
+    } satisfies StorageUsage,
+    attachments,
+    pendingUploads,
     mfaEnabled: user.totpActivatedAt !== null || user._count.authenticators > 0,
     aiLimit: effectiveLimit(user.aiDailyLimitOverride),
     aiUsedToday: todayUsage?.count ?? 0,
@@ -383,6 +505,12 @@ export async function getAdminUserDetail(userId: string) {
     sessions: sessions.map((session) => ({
       ...session,
       expired: session.expires <= now,
+      // Session.createdAt was added after these rows existed, so the migration
+      // stamped every pre-existing session with the migration time. A session
+      // cannot have been created after it expired, so that comparison is a
+      // reliable tell — without it the UI reads "started 27 minutes ago,
+      // expired 23 days ago", which is nonsense the operator has to decode.
+      createdAtKnown: session.createdAt < session.expires,
     })),
     events,
   };

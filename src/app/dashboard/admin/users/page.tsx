@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import {
   Badge,
+  formatBytes,
   formatDateTime,
   formatRelative,
 } from '@/components/admin/admin-format';
@@ -103,6 +104,7 @@ export default async function AdminUsersPage({
                 <Th>Last sign-in</Th>
                 <Th>Sessions</Th>
                 <Th>AI today</Th>
+                <Th>Storage</Th>
               </tr>
             </thead>
             <tbody>

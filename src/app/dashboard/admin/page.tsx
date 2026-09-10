@@ -1,6 +1,10 @@
 import Link from 'next/link';
 
-import { Badge, formatRelative } from '@/components/admin/admin-format';
+import {
+  Badge,
+  formatBytes,
+  formatRelative,
+} from '@/components/admin/admin-format';
 import { StatTile } from '@/components/common/StatTile';
 import { getAdminOverview, listAuthActivity } from '@/lib/admin-metrics';
 import {
@@ -62,10 +66,9 @@ export default async function AdminOverviewPage() {
           tone="success"
         />
         <StatTile
-          icon="🚫"
-          value={overview.suspended}
-          label="Suspended"
-          tone={overview.suspended > 0 ? 'warning' : 'accent'}
+          icon="💾"
+          value={formatBytes(overview.storageBytes)}
+          label="Storage used"
         />
       </section>
 
@@ -83,6 +86,12 @@ export default async function AdminOverviewPage() {
           <Fact
             label="Accounts generating today"
             value={overview.usersWithAiUsageToday}
+          />
+          <Fact label="Suspended accounts" value={overview.suspended} />
+          <Fact label="Stored attachments" value={overview.storedAttachments} />
+          <Fact
+            label="Attachments of unknown size"
+            value={overview.unknownSizeAttachments}
           />
         </dl>
       </section>
