@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 
-import { cleanIcsText } from '@/lib/calendar-text';
+import { cleanIcsText, isMeetingEvent } from '@/lib/calendar-text';
 import { assignedTaskWhere, isMissingGroupTables } from '@/lib/groups';
 import { prisma } from '@/lib/prisma';
 import { fetchPublicText, SafeFetchError } from '@/lib/safe-fetch';
@@ -32,6 +32,8 @@ export type CalendarEvent = {
   subscriptionId: string | null;
   /** The user marked this feed event "not an assignment". */
   ignored: boolean;
+  /** A feed meeting (Zoom/Teams link, office hours) kept off the task list. */
+  meeting: boolean;
   /** This event is backed by an Assignment row created by auto-sync. */
   autoSynced: boolean;
 };
@@ -239,7 +241,8 @@ function isMissingCalendarSubscriptionTable(error: unknown) {
     error.code === 'P2021' &&
     typeof error.message === 'string' &&
     (error.message.includes('CalendarSubscription') ||
-      error.message.includes('CalendarIgnoredEvent'))
+      error.message.includes('CalendarIgnoredEvent') ||
+      error.message.includes('CalendarTrackedEvent'))
   );
 }
 
@@ -800,15 +803,36 @@ export function getSyncWindow(now = new Date()): SyncWindow {
  */
 export function isSyncableFeedEvent(
   event: ParsedIcsEvent,
-  ignoredUids: Set<string>,
+  decisions: FeedEventDecisions,
   window: SyncWindow
 ) {
   return (
     !event.rrule &&
-    !ignoredUids.has(event.uid) &&
+    !decisions.ignored.has(event.uid) &&
+    !isUntrackedMeeting(event, decisions) &&
     event.startsAt >= window.start &&
     event.startsAt <= window.end
   );
+}
+
+/** The user's per-UID overrides for one feed. */
+export type FeedEventDecisions = {
+  /** Marked "not a task". */
+  ignored: Set<string>;
+  /** Meetings the user asked to track as tasks anyway. */
+  tracked: Set<string>;
+};
+
+export function emptyFeedDecisions(): FeedEventDecisions {
+  return { ignored: new Set(), tracked: new Set() };
+}
+
+/** A meeting auto-sync leaves off the task list, unless the user opted it in. */
+export function isUntrackedMeeting(
+  event: ParsedIcsEvent,
+  decisions: FeedEventDecisions
+) {
+  return !decisions.tracked.has(event.uid) && isMeetingEvent(event);
 }
 
 type SubscriptionForFetch = {
@@ -826,7 +850,7 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
   subscription: T,
   rangeStart: Date,
   rangeEnd: Date,
-  ignoredUids: Set<string>,
+  decisions: FeedEventDecisions,
   timeZone: string | null,
   syncWindow: SyncWindow
 ) {
@@ -837,7 +861,7 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
     // rather than the visible grid: a class published today usually has its
     // deadlines in a month the student isn't looking at yet.
     const syncableUids = parsedEvents
-      .filter((event) => isSyncableFeedEvent(event, ignoredUids, syncWindow))
+      .filter((event) => isSyncableFeedEvent(event, decisions, syncWindow))
       .map((event) => event.uid);
 
     const budget = createExpansionBudget();
@@ -871,7 +895,8 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
         groupId: null,
         uid: event.uid,
         subscriptionId: subscription.id,
-        ignored: ignoredUids.has(event.uid),
+        ignored: decisions.ignored.has(event.uid),
+        meeting: isUntrackedMeeting(event, decisions),
         autoSynced: false,
       }));
 
@@ -985,27 +1010,41 @@ async function loadCalendarSubscriptions(userId: string) {
   }
 }
 
-/** Ignored feed UIDs keyed by subscription id. */
-async function loadIgnoredEventUids(userId: string) {
-  let rows: Array<{ subscriptionId: string; uid: string }> = [];
+/** Ignored and tracked feed UIDs keyed by subscription id. */
+async function loadFeedEventDecisions(userId: string) {
+  const decisions = new Map<string, FeedEventDecisions>();
+  let ignoredRows: Array<{ subscriptionId: string; uid: string }> = [];
+  let trackedRows: Array<{ subscriptionId: string; uid: string }> = [];
   try {
-    rows = await prisma.calendarIgnoredEvent.findMany({
-      where: { subscription: { userId } },
-      select: { subscriptionId: true, uid: true },
-    });
+    [ignoredRows, trackedRows] = await Promise.all([
+      prisma.calendarIgnoredEvent.findMany({
+        where: { subscription: { userId } },
+        select: { subscriptionId: true, uid: true },
+      }),
+      prisma.calendarTrackedEvent.findMany({
+        where: { subscription: { userId } },
+        select: { subscriptionId: true, uid: true },
+      }),
+    ]);
   } catch (error) {
-    if (isMissingCalendarSubscriptionTable(error)) {
-      return new Map<string, Set<string>>();
-    }
+    if (isMissingCalendarSubscriptionTable(error)) return decisions;
     throw error;
   }
 
-  return rows.reduce((acc, row) => {
-    const uids = acc.get(row.subscriptionId) ?? new Set<string>();
-    uids.add(row.uid);
-    acc.set(row.subscriptionId, uids);
-    return acc;
-  }, new Map<string, Set<string>>());
+  const forSubscription = (subscriptionId: string) => {
+    let entry = decisions.get(subscriptionId);
+    if (!entry) {
+      entry = emptyFeedDecisions();
+      decisions.set(subscriptionId, entry);
+    }
+    return entry;
+  };
+  for (const row of ignoredRows)
+    forSubscription(row.subscriptionId).ignored.add(row.uid);
+  for (const row of trackedRows)
+    forSubscription(row.subscriptionId).tracked.add(row.uid);
+
+  return decisions;
 }
 
 async function loadAssignedGroupTasks(
@@ -1142,7 +1181,7 @@ export async function getCalendarPageData(
     quests,
     groupTasks,
     subscriptions,
-    ignoredUids,
+    feedDecisions,
     personalEvents,
     syncedFeedRows,
   ] = await Promise.all([
@@ -1184,7 +1223,7 @@ export async function getCalendarPageData(
       ? loadAllGroupTasks(userId, gridStart, gridEnd)
       : loadAssignedGroupTasks(userId, gridStart, gridEnd),
     loadCalendarSubscriptions(userId),
-    loadIgnoredEventUids(userId),
+    loadFeedEventDecisions(userId),
     loadPersonalEvents(userId, gridStart, gridEnd),
     // Feed-backed assignments across *all* dates, not just the visible grid —
     // this answers "has auto-sync already claimed this feed event?", and a
@@ -1243,6 +1282,7 @@ export async function getCalendarPageData(
               uid: assignment.externalUid,
               subscriptionId: assignment.calendarSubscriptionId,
               ignored: false,
+              meeting: false,
               autoSynced: Boolean(assignment.calendarSubscriptionId),
             },
           ]
@@ -1274,6 +1314,7 @@ export async function getCalendarPageData(
               uid: null,
               subscriptionId: null,
               ignored: false,
+              meeting: false,
               autoSynced: false,
             },
           ]
@@ -1300,6 +1341,7 @@ export async function getCalendarPageData(
               uid: null,
               subscriptionId: null,
               ignored: false,
+              meeting: false,
               autoSynced: false,
             },
           ]
@@ -1323,6 +1365,7 @@ export async function getCalendarPageData(
       uid: null,
       subscriptionId: null,
       ignored: false,
+      meeting: false,
       autoSynced: false,
     })),
   ];
@@ -1337,7 +1380,7 @@ export async function getCalendarPageData(
         subscription,
         gridStart,
         gridEnd,
-        ignoredUids.get(subscription.id) ?? new Set(),
+        feedDecisions.get(subscription.id) ?? emptyFeedDecisions(),
         timeZone,
         syncWindow
       )

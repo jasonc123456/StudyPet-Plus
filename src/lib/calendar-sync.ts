@@ -9,20 +9,24 @@
 // lost its subscription link anyway (the FK is SetNull, so deleting a feed does
 // it) is re-adopted by externalUid on the next sync rather than re-imported.
 //
-// Two things are deliberately skipped:
+// Three things are deliberately skipped:
 //   - recurring events (RRULE), which are lectures/sections, not deliverables
 //   - UIDs in CalendarIgnoredEvent, which the user marked "not an assignment"
+//   - meetings (a Zoom/Teams link, office hours), unless the user opted that
+//     UID back in via CalendarTrackedEvent
 
 import {
   endOfDayInZone,
   fetchIcsEvents,
   getSyncWindow,
   isSyncableFeedEvent,
+  isUntrackedMeeting,
   type ParsedIcsEvent,
 } from '@/lib/calendar';
 import {
   cleanIcsText,
   guessAssignmentType,
+  isMeetingEvent,
   parseCourseCode,
 } from '@/lib/calendar-text';
 import { prisma } from '@/lib/prisma';
@@ -175,8 +179,12 @@ async function syncSubscription(
   // this, so an assignment outside the window is never mistaken for "removed".
   const feedUids = new Set(feedEvents.map((event) => event.uid));
 
-  const [ignored, existingRows, orphanRows] = await Promise.all([
+  const [ignored, tracked, existingRows, orphanRows] = await Promise.all([
     prisma.calendarIgnoredEvent.findMany({
+      where: { subscriptionId: subscription.id },
+      select: { uid: true },
+    }),
+    prisma.calendarTrackedEvent.findMany({
       where: { subscriptionId: subscription.id },
       select: { uid: true },
     }),
@@ -197,7 +205,10 @@ async function syncSubscription(
     }),
   ]);
 
-  const ignoredUids = new Set(ignored.map((row) => row.uid));
+  const decisions = {
+    ignored: new Set(ignored.map((row) => row.uid)),
+    tracked: new Set(tracked.map((row) => row.uid)),
+  };
   const existingByUid = new Map(
     existingRows.flatMap((row) =>
       row.externalUid ? [[row.externalUid, row]] : []
@@ -210,7 +221,7 @@ async function syncSubscription(
   );
 
   const syncable = feedEvents.filter((event) =>
-    isSyncableFeedEvent(event, ignoredUids, {
+    isSyncableFeedEvent(event, decisions, {
       start: windowStart,
       end: windowEnd,
     })
@@ -262,7 +273,9 @@ async function syncSubscription(
       data: {
         ...fields,
         courseId,
-        type: guessAssignmentType(fields.title),
+        type: isMeetingEvent(event)
+          ? 'meeting'
+          : guessAssignmentType(fields.title),
         calendarSubscriptionId: subscription.id,
         externalUid: event.uid,
       },
@@ -283,13 +296,21 @@ async function syncSubscription(
     });
   }
 
+  // Meetings that were imported as tasks before meeting detection existed (or
+  // after the user stopped tracking one). Same rule as below: untouched only.
+  const meetingUids = new Set(
+    feedEvents
+      .filter((event) => isUntrackedMeeting(event, decisions))
+      .map((event) => event.uid)
+  );
+
   // Dropped from the feed upstream. Only untouched ("todo") rows go — anything
   // the student started or finished stays as their record of the work.
   const staleIds = existingRows
     .filter(
       (row) =>
         row.externalUid !== null &&
-        !feedUids.has(row.externalUid) &&
+        (!feedUids.has(row.externalUid) || meetingUids.has(row.externalUid)) &&
         row.status === 'todo' &&
         row.dueAt !== null &&
         row.dueAt >= windowStart &&
@@ -299,6 +320,23 @@ async function syncSubscription(
 
   if (staleIds.length > 0) {
     await prisma.assignment.deleteMany({ where: { id: { in: staleIds } } });
+  }
+
+  // Meetings the student already ticked off stay, but stop posing as homework.
+  const startedMeetingIds = existingRows
+    .filter(
+      (row) =>
+        row.externalUid !== null &&
+        meetingUids.has(row.externalUid) &&
+        row.status !== 'todo'
+    )
+    .map((row) => row.id);
+
+  if (startedMeetingIds.length > 0) {
+    await prisma.assignment.updateMany({
+      where: { id: { in: startedMeetingIds }, type: 'homework' },
+      data: { type: 'meeting' },
+    });
   }
 
   await prisma.calendarSubscription.update({
@@ -419,6 +457,9 @@ export async function ignoreCalendarEvent(
     create: { subscriptionId, uid, title },
     update: { title },
   });
+  await prisma.calendarTrackedEvent.deleteMany({
+    where: { subscriptionId, uid },
+  });
 
   await prisma.assignment.deleteMany({
     where: {
@@ -432,7 +473,12 @@ export async function ignoreCalendarEvent(
 }
 
 /**
- * Undo an ignore, re-materializing the assignment right away.
+ * "Track as task": undo an ignore, or opt a detected meeting back in, and
+ * re-materialize the assignment right away.
+ *
+ * The tracked row is written for every event, not just meetings — the server
+ * can't tell which this is without the feed, and without it an ignored meeting
+ * would come back as a meeting instead of the task the user just asked for.
  *
  * The re-sync is forced rather than left to the next page view: ignoring an
  * event does not change `lastSyncedAt`, so the throttle above would skip the
@@ -443,7 +489,8 @@ export async function ignoreCalendarEvent(
 export async function unignoreCalendarEvent(
   userId: string,
   subscriptionId: string,
-  uid: string
+  uid: string,
+  title: string
 ) {
   const subscription = await prisma.calendarSubscription.findFirst({
     where: { id: subscriptionId, userId },
@@ -463,6 +510,11 @@ export async function unignoreCalendarEvent(
 
   await prisma.calendarIgnoredEvent.deleteMany({
     where: { subscriptionId, uid },
+  });
+  await prisma.calendarTrackedEvent.upsert({
+    where: { subscriptionId_uid: { subscriptionId, uid } },
+    create: { subscriptionId, uid, title },
+    update: { title },
   });
 
   if (subscription.autoSync) {

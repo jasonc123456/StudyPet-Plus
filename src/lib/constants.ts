@@ -27,6 +27,7 @@ export const ASSIGNMENT_TYPES = [
   { value: 'exam', label: 'Exam' },
   { value: 'project', label: 'Project' },
   { value: 'reading', label: 'Reading' },
+  { value: 'meeting', label: 'Meeting' },
   { value: 'other', label: 'Other' },
 ] as const;
 

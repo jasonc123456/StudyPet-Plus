@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   return jsonOk({ success: true });
 }
 
-/** Undo an ignore — the next sync re-creates the assignment. */
+/** "Track as task": undo an ignore or opt a meeting in, then re-sync. */
 export async function DELETE(request: Request) {
   const authResult = await requireUser();
   if (authResult instanceof NextResponse) return authResult;
@@ -56,7 +56,8 @@ export async function DELETE(request: Request) {
   const result = await unignoreCalendarEvent(
     authResult.user.id,
     parsed.data.subscriptionId,
-    parsed.data.uid
+    parsed.data.uid,
+    parsed.data.title
   );
 
   if (!result.ok) return jsonError(result.error, 404);

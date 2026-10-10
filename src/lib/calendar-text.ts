@@ -188,6 +188,33 @@ const TYPE_KEYWORDS: Array<{ type: string; pattern: RegExp }> = [
   },
 ];
 
+// Join links for the video platforms schools actually use. A link alone is the
+// strongest signal — titles vary ("TA Office Hour", "Yiyuan's Section") but a
+// deliverable rarely carries its own meeting room.
+const MEETING_LINK_PATTERN =
+  /\b(?:[\w-]+\.)?(?:zoom\.us\/(?:j|my|w|s)\/|zoomgov\.com\/j\/|teams\.microsoft\.com\/l\/meetup-join|teams\.live\.com\/meet|meet\.google\.com\/[a-z]|[\w-]+\.webex\.com\/|global\.gotomeeting\.com\/join|whereby\.com\/)/i;
+const MEETING_TITLE_PATTERN = /\b(office hours?|meeting|webinar)\b/i;
+
+// Canvas UIDs say what the event is: "event-assignment-123" is a deadline,
+// "event-calendar-event-123" is something on the course calendar.
+const CANVAS_ASSIGNMENT_UID = /^event-assignment-/i;
+
+/**
+ * Is this feed event a meeting rather than something to hand in? Meetings are
+ * kept off the task list by default. A Canvas assignment is never a meeting,
+ * even when its instructions link to a Zoom room.
+ */
+export function isMeetingEvent(event: {
+  uid: string;
+  summary: string;
+  description: string | null;
+}): boolean {
+  if (CANVAS_ASSIGNMENT_UID.test(event.uid)) return false;
+  if (MEETING_LINK_PATTERN.test(`${event.summary}\n${event.description ?? ''}`))
+    return true;
+  return MEETING_TITLE_PATTERN.test(event.summary);
+}
+
 /** Best-effort assignment type from the feed title. Falls back to homework. */
 export function guessAssignmentType(title: string): string {
   for (const { type, pattern } of TYPE_KEYWORDS) {

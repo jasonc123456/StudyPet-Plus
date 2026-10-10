@@ -45,6 +45,7 @@ type CalendarBrowserEvent = {
   uid: string | null;
   subscriptionId: string | null;
   ignored: boolean;
+  meeting: boolean;
   autoSynced: boolean;
 };
 
@@ -257,6 +258,14 @@ function SourceBadge({ event }: { event: ParsedEvent }) {
     );
   }
 
+  if (event.meeting) {
+    return (
+      <span className="shrink-0 rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600">
+        Meeting
+      </span>
+    );
+  }
+
   if (event.autoSynced) {
     return (
       <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-600">
@@ -422,13 +431,18 @@ export function CalendarBrowserView({
     return event.ignored || autoSyncIds.has(event.subscriptionId);
   }
 
+  /** Off the task list — ignored by the user, or a meeting auto-sync skipped. */
+  function isUntracked(event: ParsedEvent) {
+    return event.ignored || event.meeting;
+  }
+
   async function toggleIgnore(event: ParsedEvent) {
     setPendingEventId(event.id);
     setActionError(null);
 
     try {
       const response = await fetch('/api/calendar/ignores', {
-        method: event.ignored ? 'DELETE' : 'POST',
+        method: isUntracked(event) ? 'DELETE' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subscriptionId: event.subscriptionId,
@@ -1255,14 +1269,16 @@ export function CalendarBrowserView({
                         >
                           {pendingEventId === event.id
                             ? 'Saving…'
-                            : event.ignored
+                            : isUntracked(event)
                               ? 'Track as task'
                               : 'Not a task'}
                         </button>
                         <span className="text-xs text-slate-400">
                           {event.ignored
                             ? 'Skipped by auto-sync'
-                            : 'Hide from your tasks'}
+                            : event.meeting
+                              ? 'Meetings stay off your task list'
+                              : 'Hide from your tasks'}
                         </span>
                       </div>
                     )}

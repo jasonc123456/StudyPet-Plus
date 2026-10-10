@@ -332,7 +332,7 @@ model Assignment {
   description String?
   dueAt       DateTime? // planner sorts by this; nullable for "someday" items
   status      String    @default("todo") // todo | in_progress | done
-  type        String    @default("homework") // homework | exam | project | reading | other
+  type        String    @default("homework") // homework | exam | project | reading | meeting | other
   createdAt   DateTime  @default(now())
 
   calendarSubscriptionId String?
@@ -419,6 +419,7 @@ model CalendarSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   syncedAssignments Assignment[]
   ignoredEvents CalendarIgnoredEvent[]
+  trackedEvents CalendarTrackedEvent[]
 
   @@index([userId])
   @@unique([userId, icsUrl])
@@ -428,6 +429,22 @@ model CalendarSubscription {
 // an exam they don't want tracked). Auto-sync skips these UIDs forever; the
 // event still renders on the calendar, just greyed out and un-ignorable.
 model CalendarIgnoredEvent {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  uid            String
+  title          String
+  createdAt      DateTime @default(now())
+
+  subscription CalendarSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, uid])
+  @@index([subscriptionId])
+}
+
+// A feed event auto-sync classified as a meeting (a Zoom/Teams link, office
+// hours) that the user asked to track as a task anyway. Meetings are skipped by
+// default; a row here opts that one UID back in.
+model CalendarTrackedEvent {
   id             String   @id @default(cuid())
   subscriptionId String
   uid            String
