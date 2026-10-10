@@ -7,7 +7,7 @@ import {
 } from '@/lib/calendar-sync';
 import { calendarIgnoreSchema, zodFirstError } from '@/lib/validators';
 
-/** Mark a feed event "not an assignment" (a Zoom call, a lecture, an exam). */
+/** Mark a feed event "not an assignment", or with asMeeting, a meeting. */
 export async function POST(request: Request) {
   const authResult = await requireUser();
   if (authResult instanceof NextResponse) return authResult;
@@ -24,12 +24,13 @@ export async function POST(request: Request) {
     return jsonError(zodFirstError(parsed.error), 400);
   }
 
-  const { subscriptionId, uid, title } = parsed.data;
+  const { subscriptionId, uid, title, asMeeting } = parsed.data;
   const result = await ignoreCalendarEvent(
     authResult.user.id,
     subscriptionId,
     uid,
-    title
+    title,
+    asMeeting
   );
 
   if (!result.ok) return jsonError(result.error, 404);

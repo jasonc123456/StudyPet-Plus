@@ -428,11 +428,14 @@ model CalendarSubscription {
 // A feed event the user has marked "not an assignment" (a Zoom link, a lecture,
 // an exam they don't want tracked). Auto-sync skips these UIDs forever; the
 // event still renders on the calendar, just greyed out and un-ignorable.
+// asMeeting: the user said "track as meeting" — skipped the same way, but shown
+// as a meeting rather than struck through.
 model CalendarIgnoredEvent {
   id             String   @id @default(cuid())
   subscriptionId String
   uid            String
   title          String
+  asMeeting      Boolean  @default(false)
   createdAt      DateTime @default(now())
 
   subscription CalendarSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)

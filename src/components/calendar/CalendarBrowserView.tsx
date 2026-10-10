@@ -412,6 +412,7 @@ export function CalendarBrowserView({
 
   /** Assignments/feed events get the assignment status control; quests don't. */
   function hasStatusControl(event: ParsedEvent) {
+    if (event.meeting) return false;
     return event.source === 'assignment' || event.source === 'imported';
   }
 
@@ -436,18 +437,20 @@ export function CalendarBrowserView({
     return event.ignored || event.meeting;
   }
 
-  async function toggleIgnore(event: ParsedEvent) {
+  /** Untracked events go back to tasks; tasks go off the list, or to meetings. */
+  async function toggleIgnore(event: ParsedEvent, asMeeting = false) {
     setPendingEventId(event.id);
     setActionError(null);
 
     try {
       const response = await fetch('/api/calendar/ignores', {
-        method: isUntracked(event) ? 'DELETE' : 'POST',
+        method: isUntracked(event) && !asMeeting ? 'DELETE' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subscriptionId: event.subscriptionId,
           uid: event.uid,
           title: event.title,
+          asMeeting,
         }),
       });
 
@@ -1273,6 +1276,16 @@ export function CalendarBrowserView({
                               ? 'Track as task'
                               : 'Not a task'}
                         </button>
+                        {!event.meeting && (
+                          <button
+                            type="button"
+                            onClick={() => toggleIgnore(event, true)}
+                            disabled={pendingEventId === event.id}
+                            className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-sky-600 hover:border-sky-300 hover:text-sky-700 disabled:cursor-wait disabled:opacity-60"
+                          >
+                            Track as meeting
+                          </button>
+                        )}
                         <span className="text-xs text-slate-400">
                           {event.ignored
                             ? 'Skipped by auto-sync'

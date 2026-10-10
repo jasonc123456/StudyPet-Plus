@@ -821,17 +821,23 @@ export type FeedEventDecisions = {
   ignored: Set<string>;
   /** Meetings the user asked to track as tasks anyway. */
   tracked: Set<string>;
+  /** Marked "track as meeting" by hand — a subset of `ignored`. */
+  meetings: Set<string>;
 };
 
 export function emptyFeedDecisions(): FeedEventDecisions {
-  return { ignored: new Set(), tracked: new Set() };
+  return { ignored: new Set(), tracked: new Set(), meetings: new Set() };
 }
 
-/** A meeting auto-sync leaves off the task list, unless the user opted it in. */
+/**
+ * A meeting kept off the task list: one the user marked by hand, or one that
+ * looks like a meeting and the user hasn't opted in as a task.
+ */
 export function isUntrackedMeeting(
   event: ParsedIcsEvent,
   decisions: FeedEventDecisions
 ) {
+  if (decisions.meetings.has(event.uid)) return true;
   return !decisions.tracked.has(event.uid) && isMeetingEvent(event);
 }
 
@@ -895,7 +901,11 @@ async function fetchSubscriptionEvents<T extends SubscriptionForFetch>(
         groupId: null,
         uid: event.uid,
         subscriptionId: subscription.id,
-        ignored: decisions.ignored.has(event.uid),
+        // An ignored event that is a meeting reads as a meeting, not a
+        // struck-through task — both are off the list, but it still happens.
+        ignored:
+          decisions.ignored.has(event.uid) &&
+          !isUntrackedMeeting(event, decisions),
         meeting: isUntrackedMeeting(event, decisions),
         autoSynced: false,
       }));
@@ -1013,13 +1023,17 @@ async function loadCalendarSubscriptions(userId: string) {
 /** Ignored and tracked feed UIDs keyed by subscription id. */
 async function loadFeedEventDecisions(userId: string) {
   const decisions = new Map<string, FeedEventDecisions>();
-  let ignoredRows: Array<{ subscriptionId: string; uid: string }> = [];
+  let ignoredRows: Array<{
+    subscriptionId: string;
+    uid: string;
+    asMeeting: boolean;
+  }> = [];
   let trackedRows: Array<{ subscriptionId: string; uid: string }> = [];
   try {
     [ignoredRows, trackedRows] = await Promise.all([
       prisma.calendarIgnoredEvent.findMany({
         where: { subscription: { userId } },
-        select: { subscriptionId: true, uid: true },
+        select: { subscriptionId: true, uid: true, asMeeting: true },
       }),
       prisma.calendarTrackedEvent.findMany({
         where: { subscription: { userId } },
@@ -1039,8 +1053,11 @@ async function loadFeedEventDecisions(userId: string) {
     }
     return entry;
   };
-  for (const row of ignoredRows)
-    forSubscription(row.subscriptionId).ignored.add(row.uid);
+  for (const row of ignoredRows) {
+    const entry = forSubscription(row.subscriptionId);
+    entry.ignored.add(row.uid);
+    if (row.asMeeting) entry.meetings.add(row.uid);
+  }
   for (const row of trackedRows)
     forSubscription(row.subscriptionId).tracked.add(row.uid);
 

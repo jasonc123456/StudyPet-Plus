@@ -182,7 +182,7 @@ async function syncSubscription(
   const [ignored, tracked, existingRows, orphanRows] = await Promise.all([
     prisma.calendarIgnoredEvent.findMany({
       where: { subscriptionId: subscription.id },
-      select: { uid: true },
+      select: { uid: true, asMeeting: true },
     }),
     prisma.calendarTrackedEvent.findMany({
       where: { subscriptionId: subscription.id },
@@ -208,6 +208,9 @@ async function syncSubscription(
   const decisions = {
     ignored: new Set(ignored.map((row) => row.uid)),
     tracked: new Set(tracked.map((row) => row.uid)),
+    meetings: new Set(
+      ignored.filter((row) => row.asMeeting).map((row) => row.uid)
+    ),
   };
   const existingByUid = new Map(
     existingRows.flatMap((row) =>
@@ -437,12 +440,16 @@ async function runUserCalendarSync(
  * Mark a feed event "not an assignment": record the UID so future syncs skip it,
  * and drop the assignment row this sync already created (unless the student has
  * started it — then we leave their work alone and just stop re-creating it).
+ *
+ * `asMeeting` is "track as meeting": skipped the same way, but shown as a
+ * meeting, and a row the student already started is relabelled one.
  */
 export async function ignoreCalendarEvent(
   userId: string,
   subscriptionId: string,
   uid: string,
-  title: string
+  title: string,
+  asMeeting = false
 ) {
   const subscription = await prisma.calendarSubscription.findFirst({
     where: { id: subscriptionId, userId },
@@ -454,8 +461,8 @@ export async function ignoreCalendarEvent(
 
   await prisma.calendarIgnoredEvent.upsert({
     where: { subscriptionId_uid: { subscriptionId, uid } },
-    create: { subscriptionId, uid, title },
-    update: { title },
+    create: { subscriptionId, uid, title, asMeeting },
+    update: { title, asMeeting },
   });
   await prisma.calendarTrackedEvent.deleteMany({
     where: { subscriptionId, uid },
@@ -468,6 +475,13 @@ export async function ignoreCalendarEvent(
       status: 'todo',
     },
   });
+
+  if (asMeeting) {
+    await prisma.assignment.updateMany({
+      where: { calendarSubscriptionId: subscriptionId, externalUid: uid },
+      data: { type: 'meeting' },
+    });
+  }
 
   return { ok: true as const };
 }

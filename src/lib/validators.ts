@@ -264,6 +264,7 @@ export const calendarIgnoreSchema = z.object({
   subscriptionId: z.string().trim().min(1, 'Calendar connection is required'),
   uid: z.string().trim().min(1, 'Event id is required').max(500),
   title: z.string().trim().max(300).optional().default('Untitled event'),
+  asMeeting: z.boolean().optional().default(false),
 });
 
 export const calendarSyncSchema = z.object({
